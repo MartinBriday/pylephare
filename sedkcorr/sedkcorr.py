@@ -2,6 +2,8 @@
 import pandas
 import numpy as np
 import matplotlib.pyplot as plt
+plt.rc('text', usetex=True)
+
 from astropy import units
 from sncosmo import bandpasses
 
@@ -32,7 +34,7 @@ def mag_to_flux_err(mag, mag_err, mag0_err=0.005):
 
 
 
-class KCorrection( BaseObject ):
+class SED( BaseObject ):
     """
     LePhare SED fits
     """
@@ -112,10 +114,45 @@ class KCorrection( BaseObject ):
         for band in self.FILTER_BANDS:
             self.kcorr_data[band]["mag"] = -9999999. #TO BE DONE
     
-    def show(self, ):
+    def show(self, y_plot="flux", sed_shifted=True, plot_bandpasses=False, plot_filter_points=True, xlim=(None, None), ylim=(None, None)):
         """
         
         """
+        x_sed = self.sed_shifted["lbda"] if sed_shifted else self.sed_data["lbda"]
+        
+        if y_plot == "flux":
+            y_sed = self.sed_shifted["flux"] if sed_shifted else self.sed_data["flux"]
+        elif y_plot == "mag":
+            y_sed = self.sed_shifted["mag"] if sed_shifted else self.sed_data["mag"]
+        
+        fig, ax = plt.subplots()
+        opt_sed = {"ls":"-", "marker":"", color="0.4"}
+        ax.plot(x_sed, y_sed, **opt_sed)
+        
+        ax.set_xlim(xlim)
+        ax.set_xlim(ylim)
+        ax_ylim = ax.get_ylim()
+        if y_plot=="flux":
+            ax_ylim[0] = (0., ax_ylim[1])
+            
+        ax.axhline(ax_ylim[0], color="black", zorder=5)
+            
+        if plot_bandpasses:
+            for band in self.FILTER_BANDS:
+                ax.plot(self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]*(ax_ylim[1]-ax_ylim[0]) + ax_ylim[0], 
+                        ls='-', marker='', color=self.COLOR_INFO[band])
+        
+        if plot_filter_points:
+            for band in self.FILTER_BANDS:
+                x_point = self.LBDA_INFO[band]
+                if y_plot == "mag":
+                    y_point = self.kcorr_data[band]["mag"] if sed_shifted else self.meas_data[band]["mag"]
+                    y_err_point = self.kcorr_data[band]["mag.err"] if sed_shifted else self.meas_data[band]["mag.err"]
+                ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=self.COLOR_INFO[band])
+        
+        ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
+        ax.set_ylabel(("${m}_{AB}$" if y_plot=="mag" else r"${f}_{\nu}$ $[erg.{s}^{-1}.{cm}^{-2}.{Hz}^{-1}]$"), fontsize="large")
+        
         
     
     
@@ -166,6 +203,29 @@ class KCorrection( BaseObject ):
     
     
 
+
+class KCorrection( BaseObject ):
+    """
+    Kcorrection based on LePhare SED fits.
+    """
+    
+    PROPERTIES         = []
+    SIDE_PROPERTIES    = []
+    DERIVED_PROPERTIES = []
+    
+    def set_data(self):
+        """
+        
+        """
+        #Measurements table
+        
+        #Spectra directory
+        
+    def k_correction(self):
+        """
+        
+        """
+        #return a new table with k corrected magnitudes.
 
 
 

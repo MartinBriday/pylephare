@@ -3,13 +3,16 @@ import pandas
 import numpy as np
 import matplotlib.pyplot as plt
 
+from . import sed_lephare
+from propobject import BaseObject
+
 
 
 
 
 class KCorrection( BaseObject ):
     """
-    Kcorrection based on LePhare SED fits.
+    Kcorrection based on SED fits.
     """
     
     PROPERTIES         = []
@@ -21,6 +24,7 @@ class KCorrection( BaseObject ):
         
         """
         #Measurements table
+        
         
         #Spectra directory
         

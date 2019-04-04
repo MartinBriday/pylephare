@@ -1,6 +1,7 @@
 
 import pandas as pd
 import numpy as np
+from astropy import units
 import matplotlib.pyplot as plt
 plt.rc('text', usetex=True)
 import os
@@ -14,6 +15,17 @@ from propobject import BaseObject
 
 
 
+MAG_0_INFO = {"FUV":np.log10(1.40e-15) + 0.4 * 18.82, 
+              "NUV":np.log10(2.06e-16) + 0.4 * 20.08, 
+              "u":-8.056, "g":-8.326, "r":-8.555, "i":-8.732, "z":-8.882}
+    
+FILTER_BANDS = ["FUV", "NUV", "u", "g", "r", "i", "z"]
+
+LBDA_INFO = {"FUV":1539, "NUV":2316, "u":3562, "g":4719, "r":6185, "i":7500, "z":8961}
+
+COLOR_INFO = {"FUV":"xkcd:purple", "NUV":"xkcd:violet", "u":"xkcd:blue", "g":"xkcd:green", "r":"xkcd:red", "i":"xkcd:cyan", "z":"xkcd:magenta"}
+
+
 # ----------------- #
 #                   #
 #  Functions        #
@@ -25,11 +37,41 @@ def lbda_z0(lbda, z):
 def flux_z0(flux, z):
     return flux*(1+z)**2
 
-def mag_to_flux(mag):
+def sed_mag_to_flux(mag):
     return np.power(10, (mag + 48.585)/(-2.5))
 
-def mag_to_flux_err(mag, mag_err, mag0_err=0.005):
-    return (mag_to_flux(mag)*np.log(10)/(-2.5))*np.sqrt(mag_err**2 + mag0_err**2)
+def sed_mag_to_flux_err(mag, mag_err, mag0_err=0.005):
+    return (0.4 * np.log(10) * mag_to_flux(mag))*np.sqrt(mag_err**2 + mag0_err**2)
+    
+def sed_flux_to_mag(flux):
+    return -2.5 * np.log10(flux) - 48.585
+
+def band_flux_to_mag(flux, band):
+    flux = flux_nu_to_flux_lbda(flux, LBDA_INFO[band])
+    return -2.5 * (np.log10(flux) - MAG_0_INFO[band])
+
+def band_flux_to_mag_err(flux, flux_err, band):
+    flux = flux_nu_to_flux_lbda(flux, LBDA_INFO[band])
+    flux_err = flux_nu_to_flux_lbda(flux_err, LBDA_INFO[band])
+    return (2.5 / (np.log(10) * flux)) * flux_err
+
+def band_mag_to_flux(mag, band):
+    flux = 10**(MAG_0_INFO[band] - 0.4*mag)
+    return flux_lbda_to_flux_nu(flux, LBDA_INFO[band])
+
+def band_mag_to_flux_err(mag, mag_err, band):
+    flux_err = 0.4 * np.log(10) * band_mag_to_flux(mag, band) * mag_err
+    return flux_lbda_to_flux_nu(flux_err, LBDA_INFO[band])
+
+def flux_nu_to_flux_lbda(flux_nu, band_lbda):
+    flux_nu = flux_nu * units.erg / units.s / units.cm**2 / units.Hz
+    flux_lbda = flux_nu.to(units.erg / units.s / units.cm**2 / units.AA, equivalencies=units.spectral_density(band_lbda * units.AA))
+    return flux_lbda.value
+
+def flux_lbda_to_flux_nu(flux_lbda, band_lbda):
+    flux_lbda = flux_lbda * units.erg / units.s / units.cm**2 / units.AA
+    flux_nu = flux_lbda.to(units.erg / units.s / units.cm**2 / units.Hz, equivalencies=units.spectral_density(band_lbda * units.AA))
+    return flux_nu.value
 
 
 
@@ -45,23 +87,23 @@ class SED( BaseObject ):
     SIDE_PROPERTIES    = ["filter_bandpass_path"]
     DERIVED_PROPERTIES = ["sed_shifted", "kcorr_data"]
     
-    FILTER_BANDS = ["FUV", "NUV", "u", "g", "r", "i", "z"]
-
-    LBDA_INFO = {"FUV":1539, "NUV":2316, "u":3562, "g":4719, "r":6185, "i":7500, "z":8961}
-
-    COLOR_INFO = {"FUV":"xkcd:purple", "NUV":"xkcd:violet", "u":"xkcd:blue", "g":"xkcd:green", "r":"xkcd:red", "i":"xkcd:cyan", "z":"xkcd:magenta"}
-    
-    def set_sed_data(self, sed_filename=None, sed_data=None, nrows=1057):
+    def set_sed_data(self, sed_index=None, sed_data=None, sed_dir=None):
         """
         
         """
-        if sed_filename is not None and sed_data is None:
-            self._properties["sed_data"] = pd.read_table(sed_filename, skiprows=20, names=["lbda", "mag"], sep="  ", engine="python", nrows=nrows)
-        elif sed_filename is None and sed_data is not None:
-            self._properties["sed_data"] = sed_pandas
+        if sed_index is not None and sed_data is None:
+            if sed_dir is None:
+                raise ValueError("You did not input the sprectrum directory.")
+            sed_index = str(sed_index)
+            while len(sed_index)<9:
+                sed_index = "0"+sed_index
+            sed_filename = "Id"+sed_index+".spec"
+            self._properties["sed_data"] = pd.read_table(sed_dir+sed_filename, skiprows=20, names=["lbda", "mag"], sep="  ", engine="python", nrows=1057)
+        elif sed_index is None and sed_data is not None:
+            self._properties["sed_data"] = sed_data
         else:
-            raise ValueError("You must input one (and only one) data set option : the filename directory or a DataFrame with columns = ['lbda', 'mag'].")
-        self.sed_data["flux"] = mag_to_flux(self.sed_data["mag"])
+            raise ValueError("You must input one (and only one) data set option : the spectrum index or a DataFrame with columns = ['lbda', 'mag'].")
+        self.sed_data["flux"] = sed_mag_to_flux(self.sed_data["mag"])
     
     def set_filter_bandpass_path(self):
         """
@@ -76,7 +118,7 @@ class SED( BaseObject ):
         """
         
         """
-        opt_bands = self.FILTER_BANDS if opt_bands is None else opt_bands if type(opt_bands)==list else [opt_bands]
+        opt_bands = FILTER_BANDS if opt_bands is None else opt_bands if type(opt_bands)==list else [opt_bands]
         list_sdss_bands = ["u", "g", "r", "i", "z"]
         if from_sncosmo:
             self._properties["filter_bandpass"] = {band:pd.DataFrame({"lbda":bandpasses.get_bandpass("sdss"+band).wave, 
@@ -99,10 +141,10 @@ class SED( BaseObject ):
         
         self._properties["meas_data"] = {band:{"mag":meas_data[col_syntax[0].replace("band",band)], 
                                                "mag.err":meas_data[col_syntax[1].replace("band",band)], 
-                                               "flux":mag_to_flux(meas_data[col_syntax[0].replace("band",band)]), 
-                                               "flux.err":mag_to_flux_err(meas_data[col_syntax[0].replace("band",band)], 
-                                                                          meas_data[col_syntax[1].replace("band",band)])}
-                                         for band in self.FILTER_BANDS}
+                                               "flux":band_mag_to_flux(meas_data[col_syntax[0].replace("band",band)], band), 
+                                               "flux.err":band_mag_to_flux_err(meas_data[col_syntax[0].replace("band",band)], 
+                                                                               meas_data[col_syntax[1].replace("band",band)], band)}
+                                         for band in FILTER_BANDS}
         
         self._properties["z"] = z
     
@@ -112,6 +154,7 @@ class SED( BaseObject ):
         """
         self._derived_properties["sed_shifted"] = pd.DataFrame({"lbda":lbda_z0(self.sed_data["lbda"], self.z), 
                                                                 "flux":flux_z0(self.sed_data["flux"], self.z)})
+        self.sed_shifted["mag"] = pd.Series(sed_flux_to_mag(self.sed_shifted["flux"]))
     
     def k_correction(self):
         """
@@ -121,9 +164,9 @@ class SED( BaseObject ):
                                                         "flux":spectroscopy.synthesize_photometry(self.sed_shifted["lbda"], self.sed_shifted["flux"], 
                                                                                                   self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]), 
                                                         "flux.err":self.meas_data[band]["flux.err"]}
-                                                  for band in self.FILTER_BANDS}
-        for band in self.FILTER_BANDS:
-            self.kcorr_data[band]["mag"] = -9999999. #TO BE DONE
+                                                  for band in FILTER_BANDS}
+        for band in FILTER_BANDS:
+            self.kcorr_data[band]["mag"] = band_flux_to_mag(self.kcorr_data[band]["flux"], band)
     
     def show(self, y_plot="flux", sed_shifted=True, plot_bandpasses=False, plot_filter_points=True, xlim=(None, None), ylim=(None, None), save_fig=False, save_dir=None):
         """
@@ -137,7 +180,7 @@ class SED( BaseObject ):
         ax.plot(x_sed, y_sed, **opt_sed)
         
         ax.set_xlim(xlim)
-        ax.set_xlim(ylim)
+        ax.set_ylim(ylim)
         ax_ylim = ax.get_ylim()
         if y_plot=="flux":
             ax_ylim = (0., ax_ylim[1])
@@ -145,16 +188,16 @@ class SED( BaseObject ):
         ax.axhline(ax_ylim[0], color="black", zorder=5)
             
         if plot_bandpasses:
-            for band in self.FILTER_BANDS:
+            for band in FILTER_BANDS:
                 ax.plot(self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]*(ax_ylim[1]-ax_ylim[0]) + ax_ylim[0], 
-                        ls='-', marker='', color=self.COLOR_INFO[band])
+                        ls='-', marker='', color=COLOR_INFO[band])
         
         if plot_filter_points:
-            for band in self.FILTER_BANDS:
-                x_point = self.LBDA_INFO[band]
+            for band in FILTER_BANDS:
+                x_point = LBDA_INFO[band]
                 y_point = self.kcorr_data[band][y_plot] if sed_shifted else self.meas_data[band][y_plot]
                 y_err_point = self.kcorr_data[band][y_plot+".err"] if sed_shifted else self.meas_data[band][y_plot+".err"]
-                ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=self.COLOR_INFO[band])
+                ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=COLOR_INFO[band])
         
         ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
         ax.set_ylabel(("${m}_{AB}$" if y_plot=="mag" else r"${f}_{\nu}$ $[erg.{s}^{-1}.{cm}^{-2}.{Hz}^{-1}]$"), fontsize="large")

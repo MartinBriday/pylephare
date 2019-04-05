@@ -15,6 +15,8 @@ from propobject import BaseObject
 
 
 
+
+
 MAG_0_INFO = {"FUV":np.log10(1.40e-15) + 0.4 * 18.82, 
               "NUV":np.log10(2.06e-16) + 0.4 * 20.08, 
               "u":-8.056, "g":-8.326, "r":-8.555, "i":-8.732, "z":-8.882}
@@ -35,7 +37,7 @@ def lbda_z0(lbda, z):
     return lbda/(1+z)
 
 def flux_z0(flux, z):
-    return flux*(1+z)**2
+    return flux*(1+z)**3
 
 def sed_mag_to_flux(mag):
     return np.power(10, (mag + 48.585)/(-2.5))
@@ -90,7 +92,27 @@ class SED( BaseObject ):
     
     def set_sed_data(self, sed_index=None, sed_data=None, sed_dir=None):
         """
+        Load the SED spectrum.
         
+        Parameters
+        ----------
+        sed_index : [int or None]
+            Object SED file index.
+            A SED directory is needed to be usable (sed_dir)
+            You can not use both sed_index and sed_data.
+        
+        sed_data : [pandas.DataFrame or None]
+            Object SED data input in a DataFrame.
+            You can not use both sed_data and sed_index.
+        
+        sed_dir : [string]
+            Path to the SED files folder.
+            Needed if sed_index used.
+        
+        
+        Returns
+        -------
+        Void
         """
         if sed_index is not None and sed_data is None:
             if sed_dir is None:
@@ -108,7 +130,12 @@ class SED( BaseObject ):
     
     def set_filter_bandpass_path(self):
         """
+        Set the path to filter bandpasses data, included in the package.
         
+        
+        Returns
+        -------
+        Void
         """
         self._side_properties["filter_bandpass_path"] = {band:pkg_resources.resource_filename(__name__, "filter_bandpass/SLOAN_SDSS."+band+".dat") 
                                                          for band in ["u", "g", "r", "i", "z"]}
@@ -117,7 +144,22 @@ class SED( BaseObject ):
     
     def set_filter_bandpass(self, opt_bands=None, from_sncosmo=False):
         """
+        Load filter bandpasses data.
         
+        Options
+        -------
+        opt_bands : [list[string] or None]
+            Optionnal list of bands to load filter bandpass data.
+        
+        from_sncosmo : [bool]
+            If True, filter bandpass data will be loaded from sncosmo package.
+            Else, loaded from tables included in the packages, downloaded from "http://svo2.cab.inta-csic.es/svo/theory/fps3/"
+            Default is False.
+        
+        
+        Returns
+        -------
+        Void
         """
         opt_bands = FILTER_BANDS if opt_bands is None else opt_bands if type(opt_bands)==list else [opt_bands]
         list_sdss_bands = ["u", "g", "r", "i", "z"]
@@ -135,7 +177,17 @@ class SED( BaseObject ):
     
     def context_filters(self, context):
         """
+        Return a list of the concerned filter bands relative to the given context.
         
+        Parameters
+        ----------
+        context : [int]
+            LePhare type context, it defines the used filter bands for the SED fitting.
+        
+        
+        Returns
+        -------
+        list(string)
         """
         idx = []
         for ii in range(len(FILTER_BANDS)-1,-1,-1):
@@ -146,7 +198,32 @@ class SED( BaseObject ):
     
     def set_meas_data(self, meas_data=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None):
         """
+        Set the host redshift and the measured magnitudes for every filter bands used in SED fitting.
         
+        Parameters
+        ----------
+        meas_data : [table like]
+            Table like (eg : DataFrame line) of the measurements.
+        
+        z : [float or None]
+            Redshift of the SNeIa host.
+            If None, the redshift is supposed to be in the meas_data table under the name "Z-SPEC".
+            Default is None.
+        
+        col_syntax : [list[string]]
+            Syntax of measurements and errors column names in the meas_data table.
+            Replace the filter band in the column names with the word "band" (eg: ["mag_band", "mag_band_err"]).
+        
+        Options
+        -------
+        list_bands : [list[string] or None]
+            List of the filter bands used in SED fitting.
+            If None, the LePhare context set list_bands. The context is supposed to be in the meas_data table under the name "CONTEXT".
+        
+        
+        Returns
+        -------
+        Void
         """
         self._side_properties["list_bands"] = self.context_filters(meas_data["CONTEXT"]) if list_bands is None else list_bands
         z = z if z is not None else meas_data["Z-SPEC"]
@@ -163,7 +240,12 @@ class SED( BaseObject ):
     
     def shift_sed(self):
         """
+        Shift the SED spectrum to redshift zero.
         
+        
+        Returns
+        -------
+        Void
         """
         self._derived_properties["sed_shifted"] = pd.DataFrame({"lbda":lbda_z0(self.sed_data["lbda"], self.z), 
                                                                 "flux":flux_z0(self.sed_data["flux"], self.z)})
@@ -171,7 +253,13 @@ class SED( BaseObject ):
     
     def k_correction(self):
         """
+        Recover the integrated flux from every filter bands from the shifted SED.
+        Then convert them into magnitudes.
         
+        
+        Returns
+        -------
+        Void
         """
         self._derived_properties["kcorr_data"] = {band:{"flux":spectroscopy.synthesize_photometry(self.sed_shifted["lbda"], self.sed_shifted["flux"], 
                                                                                                   self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])}
@@ -189,6 +277,42 @@ class SED( BaseObject ):
     
     def show(self, y_plot="flux", sed_shifted=True, plot_bandpasses=False, plot_filter_points=True, xlim=(None, None), ylim=(None, None), save_fig=False, save_dir=None):
         """
+        Plot method.
+        
+        Parameters
+        ----------
+        y_plot : [string]
+            Choice to plot "flux" or "mag".
+        
+        sed_shifted : [bool]
+            If True, the SED is shifted to redshift zero.
+            Else, the LePhare fitted SED is plotted.
+        
+        Options
+        -------
+        plot_bandpasses : [bool]
+            If True, plot the filter bandpass transmitions.
+        
+        plot_filter_points : [bool]
+            If True, plot the filter points with errors, either in flux or in magnitude.
+        
+        xlim : [tuple[float or None]]
+            Set the limits on the x axis.
+            If (None, None), the figure has free x axis limits.
+        
+        ylim : [tuple[float or None]]
+            Set the limits on the y axis.
+            If (None, None), the figure has free y axis limits.
+        
+        save_fig : [bool]
+            If True, the plot will be saved in the given directory.
+        
+        save_dir : [string or None]
+            Directory where the figure will be saved.
+            If None, the default value is the Desktop (Unix users...).
+        
+        Returns
+        -------
         
         """
         x_sed = self.sed_shifted["lbda"] if sed_shifted else self.sed_data["lbda"]
@@ -242,50 +366,50 @@ class SED( BaseObject ):
     # ================ #
     @property
     def sed_data(self):
-        """  """
+        """ DataFrame of the the SED fit data """
         return self._properties["sed_data"]
     
     @property
     def filter_bandpass(self):
-        """  """
+        """ Dictionnary of DataFrame of the bandpass data for every filter band """
         if self._properties["filter_bandpass"] is None:
             self.set_filter_bandpass()
         return self._properties["filter_bandpass"]
     
     @property
     def meas_data(self):
-        """  """
+        """ Table like of the measurements """
         if self._properties["meas_data"] is None:
             self._properties["meas_data"] = {}
         return self._properties["meas_data"]
     
     @property
     def z(self):
-        """  """
+        """ SNeIa host redshift """
         return self._properties["z"]
     
     @property
     def filter_bandpass_path(self):
-        """  """
+        """ Dictionnary of paths for every filter badpass data """
         if self._side_properties["filter_bandpass_path"] is None:
             self.set_filter_bandpass_path()
         return self._side_properties["filter_bandpass_path"]
     
     @property
     def list_bands(self):
-        """  """
+        """ List of the filter bands used in SED fitting """
         return self._side_properties["list_bands"]
     
     @property
     def sed_shifted(self):
-        """  """
+        """ Dataframe of the shifted to redshift zero SED """
         if self._derived_properties["sed_shifted"] is None:
             self.shift_sed()
         return self._derived_properties["sed_shifted"]
     
     @property
     def kcorr_data(self):
-        """  """
+        """ Table of k corrected data """
         if self._derived_properties["kcorr_data"] is None:
             self.k_correction()
         return self._derived_properties["kcorr_data"]

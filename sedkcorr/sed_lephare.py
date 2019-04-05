@@ -60,7 +60,8 @@ def band_mag_to_flux(mag, band):
     return flux_lbda_to_flux_nu(flux, LBDA_INFO[band])
 
 def band_mag_to_flux_err(mag, mag_err, band):
-    flux_err = 0.4 * np.log(10) * band_mag_to_flux(mag, band) * mag_err
+    flux = band_mag_to_flux(mag, band)
+    flux_err = 0.4 * np.log(10) * flux_nu_to_flux_lbda(flux, LBDA_INFO[band]) * mag_err
     return flux_lbda_to_flux_nu(flux_err, LBDA_INFO[band])
 
 def flux_nu_to_flux_lbda(flux_nu, band_lbda):
@@ -84,7 +85,7 @@ class SED( BaseObject ):
     """
     
     PROPERTIES         = ["sed_data", "filter_bandpass", "meas_data", "z"]
-    SIDE_PROPERTIES    = ["filter_bandpass_path"]
+    SIDE_PROPERTIES    = ["filter_bandpass_path", "list_bands"]
     DERIVED_PROPERTIES = ["sed_shifted", "kcorr_data"]
     
     def set_sed_data(self, sed_index=None, sed_data=None, sed_dir=None):
@@ -98,7 +99,7 @@ class SED( BaseObject ):
             while len(sed_index)<9:
                 sed_index = "0"+sed_index
             sed_filename = "Id"+sed_index+".spec"
-            self._properties["sed_data"] = pd.read_table(sed_dir+sed_filename, skiprows=20, names=["lbda", "mag"], sep="  ", engine="python", nrows=1057)
+            self._properties["sed_data"] = pd.read_table(os.path.expanduser(sed_dir+sed_filename), skiprows=20, names=["lbda", "mag"], sep="  ", engine="python", nrows=1057)
         elif sed_index is None and sed_data is not None:
             self._properties["sed_data"] = sed_data
         else:
@@ -132,10 +133,22 @@ class SED( BaseObject ):
         if "NUV" in opt_bands:
             self.filter_bandpass["NUV"] = pd.read_table(self.filter_bandpass_path["NUV"], sep=' ', names=["lbda", "trans"])
     
-    def set_meas_data(self, meas_data=None, z=None, col_syntax=["mag_band", "mag_band_err"]):
+    def context_filters(self, context):
         """
         
         """
+        idx = []
+        for ii in range(len(FILTER_BANDS)-1,-1,-1):
+            if (context - 2**ii) >= 0:
+                context = context - 2**ii
+                idx.append(ii)
+        return [FILTER_BANDS[ii] for ii in reversed(idx)]
+    
+    def set_meas_data(self, meas_data=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None):
+        """
+        
+        """
+        self._side_properties["list_bands"] = self.context_filters(meas_data["CONTEXT"]) if list_bands is None else list_bands
         z = z if z is not None else meas_data["Z-SPEC"]
         col_syntax = ["band", "band.err"] if col_syntax is None else col_syntax
         
@@ -144,7 +157,7 @@ class SED( BaseObject ):
                                                "flux":band_mag_to_flux(meas_data[col_syntax[0].replace("band",band)], band), 
                                                "flux.err":band_mag_to_flux_err(meas_data[col_syntax[0].replace("band",band)], 
                                                                                meas_data[col_syntax[1].replace("band",band)], band)}
-                                         for band in FILTER_BANDS}
+                                         for band in self.list_bands}
         
         self._properties["z"] = z
     
@@ -160,13 +173,19 @@ class SED( BaseObject ):
         """
         
         """
-        self._derived_properties["kcorr_data"] = {band:{"mag.err":self.meas_data[band]["mag.err"], 
-                                                        "flux":spectroscopy.synthesize_photometry(self.sed_shifted["lbda"], self.sed_shifted["flux"], 
-                                                                                                  self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]), 
-                                                        "flux.err":self.meas_data[band]["flux.err"]}
+        self._derived_properties["kcorr_data"] = {band:{"flux":spectroscopy.synthesize_photometry(self.sed_shifted["lbda"], self.sed_shifted["flux"], 
+                                                                                                  self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])}
                                                   for band in FILTER_BANDS}
+        for band in self.list_bands:
+            self.kcorr_data[band]["mag.err"] = self.meas_data[band]["mag.err"]
+            self.kcorr_data[band]["flux.err"] = self.meas_data[band]["flux.err"]
+        
         for band in FILTER_BANDS:
             self.kcorr_data[band]["mag"] = band_flux_to_mag(self.kcorr_data[band]["flux"], band)
+            if band not in self.list_bands:
+                self.kcorr_data[band]["flux.err"] = 0.
+                self.kcorr_data[band]["mag.err"] = 0.
+        
     
     def show(self, y_plot="flux", sed_shifted=True, plot_bandpasses=False, plot_filter_points=True, xlim=(None, None), ylim=(None, None), save_fig=False, save_dir=None):
         """
@@ -177,7 +196,7 @@ class SED( BaseObject ):
         
         fig, ax = plt.subplots()
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
-        ax.plot(x_sed, y_sed, **opt_sed)
+        ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
         
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
@@ -193,14 +212,15 @@ class SED( BaseObject ):
                         ls='-', marker='', color=COLOR_INFO[band])
         
         if plot_filter_points:
-            for band in FILTER_BANDS:
+            for band in (FILTER_BANDS if sed_shifted else self.list_bands):
                 x_point = LBDA_INFO[band]
                 y_point = self.kcorr_data[band][y_plot] if sed_shifted else self.meas_data[band][y_plot]
                 y_err_point = self.kcorr_data[band][y_plot+".err"] if sed_shifted else self.meas_data[band][y_plot+".err"]
-                ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=COLOR_INFO[band])
+                ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=COLOR_INFO[band], label=band)
         
         ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
         ax.set_ylabel(("${m}_{AB}$" if y_plot=="mag" else r"${f}_{\nu}$ $[erg.{s}^{-1}.{cm}^{-2}.{Hz}^{-1}]$"), fontsize="large")
+        ax.legend(loc="upper right", ncol=1)
         
         plt.show()
         
@@ -250,6 +270,11 @@ class SED( BaseObject ):
         if self._side_properties["filter_bandpass_path"] is None:
             self.set_filter_bandpass_path()
         return self._side_properties["filter_bandpass_path"]
+    
+    @property
+    def list_bands(self):
+        """  """
+        return self._side_properties["list_bands"]
     
     @property
     def sed_shifted(self):

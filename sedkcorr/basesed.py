@@ -114,8 +114,8 @@ class SED( BaseObject ):
     
     """
     
-    PROPERTIES         = ["data_sed", "list_bands", "data_meas", "z", "filter_bandpass"]
-    SIDE_PROPERTIES    = ["filter_bandpass_path"]
+    PROPERTIES         = ["data_sed", "data_meas", "z"]
+    SIDE_PROPERTIES    = ["list_bands", "filter_bandpass"]
     DERIVED_PROPERTIES = ["data_sed_shifted", "data_kcorr"]
     
     def set_data(self, data_sed, data_meas, z, list_bands=None, **kwargs):
@@ -130,7 +130,7 @@ class SED( BaseObject ):
             raise TypeError("data_sed must be a DataFrame or a dict")
         self.data_sed["flux"] = sed_mag_to_flux(self.data_sed["mag"])
 
-        self._properties["list_bands"] = [band for band in data_meas] if list_bands is None else list_bands
+        self._side_properties["list_bands"] = [k for k in FILTER_BANDS.keys()] if list_bands is None else list_bands
         
         self._properties["data_meas"] = data_meas
         ######### Option to set : mag or flux ##############
@@ -140,19 +140,20 @@ class SED( BaseObject ):
         
         self._properties["z"] = z
     
-    def set_filter_bandpass_path(self):
+    def get_filter_bandpass_path(self):
         """
         Set the path to filter bandpasses data, included in the package.
         
         
         Returns
         -------
-        Void
+        dict
         """
-        self._side_properties["filter_bandpass_path"] = {band:pkg_resources.resource_filename(__name__, "filter_bandpass/SLOAN_SDSS."+band+".dat")
-                                                         for band in ["u", "g", "r", "i", "z"]}
-        self.filter_bandpass_path["FUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.FUV.dat")
-        self.filter_bandpass_path["NUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.NUV.dat")
+        dict_path = {band:pkg_resources.resource_filename(__name__, "filter_bandpass/SLOAN_SDSS."+band+".dat")
+                     for band in ["u", "g", "r", "i", "z"]}
+        dict_path["FUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.FUV.dat")
+        dict_path["NUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.NUV.dat")
+        return dict_path
     
     def set_filter_bandpass(self, opt_bands=None, from_sncosmo=False):
         """
@@ -176,12 +177,12 @@ class SED( BaseObject ):
         opt_bands = [b for b in FILTER_BANDS] if opt_bands is None else opt_bands if type(opt_bands)==list else [opt_bands]
         list_sdss_bands = ["u", "g", "r", "i", "z"]
         if from_sncosmo:
-            self._properties["filter_bandpass"] = {band:pandas.DataFrame({"lbda":bandpasses.get_bandpass("sdss"+band).wave,
-                                                                      "trans":bandpasses.get_bandpass("sdss"+band).trans})
-                                                   for band in opt_bands if band in list_sdss_bands}
+            self._side_properties["filter_bandpass"] = {band:pandas.DataFrame({"lbda":bandpasses.get_bandpass("sdss"+band).wave,
+                                                                               "trans":bandpasses.get_bandpass("sdss"+band).trans})
+                                                        for band in opt_bands if band in list_sdss_bands}
         else:
-            self._properties["filter_bandpass"] = {band:pandas.read_table(self.filter_bandpass_path[band], sep=' ', names=["lbda", "trans"])
-                                                   for band in opt_bands if band in list_sdss_bands}
+            self._side_properties["filter_bandpass"] = {band:pandas.read_table(self.filter_bandpass_path[band], sep=' ', names=["lbda", "trans"])
+                                                        for band in opt_bands if band in list_sdss_bands}
         if "FUV" in opt_bands:
             self.filter_bandpass["FUV"] = pandas.read_table(self.filter_bandpass_path["FUV"], sep=' ', names=["lbda", "trans"])
         if "NUV" in opt_bands:
@@ -301,9 +302,9 @@ class SED( BaseObject ):
     @property
     def filter_bandpass(self):
         """ Dictionnary of DataFrame of the bandpass data for every filter band """
-        if self._properties["filter_bandpass"] is None:
+        if self._side_properties["filter_bandpass"] is None:
             self.set_filter_bandpass()
-        return self._properties["filter_bandpass"]
+        return self._side_properties["filter_bandpass"]
     
     @property
     def data_meas(self):
@@ -320,9 +321,7 @@ class SED( BaseObject ):
     @property
     def filter_bandpass_path(self):
         """ Dictionnary of paths for every filter badpass data """
-        if self._side_properties["filter_bandpass_path"] is None:
-            self.set_filter_bandpass_path()
-        return self._side_properties["filter_bandpass_path"]
+        return self.get_filter_bandpass_path()
     
     @property
     def list_bands(self):

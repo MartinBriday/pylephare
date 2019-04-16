@@ -89,7 +89,8 @@ class SED_LePhare( basesed.SED ):
             if (context - 2**ii) >= 0:
                 context = context - 2**ii
                 idx.append(ii)
-        return [basesed.FILTER_BANDS[ii] for ii in reversed(idx)]
+        #return [basesed.FILTER_BANDS[ii] for ii in reversed(idx)]
+        return [k for k, v in basesed.FILTER_BANDS.items() if v["context_id"] in idx]
     
     def get_meas_data(self, meas_data=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None, **kwargs):
         """

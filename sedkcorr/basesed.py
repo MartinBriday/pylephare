@@ -12,17 +12,42 @@ from pyifu import spectroscopy
 from propobject import BaseObject
 
 
-
-
-MAG_0_INFO = {"FUV":np.log10(1.40e-15) + 0.4 * 18.82,
-    "NUV":np.log10(2.06e-16) + 0.4 * 20.08,
-    "u":-8.056, "g":-8.326, "r":-8.555, "i":-8.732, "z":-8.882}
-
-FILTER_BANDS = ["FUV", "NUV", "u", "g", "r", "i", "z"]
-
-LBDA_INFO = {"FUV":1539, "NUV":2316, "u":3562, "g":4719, "r":6185, "i":7500, "z":8961}
-
-COLOR_INFO = {"FUV":"xkcd:purple", "NUV":"xkcd:violet", "u":"xkcd:blue", "g":"xkcd:green", "r":"xkcd:red", "i":"xkcd:cyan", "z":"xkcd:magenta"}
+FILTER_BANDS = {"FUV":{"lbda":1539,
+                       "color":"xkcd:purple",
+                       "mAB0":np.log10(1.40e-15) + 0.4 * 18.82,
+                       "context_id":0,
+                       "prospector_name":"galex_FUV"},
+                "NUV":{"lbda":2316,
+                       "color":"xkcd:violet",
+                       "mAB0":np.log10(2.06e-16) + 0.4 * 20.08,
+                       "context_id":1,
+                       "prospector_name":"galex_NUV"},
+                "u":{"lbda":3562,
+                     "color":"xkcd:blue",
+                     "mAB0":-8.056,
+                     "context_id":2,
+                     "prospector_name":"sdss_u0"},
+                "g":{"lbda":4719,
+                     "color":"xkcd:green",
+                     "mAB0":-8.326,
+                     "context_id":3,
+                     "prospector_name":"sdss_g0"},
+                "r":{"lbda":6185,
+                     "color":"xkcd:red",
+                     "mAB0":-8.555,
+                     "context_id":4,
+                     "prospector_name":"sdss_r0"},
+                "i":{"lbda":7500,
+                     "color":"xkcd:cyan",
+                     "mAB0":-8.732,
+                     "context_id":5,
+                     "prospector_name":"sdss_i0"},
+                "z":{"lbda":8961,
+                     "color":"xkcd:magenta",
+                     "mAB0":-8.882,
+                    "context_id":6,
+                    "prospector_name":"sdss_z0"},
+                }
 
 
 
@@ -48,22 +73,22 @@ def sed_flux_to_mag(flux):
     return -2.5 * np.log10(flux) - 48.585
 
 def band_flux_to_mag(flux, band):
-    flux = flux_nu_to_flux_lbda(flux, LBDA_INFO[band])
-    return -2.5 * (np.log10(flux) - MAG_0_INFO[band])
+    flux = flux_nu_to_flux_lbda(flux, FILTER_BANDS[band]["lbda"])
+    return -2.5 * (np.log10(flux) - FILTER_BANDS[band]["mAB0"])
 
 def band_flux_to_mag_err(flux, flux_err, band):
-    flux = flux_nu_to_flux_lbda(flux, LBDA_INFO[band])
-    flux_err = flux_nu_to_flux_lbda(flux_err, LBDA_INFO[band])
+    flux = flux_nu_to_flux_lbda(flux, FILTER_BANDS[band]["lbda"])
+    flux_err = flux_nu_to_flux_lbda(flux_err, FILTER_BANDS[band]["lbda"])
     return (2.5 / (np.log(10) * flux)) * flux_err
 
 def band_mag_to_flux(mag, band):
-    flux = 10**(MAG_0_INFO[band] - 0.4*mag)
-    return flux_lbda_to_flux_nu(flux, LBDA_INFO[band])
+    flux = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
+    return flux_lbda_to_flux_nu(flux, FILTER_BANDS[band]["lbda"])
 
 def band_mag_to_flux_err(mag, mag_err, band):
     flux = band_mag_to_flux(mag, band)
-    flux_err = 0.4 * np.log(10) * flux_nu_to_flux_lbda(flux, LBDA_INFO[band]) * mag_err
-    return flux_lbda_to_flux_nu(flux_err, LBDA_INFO[band])
+    flux_err = 0.4 * np.log(10) * flux_nu_to_flux_lbda(flux, FILTER_BANDS[band]["lbda"]) * mag_err
+    return flux_lbda_to_flux_nu(flux_err, FILTER_BANDS[band]["lbda"])
 
 def flux_nu_to_flux_lbda(flux_nu, band_lbda):
     flux_nu = flux_nu * units.erg / units.s / units.cm**2 / units.Hz
@@ -148,7 +173,7 @@ class SED( BaseObject ):
         -------
         Void
         """
-        opt_bands = FILTER_BANDS if opt_bands is None else opt_bands if type(opt_bands)==list else [opt_bands]
+        opt_bands = [b for b in FILTER_BANDS] if opt_bands is None else opt_bands if type(opt_bands)==list else [opt_bands]
         list_sdss_bands = ["u", "g", "r", "i", "z"]
         if from_sncosmo:
             self._properties["filter_bandpass"] = {band:pandas.DataFrame({"lbda":bandpasses.get_bandpass("sdss"+band).wave,
@@ -246,14 +271,14 @@ class SED( BaseObject ):
         if plot_bandpasses:
             for band in FILTER_BANDS:
                 ax.plot(self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]*(ax_ylim[1]-ax_ylim[0]) + ax_ylim[0],
-                        ls='-', marker='', color=COLOR_INFO[band], label="_nolegend_")
+                        ls='-', marker='', color=FILTER_BANDS[band]["color"], label="_nolegend_")
         
         if plot_filter_points:
             for band in (FILTER_BANDS if sed_shifted else self.list_bands):
-                x_point = LBDA_INFO[band]
+                x_point = FILTER_BANDS[band]["lbda"]
                 y_point = self.data_kcorr[band][y_plot] if sed_shifted else self.data_meas[band][y_plot]
                 y_err_point = self.data_kcorr[band][y_plot+".err"] if sed_shifted else self.data_meas[band][y_plot+".err"]
-                ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=COLOR_INFO[band], label=band)
+                ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=FILTER_BANDS[band]["color"], label=band)
         
             ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
             ax.set_ylabel(("${m}_{AB}$" if y_plot=="mag" else r"${f}_{\nu}$ $[erg.{s}^{-1}.{cm}^{-2}.{Hz}^{-1}]$"), fontsize="large")

@@ -1,11 +1,24 @@
 
 import numpy as np
 import pandas
+import time
+import sys
+import os
 
+#Parameters initialization
 from prospect.models import priors, SedModel
 from prospect.models.templates import TemplateLibrary
 from prospect.sources import CSPSpecBasis
 from sedpy.observate import load_filters
+
+#SED fitting
+from prospect.models import model_setup
+from prospect.io import write_results
+from prospect import fitting
+from prospect.likelihood import lnlike_spec, lnlike_phot, write_log
+from dynesty.dynamicsampler import stopping_function, weight_function, _kld_error
+from dynesty.utils import *
+
 
 from ..k_correction import basesed
 from propobject import BaseObject
@@ -153,7 +166,91 @@ class ProspectorSEDFitter( BaseObject ):
         # Now instantiate the model using this new dictionary of parameter specifications
         self._properties["model"] = SedModel(model_params)
     
+    def lnprobfn(self, theta, model=None, obs=None, nested=True, verbose=False):
+        """
+        
+        """
+        model = self.model if model is None else model
+        obs = self.obs if obs is None else obs
+        spec_noise, phot_noise = model_setup.load_gp(**run_params)
+        
+        lnp_prior = model.prior_product(theta, nested=nested)
+        if not np.isfinite(lnp_prior):
+            return -np.infty
+        
+        # Generate mean model
+        t1 = time.time()
+        try:
+            mu, phot, x = model.mean_model(theta, obs, sps=sps)
+        except(ValueError):
+            return -np.infty
+        d1 = time.time() - t1
+        
+        # Noise modeling
+        t2 = time.time()
+        if spec_noise is not None:
+            spec_noise.update(**model.params)
+        if phot_noise is not None:
+            phot_noise.update(**model.params)
+        vectors = {'spec': mu,
+                   'unc':  obs['unc'],
+                   'sed':  model._spec,
+                   'cal':  model._speccal,
+                   'phot': phot,
+                   'maggies_unc': obs['maggies_unc']}
+        d2 = time.time() - t2
+
+        # Calculate likelihoods
+        t3 = time.time()
+        lnp_spec = lnlike_spec(mu, obs=obs, spec_noise=spec_noise, **vectors)
+        lnp_phot = lnlike_phot(phot, obs=obs, phot_noise=phot_noise, **vectors)
+        d3 = time.time() - t3
+        
+        if verbose:
+            write_log(theta, lnp_prior, lnp_spec, lnp_phot, d1, d3)
+
+        return lnp_phot + lnp_spec + lnp_prior
     
+    def prior_transform(u):
+        return model.prior_transform(u)
+    
+    def halt(message):
+        """
+        Exit, closing pool safely.
+        """
+        print(message)
+        try:
+            pool.close()
+        except:
+            pass
+        sys.exit(0)
+    
+    def run_fit(self):
+        """
+        
+        """
+        try:
+            self.run_params['sps_libraries'] = sps.ssp.libraries
+        except(AttributeError):
+            self.run_params['sps_libraries'] = None
+
+        if self.run_params["debug"] == False:
+            halt('stopping for debug')
+        
+        # -------
+        # Sample
+        # -------
+        if rp['verbose']:
+            print('dynesty sampling...')
+        tstart = time.time()  # time it
+        dynestyout = fitting.run_dynesty_sampler(lnprobfn, prior_transform, model.ndim,
+                                                 pool=pool, queue_size=nprocs,
+                                                 stop_function=stopping_function,
+                                                 wt_function=weight_function,
+                                                 **rp)
+        ndur = time.time() - tstart
+        print('done dynesty in {0}s'.format(ndur))
+            
     
 
 

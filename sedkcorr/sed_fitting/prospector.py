@@ -16,7 +16,7 @@ from prospect.models import model_setup
 from prospect.io import write_results
 from prospect import fitting
 from prospect.likelihood import lnlike_spec, lnlike_phot, write_log
-from dynesty.dynamicsampler import stopping_function, weight_function, _kld_error
+from dynesty.dynamicsampler import stopping_function, weight_function
 from dynesty.utils import *
 
 
@@ -73,7 +73,16 @@ class ProspectorSEDFitter( BaseObject ):
     
     PROPERTIES         = ["run_params", "obs", "sps", "model"]
     SIDE_PROPERTIES    = []
-    DERIVED_PROPERTIES = []
+    DERIVED_PROPERTIES = ["dynestyout"]
+    
+    def __init__(self, data_photo=None, **kwargs):
+        """
+        
+        """
+        if data_photo is not None:
+            self.load_obs(**kwargs)
+            self.load_sps(**kwargs)
+            self.load_model(**kwargs)
     
     def set_run_params(self, **kwargs):
         """
@@ -116,11 +125,11 @@ class ProspectorSEDFitter( BaseObject ):
                 idx.append(ii)
         return [band for band in basesed.LIST_BANDS if FILTER_BANDS[band]["context_id"] in idx]
     
-    def load_obs(self, objid=0, data_photo=None, col_syntax=["mag_band", "mag_band_err"], **kwargs):
+    def load_obs(self, objid=0, data_photo=None, col_syntax=["mag_band", "mag_band_err"], **extras):
         """
         
         """
-        list_bands = context_filters(data_photo["CONTEXT"])
+        list_bands = self.context_filters(data_photo["CONTEXT"])
         self.obs["filters"] = load_filters([FILTER_BANDS[band]["prospector_name"] for band in list_bands])
         
         data_mag = {band:{"mag":data_photo[col_syntax[0].replace("band",band)],
@@ -172,7 +181,7 @@ class ProspectorSEDFitter( BaseObject ):
         """
         model = self.model if model is None else model
         obs = self.obs if obs is None else obs
-        spec_noise, phot_noise = model_setup.load_gp(**run_params)
+        spec_noise, phot_noise = model_setup.load_gp(**self.run_params)
         
         lnp_prior = model.prior_product(theta, nested=nested)
         if not np.isfinite(lnp_prior):
@@ -181,7 +190,7 @@ class ProspectorSEDFitter( BaseObject ):
         # Generate mean model
         t1 = time.time()
         try:
-            mu, phot, x = model.mean_model(theta, obs, sps=sps)
+            spec, phot, x = model.mean_model(theta, obs, sps=self.sps)
         except(ValueError):
             return -np.infty
         d1 = time.time() - t1
@@ -192,7 +201,7 @@ class ProspectorSEDFitter( BaseObject ):
             spec_noise.update(**model.params)
         if phot_noise is not None:
             phot_noise.update(**model.params)
-        vectors = {'spec': mu,
+        vectors = {'spec': spec,
                    'unc':  obs['unc'],
                    'sed':  model._spec,
                    'cal':  model._speccal,
@@ -202,7 +211,7 @@ class ProspectorSEDFitter( BaseObject ):
 
         # Calculate likelihoods
         t3 = time.time()
-        lnp_spec = lnlike_spec(mu, obs=obs, spec_noise=spec_noise, **vectors)
+        lnp_spec = lnlike_spec(spec, obs=obs, spec_noise=spec_noise, **vectors)
         lnp_phot = lnlike_phot(phot, obs=obs, phot_noise=phot_noise, **vectors)
         d3 = time.time() - t3
         
@@ -214,7 +223,7 @@ class ProspectorSEDFitter( BaseObject ):
     def prior_transform(u):
         return model.prior_transform(u)
     
-    def halt(message):
+    def halt(message, pool=None):
         """
         Exit, closing pool safely.
         """
@@ -225,7 +234,7 @@ class ProspectorSEDFitter( BaseObject ):
             pass
         sys.exit(0)
     
-    def run_fit(self):
+    def run_fit(self, pool=None, nprocs=1):
         """
         
         """
@@ -234,22 +243,51 @@ class ProspectorSEDFitter( BaseObject ):
         except(AttributeError):
             self.run_params['sps_libraries'] = None
 
-        if self.run_params["debug"] == False:
-            halt('stopping for debug')
+        if self.run_params.get("output_pickles", False):
+            self.halt('stopping for debug')
+
+        # Try to set up an HDF5 file and write basic info to it
+        odir = os.path.dirname(os.path.abspath(self.run_params['outfile']))
+        if (not os.path.exists(odir)):
+            badout = 'Target output directory {} does not exist, please make it.'.format(odir)
+            halt(badout)
         
         # -------
         # Sample
         # -------
-        if rp['verbose']:
+        if self.run_params['verbose']:
             print('dynesty sampling...')
         tstart = time.time()  # time it
-        dynestyout = fitting.run_dynesty_sampler(lnprobfn, prior_transform, model.ndim,
+        dynestyout = fitting.run_dynesty_sampler(self.lnprobfn, self.prior_transform, self.model.ndim,
                                                  pool=pool, queue_size=nprocs,
                                                  stop_function=stopping_function,
                                                  wt_function=weight_function,
-                                                 **rp)
+                                                 **self.run_params)
         ndur = time.time() - tstart
         print('done dynesty in {0}s'.format(ndur))
+        self._derived_properties["dynestyout"] = dynestyout
+
+    def write_results(self):
+        """
+        
+        """
+        # -------------------------
+        # Output HDF5 (and pickles if asked for)
+        # -------------------------
+        if self.run_params.get("output_pickles", False):
+            # Write the dynesty result object as a pickle
+            import pickle
+            with open(self.run_params['outfile'] + '_dns.pkl', 'w') as f:
+                pickle.dump(self.dynestyout, f)
+        
+            # Write the model as a pickle
+            partext = write_results.paramfile_string(**self.run_params)
+            write_results.write_model_pickle(self.run_params['outfile'] + '_model', self.model, powell=None, paramfile_text=partext)
+    
+        # Write HDF5
+        hfile = self.run_params['outfile'] + '_mcmc.h5'
+        write_results.write_hdf5(hfile, self.run_params, self.model, self.obs, self.dynestyout, None, tsample=ndur)
+    
             
     
 
@@ -283,4 +321,9 @@ class ProspectorSEDFitter( BaseObject ):
     def model(self):
         """  """
         return self._properties["model"]
+
+    @property
+    def dynestyout(self):
+        """  """
+        return self._derived_properties["dynestyout"]
 

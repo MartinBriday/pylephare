@@ -146,7 +146,11 @@ class SED( BaseObject ):
             self._properties["data_sed"] = pandas.DataFrame(data_sed)
         else:
             raise TypeError("data_sed must be a DataFrame or a dict")
-        self.data_sed["flux"] = sed_mag_to_flux(self.data_sed["mag"])
+        
+        if "mag" in self.data_sed.keys():
+            self.data_sed["flux"] = sed_mag_to_flux(self.data_sed["mag"])
+        elif "flux" in self.data_sed.keys():
+            self.data_sed["mag"] = sed_flux_to_mag(self.data_sed["flux"])
 
     def set_data_meas(self, data_meas=None, z=None, **extras):
         """
@@ -156,8 +160,12 @@ class SED( BaseObject ):
         
         ######### Option to set : mag or flux ##############
         for band in self.list_bands:
-            self.data_meas[band]["flux"] = band_mag_to_flux(self.data_meas[band]["mag"], band)
-            self.data_meas[band]["flux.err"] = band_mag_to_flux_err(self.data_meas[band]["mag"], self.data_meas[band]["mag.err"], band)
+            if "mag" in self.data_meas[band].keys() and "flux" not in self.data_meas[band].keys():
+                self.data_meas[band]["flux"] = band_mag_to_flux(self.data_meas[band]["mag"], band)
+                self.data_meas[band]["flux.err"] = band_mag_to_flux_err(self.data_meas[band]["mag"], self.data_meas[band]["mag.err"], band)
+            elif "flux" in self.data_meas[band].keys() and "mag" not in self.data_meas[band].keys():
+                self.data_meas[band]["mag"] = band_flux_to_mag(self.data_meas[band]["flux"], band)
+                self.data_meas[band]["mag.err"] = band_flux_to_mag_err(self.data_meas[band]["flux"], self.data_meas[band]["flux.err"], band)
         
         self._properties["z"] = z
     
@@ -238,7 +246,8 @@ class SED( BaseObject ):
         for band in LIST_BANDS:
             self.data_kcorr[band]["mag"] = band_flux_to_mag(self.data_kcorr[band]["flux"], band)
     
-    def show(self, y_plot="flux", sed_shifted=True, plot_bandpasses=False, plot_filter_points=True, xlim=(None, None), ylim=(None, None), savefile=None):
+    def show(self, y_plot="flux", sed_shifted=True, plot_bandpasses=False, plot_filter_points=True,
+             xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
         """
         Plot method.
         
@@ -306,9 +315,9 @@ class SED( BaseObject ):
             ax.set_ylabel(("${m}_{AB}$" if y_plot=="mag" else r"${f}_{\nu}$ $[erg.{s}^{-1}.{cm}^{-2}.{Hz}^{-1}]$"), fontsize="large")
             ax.legend(loc="upper right", ncol=1)
 
-        ax.set_xscale("log")
+        ax.set_xscale(xscale)
         if y_plot=="flux":
-            ax.set_yscale("log")
+            ax.set_yscale(yscale)
                 
         if savefile is not None:
             fig.savefig(savefile)

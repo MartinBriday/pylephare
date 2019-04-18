@@ -29,19 +29,8 @@ from propobject import BaseObject
 # --------------#
 RUN_PARAMS = {'verbose':True,
               'debug':False,
-              'outfile':'test_galphot',
+              'outfile':'test_snf',
               'output_pickles': False,
-              # Optimization parameters
-              'do_powell': False,
-              'ftol':0.5e-5, 'maxfev': 5000,
-              'do_levenberg': True,
-              'nmin': 10,
-              # emcee fitting parameters
-              'nwalkers':128,
-              'nburn': [16, 32, 64],
-              'niter': 512,
-              'interval': 0.25,
-              'initial_disp': 0.1,
               # dynesty Fitter parameters
               'nested_bound': 'multi', # bounding method
               'nested_sample': 'unif', # sampling method
@@ -51,17 +40,13 @@ RUN_PARAMS = {'verbose':True,
               'nested_dlogz_init': 0.05,
               'nested_weight_kwargs': {"pfrac": 1.0},
               'nested_stop_kwargs': {"post_thresh": 0.1},
-              # Obs data parameters
-              'objid':0,
-              #'phottable': 'demo_photometry.dat',
-              'logify_spectrum':False,
-              'normalize_spectrum':False,
-              'luminosity_distance': 1e-5,  # in Mpc
               # Model parameters
               'add_neb': False,
               'add_dust': False,
               # SPS parameters
               'zcontinuous': 1,
+              # Fit parameters
+              'noise_model':False
               }
 
 
@@ -75,14 +60,21 @@ class ProspectorSEDFitter( BaseObject ):
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = ["dynestyout"]
     
-    def __init__(self, data_photo=None, **kwargs):
+    def __init__(self, **kwargs):
         """
         
         """
-        if data_photo is not None:
-            self.load_obs(**kwargs)
-            self.load_sps(**kwargs)
-            self.load_model(**kwargs)
+        if kwargs != {}:
+            self.set_data(**kwargs)
+
+    def set_data(self, **kwargs):
+        """
+        
+        """
+        self.load_obs(**kwargs)
+        self.load_sps(**kwargs)
+        self.load_model(**kwargs)
+        return
     
     def set_run_params(self, **kwargs):
         """
@@ -119,27 +111,29 @@ class ProspectorSEDFitter( BaseObject ):
         list(string)
         """
         idx = []
-        for ii in range(len(basesed.FILTER_BANDS)-1,-1,-1):
+        for ii in range(len(basesed.LIST_BANDS)-1,-1,-1):
             if (context - 2**ii) >= 0:
                 context = context - 2**ii
                 idx.append(ii)
-        return [band for band in basesed.LIST_BANDS if FILTER_BANDS[band]["context_id"] in idx]
+        return [band for band in basesed.LIST_BANDS if basesed.FILTER_BANDS[band]["context_id"] in idx]
     
-    def load_obs(self, objid=0, data_photo=None, col_syntax=["mag_band", "mag_band_err"], **extras):
+    def load_obs(self, data=None, col_syntax=["mag_band", "mag_band_err"], **extras):
         """
         
         """
-        list_bands = self.context_filters(data_photo["CONTEXT"])
-        self.obs["filters"] = load_filters([FILTER_BANDS[band]["prospector_name"] for band in list_bands])
+        self.obs["list_bands"] = self.context_filters(data["CONTEXT"])
+        self.obs["filters"] = load_filters([basesed.FILTER_BANDS[band]["prospector_name"] for band in self.obs["list_bands"]])
         
-        data_mag = {band:{"mag":data_photo[col_syntax[0].replace("band",band)],
-                          "mag.err":data_photo[col_syntax[1].replace("band",band)]}
-                    for band in list_bands}
+        data_mag = {band:{"mag":data[col_syntax[0].replace("band",band)],
+                          "mag.err":data[col_syntax[1].replace("band",band)]}
+                    for band in self.obs["list_bands"]}
         
-        self.obs["maggies"] = [basesed.flux_nu_to_mgy(basesed.band_mag_to_flux(data_mag[band]["mag"], band))
-                               for band in list_bands]
-        self.obs["maggies_unc"] = [basesed.flux_nu_to_mgy_err(basesed.band_mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band))
-                                   for band in list_bands]
+        self.obs["maggies"] = np.asarray([basesed.flux_nu_to_mgy(basesed.band_mag_to_flux(data_mag[band]["mag"], band))
+                                          for band in self.obs["list_bands"]])
+        self.obs["maggies_unc"] = np.asarray([basesed.flux_nu_to_mgy(basesed.band_mag_to_flux_err(data_mag[band]["mag"], data_mag[band]["mag.err"], band))
+                                              for band in self.obs["list_bands"]])
+        
+        self.obs["zspec"] = data["Z-SPEC"]
         
         self.obs["wavelength"] = None
         self.obs["spectrum"] = None
@@ -152,17 +146,16 @@ class ProspectorSEDFitter( BaseObject ):
         """
         self._properties["sps"] = CSPSpecBasis(zcontinuous=zcontinuous)
     
-    def load_model(self, zspec=None, add_dust=False, add_neb=False, **extras):
+    def load_model(self, add_dust=False, add_neb=False, **extras):
         """
         
         """
         model_params = TemplateLibrary["parametric_sfh"]
         
-        if zspec is not None:
-            # make sure zred is fixed
-            model_params["zred"]["isfree"] = False
-            # And set the value to the object_redshift keyword
-            model_params["zred"]["init"] = zspec
+        # make sure zred is fixed
+        model_params["zred"]["isfree"] = False
+        # And set the value to the object_redshift keyword
+        model_params["zred"]["init"] = self.obs["zspec"]
     
         if add_dust:
             # Add dust emission (with fixed dust SED parameters)
@@ -181,7 +174,6 @@ class ProspectorSEDFitter( BaseObject ):
         """
         model = self.model if model is None else model
         obs = self.obs if obs is None else obs
-        spec_noise, phot_noise = model_setup.load_gp(**self.run_params)
         
         lnp_prior = model.prior_product(theta, nested=nested)
         if not np.isfinite(lnp_prior):
@@ -196,32 +188,36 @@ class ProspectorSEDFitter( BaseObject ):
         d1 = time.time() - t1
         
         # Noise modeling
-        t2 = time.time()
-        if spec_noise is not None:
-            spec_noise.update(**model.params)
-        if phot_noise is not None:
-            phot_noise.update(**model.params)
+        if self.run_params["noise_model"]:
+            spec_noise, phot_noise = model_setup.load_gp(**self.run_params)
+            if spec_noise is not None:
+                spec_noise.update(**model.params)
+            if phot_noise is not None:
+                phot_noise.update(**model.params)
+        else:
+            spec_noise, phot_noise = None, None
+
         vectors = {'spec': spec,
                    'unc':  obs['unc'],
                    'sed':  model._spec,
                    'cal':  model._speccal,
                    'phot': phot,
                    'maggies_unc': obs['maggies_unc']}
-        d2 = time.time() - t2
 
         # Calculate likelihoods
-        t3 = time.time()
+        t2 = time.time()
         lnp_spec = lnlike_spec(spec, obs=obs, spec_noise=spec_noise, **vectors)
         lnp_phot = lnlike_phot(phot, obs=obs, phot_noise=phot_noise, **vectors)
-        d3 = time.time() - t3
+        d2 = time.time() - t2
         
-        if verbose:
-            write_log(theta, lnp_prior, lnp_spec, lnp_phot, d1, d3)
+        if verbose:#self.run_params["verbose"]:
+            write_log(theta, lnp_prior, lnp_spec, lnp_phot, d1, d2)
 
         return lnp_phot + lnp_spec + lnp_prior
     
-    def prior_transform(u):
-        return model.prior_transform(u)
+    def prior_transform(self, u):
+        #model = self.model if model is None else model
+        return self.model.prior_transform(u)
     
     def halt(message, pool=None):
         """
@@ -234,18 +230,18 @@ class ProspectorSEDFitter( BaseObject ):
             pass
         sys.exit(0)
     
-    def run_fit(self, pool=None, nprocs=1):
+    def run_fit(self, pool=None, nprocs=1, write_res=False):
         """
         
         """
         try:
-            self.run_params['sps_libraries'] = sps.ssp.libraries
+            self.run_params['sps_libraries'] = self.sps.ssp.libraries
         except(AttributeError):
             self.run_params['sps_libraries'] = None
-
-        if self.run_params.get("output_pickles", False):
+        
+        if self.run_params.get("debug", False):
             self.halt('stopping for debug')
-
+        
         # Try to set up an HDF5 file and write basic info to it
         odir = os.path.dirname(os.path.abspath(self.run_params['outfile']))
         if (not os.path.exists(odir)):
@@ -267,7 +263,10 @@ class ProspectorSEDFitter( BaseObject ):
         print('done dynesty in {0}s'.format(ndur))
         self._derived_properties["dynestyout"] = dynestyout
 
-    def write_results(self):
+        if write_res:
+            self.write_results(ndur)
+
+    def write_results(self, ndur=0.):
         """
         
         """
@@ -310,7 +309,7 @@ class ProspectorSEDFitter( BaseObject ):
         """  """
         if self._properties["obs"] is None:
             self._properties["obs"] = {}
-        return self.properties["obs"]
+        return self._properties["obs"]
 
     @property
     def sps(self):

@@ -1,5 +1,6 @@
 
 import numpy as np
+import pandas
 
 from prospect.io.read_results import results_from, get_sps
 from prospect.io.read_results import traceplot, subcorner
@@ -19,14 +20,6 @@ class SED_prospector( basesed.SED ):
     PROPERTIES         = ["p_res", "p_obs", "p_mod"]
     SIDE_PROPERTIES    = ["p_run_params", "p_sps"]
     DERIVED_PROPERTIES = []
-    
-    def __init__(self, filename=None, **kwargs):
-        """
-        
-        """
-        if filename is not None:
-            self.read_fit_results(filename)
-            self.set_data(**kwargs)
 
     def read_fit_results(self, filename=None):
         """
@@ -35,15 +28,20 @@ class SED_prospector( basesed.SED ):
         res, obs, mod = results_from(filename, dangerous=False)
         self._properties["p_res"] = res
         self._properties["p_obs"] = obs
-        self._properties["p_mod"] = prospector.load_model(**self.p_run_params)
+        
+        buf = prospector.ProspectorSEDFitter()
+        buf._properties["obs"] = self.p_obs
+        buf.load_model(**self.p_run_params)
+        self._properties["p_mod"] = buf.model
     
-    def set_data_sed(self, **extras):
+    def set_data_sed(self, filename=None, **extras):
         """
         
         """
+        self.read_fit_results(filename)
         imax = np.argmax(self.p_res["lnprobability"])
         theta_max = self.p_res["chain"][imax, :].copy()
-        data_sed = {"lbda":self.get_sed_wavelength,
+        data_sed = {"lbda":self.get_sed_wavelength(),
                     "flux":self.get_sed_flux(theta_max)}
         _ = super(SED_prospector, self).set_data_sed( pandas.DataFrame(data_sed))
     
@@ -68,7 +66,7 @@ class SED_prospector( basesed.SED ):
                 idx.append(ii)
         return [band for band in basesed.LIST_BANDS if basesed.FILTER_BANDS[band]["context_id"] in idx]
     
-    def get_data_meas(self, data_meas=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None, **extras):
+    def set_data_meas(self, data_meas=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None, **extras):
         """
         Set the host redshift and the measured magnitudes for every filter bands used in SED fitting.
         
@@ -106,8 +104,7 @@ class SED_prospector( basesed.SED ):
         data_meas = {band:{"mag":data_meas[col_syntax[0].replace("band",band)],
                            "mag.err":data_meas[col_syntax[1].replace("band",band)]}
                      for band in self.list_bands}
-        
-        return data_meas, z
+        _ = super(SED_prospector, self).set_data_meas(data_meas=data_meas, z=z)
     
     def get_sed_flux(self, theta):
         """
@@ -122,7 +119,7 @@ class SED_prospector( basesed.SED ):
         """
         if self.p_obs["wavelength"] is None:
             # *restframe* spectral wavelengths, since obs["wavelength"] is None
-            a = 1.0 + self.p_run_params.get('zred', 0.0)
+            a = 1.0 + self.p_obs.get('zspec', 0.0)
             wspec = self.p_sps.wavelengths.copy()
             wspec *= a #redshift them
         else:
@@ -178,12 +175,14 @@ class SED_prospector( basesed.SED ):
     def p_run_params(self):
         """  """
         if self._side_properties["p_run_params"] is None:
-            self._side_properties["p_run_params"] = self.prospector_res["run_params"]
+            self._side_properties["p_run_params"] = self.p_res["run_params"]
         return self._side_properties["p_run_params"]
     
     @property
     def p_sps(self):
         """  """
         if self._side_properties["p_sps"] is None:
-            self._side_properties["p_sps"] = prospector.load_sps(**self.p_run_params)
+            buf = prospector.ProspectorSEDFitter()
+            buf.load_sps(**self.p_run_params)
+            self._side_properties["p_sps"] = buf.sps
         return self._side_properties["p_sps"]

@@ -122,9 +122,23 @@ class SED( BaseObject ):
     SIDE_PROPERTIES    = ["list_bands", "filter_bandpass"]
     DERIVED_PROPERTIES = ["data_sed_shifted", "data_kcorr"]
     
-    def set_data(self, data_sed, data_meas, z, list_bands=None, **kwargs):
+    def __init__(self, data_sed=None, data_meas=None, z=None, **kwargs):
         """
             
+        """
+        if data_sed is not None and data_meas is not None and z is not None:
+            self.set_data(data_sed=data_sed, data_meas=data_meas, z=z, **kwargs)
+    
+    def set_data(self, data_sed=None, data_meas=None, z=None, list_bands=LIST_BANDS, **kwargs):
+        """
+            
+        """
+        self.set_data_sed(data_sed)
+        self.set_data_meas(data_meas, z)
+            
+    def set_data_sed(self, data_sed=None):
+        """
+        
         """
         if type(data_sed) is pandas.DataFrame:
             self._properties["data_sed"] = data_sed
@@ -134,9 +148,12 @@ class SED( BaseObject ):
             raise TypeError("data_sed must be a DataFrame or a dict")
         self.data_sed["flux"] = sed_mag_to_flux(self.data_sed["mag"])
 
-        self._side_properties["list_bands"] = [k for k in LIST_BANDS] if list_bands is None else list_bands
+    def set_data_meas(self, data_meas=None, z=None):
+        """
         
+        """
         self._properties["data_meas"] = data_meas
+        
         ######### Option to set : mag or flux ##############
         for band in self.list_bands:
             self.data_meas[band]["flux"] = band_mag_to_flux(self.data_meas[band]["mag"], band)

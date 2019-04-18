@@ -37,7 +37,7 @@ class SED_prospector( basesed.SED ):
         self._properties["p_obs"] = obs
         self._properties["p_mod"] = prospector.load_model(**self.p_run_params)
     
-    def get_sed_data(self):
+    def set_data_sed(self, **extras):
         """
         
         """
@@ -45,7 +45,7 @@ class SED_prospector( basesed.SED ):
         theta_max = self.p_res["chain"][imax, :].copy()
         data_sed = {"lbda":self.get_sed_wavelength,
                     "flux":self.get_sed_flux(theta_max)}
-        return pandas.DataFrame(data_sed)
+        _ = super(SED_prospector, self).set_data_sed( pandas.DataFrame(data_sed))
     
     def context_filters(self, context):
         """
@@ -68,7 +68,7 @@ class SED_prospector( basesed.SED ):
                 idx.append(ii)
         return [band for band in basesed.LIST_BANDS if basesed.FILTER_BANDS[band]["context_id"] in idx]
     
-    def get_meas_data(self, meas_data=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None, **kwargs):
+    def get_meas_data(self, meas_data=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None, **extras):
         """
         Set the host redshift and the measured magnitudes for every filter bands used in SED fitting.
         
@@ -97,6 +97,9 @@ class SED_prospector( basesed.SED ):
         -------
         Void
         """
+        
+        ############# Add an option to read phot data from prospector results ###############
+        
         self._side_properties["list_bands"] = self.context_filters(meas_data["CONTEXT"]) if list_bands is None else list_bands
         z = z if z is not None else meas_data["Z-SPEC"]
         

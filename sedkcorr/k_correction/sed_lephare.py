@@ -16,24 +16,7 @@ class SED_LePhare( basesed.SED ):
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = []
     
-    def __init__(self, data_sed=None, data_meas=None, z=None, **kwargs):
-        """
-        
-        """
-        if data_sed is not None and data_meas is not None and z is not None:
-            self.set_data(data_sed, data_meas, z, **kwargs)
-    
-    def set_data(self, data_sed=None, data_meas=None, z=None, **kwargs):
-        """
-        
-        """
-        data_sed = self.get_sed_data(sed_data=data_sed, **kwargs)
-        data_meas, z = self.get_meas_data(meas_data=data_meas, z=z, **kwargs)
-    
-        _ = super(SED_LePhare, self).set_data(data_sed, data_meas, z, **kwargs)
-    
-    
-    def get_sed_data(self, sed_index=None, sed_data=None, sed_dir=None, nrows=1057, **kwargs):
+    def set_data_sed(self, sed_index=None, sed_data=None, sed_dir=None, nrows=1057, **kwargs):
         """
         Load the SED spectrum.
         
@@ -64,9 +47,11 @@ class SED_LePhare( basesed.SED ):
             while len(sed_index)<9:
                 sed_index = "0"+sed_index
             sed_filename = "Id"+sed_index+".spec"
-            return pandas.read_table(os.path.expanduser(sed_dir+sed_filename), skiprows=20, names=["lbda", "mag"], sep="  ", engine="python", nrows=nrows)
+            _ = super(SED_LePhare, self).set_data_sed( pandas.read_table(os.path.expanduser(sed_dir+sed_filename),
+                                                                         skiprows=20, names=["lbda", "mag"], sep="  ",
+                                                                         engine="python", nrows=nrows))
         elif sed_index is None and sed_data is not None:
-            return sed_data
+            _ = super(SED_LePhare, self).set_data_sed( sed_data )
         else:
             raise ValueError("You must input one (and only one) data set option : the spectrum index or a DataFrame with columns = ['lbda', 'mag'].")
     
@@ -91,7 +76,7 @@ class SED_LePhare( basesed.SED ):
                 idx.append(ii)
         return [band for band in basesed.LIST_BANDS if basesed.FILTER_BANDS[band]["context_id"] in idx]
     
-    def get_meas_data(self, meas_data=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None, **kwargs):
+    def set_data_meas(self, meas_data=None, z=None, col_syntax=["mag_band", "mag_band_err"], list_bands=None, **kwargs):
         """
         Set the host redshift and the measured magnitudes for every filter bands used in SED fitting.
         
@@ -126,8 +111,7 @@ class SED_LePhare( basesed.SED ):
         data_meas = {band:{"mag":meas_data[col_syntax[0].replace("band",band)],
                            "mag.err":meas_data[col_syntax[1].replace("band",band)]}
                      for band in self.list_bands}
-
-        return data_meas, z
+        _ = super(SED_LePhare, self).set_data_meas(data_meas=data_meas, z=z)
     
     def k_correction(self):
         """

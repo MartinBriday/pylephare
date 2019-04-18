@@ -122,21 +122,21 @@ class SED( BaseObject ):
     SIDE_PROPERTIES    = ["list_bands", "filter_bandpass"]
     DERIVED_PROPERTIES = ["data_sed_shifted", "data_kcorr"]
     
-    def __init__(self, data_sed=None, data_meas=None, z=None, **kwargs):
+    def __init__(self, **kwargs):
         """
             
         """
-        if data_sed is not None and data_meas is not None and z is not None:
-            self.set_data(data_sed=data_sed, data_meas=data_meas, z=z, **kwargs)
+        if kwargs != {}:
+            self.set_data(**kwargs)
     
-    def set_data(self, data_sed=None, data_meas=None, z=None, list_bands=LIST_BANDS, **kwargs):
+    def set_data(self, **kwargs):
         """
             
         """
-        self.set_data_sed(data_sed)
-        self.set_data_meas(data_meas, z)
+        self.set_data_sed(**kwargs)
+        self.set_data_meas(**kwargs)
             
-    def set_data_sed(self, data_sed=None):
+    def set_data_sed(self, data_sed=None, **extras):
         """
         
         """
@@ -148,7 +148,7 @@ class SED( BaseObject ):
             raise TypeError("data_sed must be a DataFrame or a dict")
         self.data_sed["flux"] = sed_mag_to_flux(self.data_sed["mag"])
 
-    def set_data_meas(self, data_meas=None, z=None):
+    def set_data_meas(self, data_meas=None, z=None, **extras):
         """
         
         """
@@ -305,6 +305,10 @@ class SED( BaseObject ):
             ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
             ax.set_ylabel(("${m}_{AB}$" if y_plot=="mag" else r"${f}_{\nu}$ $[erg.{s}^{-1}.{cm}^{-2}.{Hz}^{-1}]$"), fontsize="large")
             ax.legend(loc="upper right", ncol=1)
+
+        ax.set_xscale("log")
+        if y_plot=="flux":
+            ax.set_yscale("log")
                 
         if savefile is not None:
             fig.savefig(savefile)

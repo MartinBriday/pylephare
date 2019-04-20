@@ -140,11 +140,11 @@ class ProspectorSEDFitter( BaseObject ):
         self.obs["unc"] = None
         self.obs["mask"] = None
     
-    def load_sps(self, zcontinuous=1, **extras):
+    def load_sps(self, zcontinuous=1, sps=None, **extras):
         """
         
         """
-        self._properties["sps"] = CSPSpecBasis(zcontinuous=zcontinuous)
+        self._properties["sps"] = CSPSpecBasis(zcontinuous=zcontinuous) if sps is None else sps
     
     def load_model(self, add_dust=False, add_neb=False, **extras):
         """

@@ -64,14 +64,40 @@ def lbda_z0(lbda, z):
 def flux_z0(flux, z):
     return flux/(1+z)**3
 
-def sed_mag_to_flux(mag):
-    return 10**((mag + 48.585)/(-2.5))
+def mag_to_flux(mag, band=None, flux_unit="Hz"):
+    if band is None:
+        return 10**((mag + 48.585)/(-2.5))
+    elif band in FILTER_BANDS:
+        flux_lbda = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
+        if flux_unit in ("AA", "A", "Angstrom"):
+            return flux_lbda
+        elif flux_unit in ("Hz", "Herz"):
+            return convert_flux_unit(flux_lbda, FILTER_BANDS[band]["lbda"], unit_in="AA", unit_out="Hz")
+        elif flux_unit in ("mgy", "maggy"):
+            return convert_flux_unit(flux_lbda, FILTER_BANDS[band]["lbda"], unit_in="AA", unit_out="mgy")
+        else:
+            raise ValueError("{} is not a valid flux unit.".format(flux_unit))
+    else:
+        raise ValueError("{} is not an existing filter band.".format(band))
+
+def flux_to_mag(flux, band=None, flux_unit="Hz"):
+    if band is None:
+        return -2.5 * np.log10(flux) - 48.585
+    elif band in FILTER_BANDS:
+        if flux_unit in ("AA", "A", "Angstrom"):
+            flux = flux
+        elif flux_unit in ("Hz", "Herz"):
+            flux = convert_flux_unit(flux, FILTER_BANDS[band]["lbda"], unit_in="Hz", unit_out="AA")
+        elif flux_unit in ("mgy", "maggy"):
+            flux =  convert_flux_unit(flux, FILTER_BANDS[band]["lbda"], unit_in="mgy", unit_out="AA")
+        else:
+            raise ValueError("{} is not a valid flux unit.".format(flux_unit))
+        return -2.5 * (np.log10(flux) - FILTER_BANDS[band]["mAB0"])
+    else:
+        raise ValueError("{} is not an existing filter band.".format(band))
 
 def sed_mag_to_flux_err(mag, mag_err, mag0_err=0.005):
     return (0.4 * np.log(10) * mag_to_flux(mag))*np.sqrt(mag_err**2 + mag0_err**2)
-
-def sed_flux_to_mag(flux):
-    return -2.5 * np.log10(flux) - 48.585
 
 def band_flux_to_mag(flux, band):
     flux = flux_nu_to_flux_lbda(flux, FILTER_BANDS[band]["lbda"])

@@ -64,71 +64,62 @@ def lbda_z0(lbda, z):
 def flux_z0(flux, z):
     return flux/(1+z)**3
 
-def mag_to_flux(mag, band=None, flux_unit="Hz"):
+def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz"):
     if band is None:
-        return 10**((mag + 48.585)/(-2.5))
+        flux_out = 10**((mag + 48.585)/(-2.5))
+        flux_err_out = (0.4 * np.log(10) * flux_out)*np.sqrt(mag_err**2 + 0.005**2)
     elif band in FILTER_BANDS:
         flux_lbda = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
-        if flux_unit in ("AA", "A", "Angstrom"):
-            return flux_lbda
-        elif flux_unit in ("Hz", "Herz"):
-            return convert_flux_unit(flux_lbda, FILTER_BANDS[band]["lbda"], unit_in="AA", unit_out="Hz")
-        elif flux_unit in ("mgy", "maggy"):
-            return convert_flux_unit(flux_lbda, FILTER_BANDS[band]["lbda"], unit_in="AA", unit_out="mgy")
+        flux_lbda_err_out = (0.4 * np.log(10) * flux_lbda) * mag_err**2
+        if flux_unit in ("AA", "Hz", "mgy"):
+            flux_out, flux_err_out = convert_flux_unit((flux_lbda, flux_lbda_err_out), FILTER_BANDS[band]["lbda"], unit_in="AA", unit_out=flux_unit)
         else:
             raise ValueError("{} is not a valid flux unit.".format(flux_unit))
     else:
         raise ValueError("{} is not an existing filter band.".format(band))
+    return flux_out, flux_err_out
 
-def flux_to_mag(flux, band=None, flux_unit="Hz"):
+def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz"):
     if band is None:
-        return -2.5 * np.log10(flux) - 48.585
+        mag_out = -2.5 * np.log10(flux) - 48.585
+        mag_err_out = np.sqrt(((2.5/np.log(10))*(flux_err/flux))**2 + 0.005**2)
     elif band in FILTER_BANDS:
-        if flux_unit in ("AA", "A", "Angstrom"):
-            flux = flux
-        elif flux_unit in ("Hz", "Herz"):
-            flux = convert_flux_unit(flux, FILTER_BANDS[band]["lbda"], unit_in="Hz", unit_out="AA")
-        elif flux_unit in ("mgy", "maggy"):
-            flux =  convert_flux_unit(flux, FILTER_BANDS[band]["lbda"], unit_in="mgy", unit_out="AA")
+        if flux_unit in ("AA", "Hz", "mgy"):
+            flux, flux_err = convert_flux_unit((flux, flux_err), FILTER_BANDS[band]["lbda"], unit_in=flux_unit, unit_out="AA")
         else:
             raise ValueError("{} is not a valid flux unit.".format(flux_unit))
-        return -2.5 * (np.log10(flux) - FILTER_BANDS[band]["mAB0"])
+        mag_out = -2.5 * (np.log10(flux) - FILTER_BANDS[band]["mAB0"])
+        mag_err_out = (2.5 / np.log(10)) * (flux_err / flux)
     else:
         raise ValueError("{} is not an existing filter band.".format(band))
+    return mag_out, mag_err_out
 
-def sed_mag_to_flux_err(mag, mag_err, mag0_err=0.005):
-    return (0.4 * np.log(10) * mag_to_flux(mag))*np.sqrt(mag_err**2 + mag0_err**2)
-
-def band_flux_to_mag(flux, band):
-    flux = flux_nu_to_flux_lbda(flux, FILTER_BANDS[band]["lbda"])
-    return -2.5 * (np.log10(flux) - FILTER_BANDS[band]["mAB0"])
-
-def band_flux_to_mag_err(flux, flux_err, band):
-    flux = flux_nu_to_flux_lbda(flux, FILTER_BANDS[band]["lbda"])
-    flux_err = flux_nu_to_flux_lbda(flux_err, FILTER_BANDS[band]["lbda"])
-    return (2.5 / (np.log(10) * flux)) * flux_err
-
-def band_mag_to_flux(mag, band):
-    flux = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
-    return flux_lbda_to_flux_nu(flux, FILTER_BANDS[band]["lbda"])
-
-def band_mag_to_flux_err(mag, mag_err, band):
-    flux = band_mag_to_flux(mag, band)
-    flux_err = 0.4 * np.log(10) * flux_nu_to_flux_lbda(flux, FILTER_BANDS[band]["lbda"]) * mag_err
-    return flux_lbda_to_flux_nu(flux_err, FILTER_BANDS[band]["lbda"])
-
-def flux_nu_to_flux_lbda(flux_nu, band_lbda):
-    flux_nu = flux_nu * units.erg / units.s / units.cm**2 / units.Hz
-    flux_lbda = flux_nu.to(units.erg / units.s / units.cm**2 / units.AA, equivalencies=units.spectral_density(band_lbda * units.AA))
-    return flux_lbda.value
-
-def flux_lbda_to_flux_nu(flux_lbda, band_lbda):
-    flux_lbda = flux_lbda * units.erg / units.s / units.cm**2 / units.AA
-    flux_nu = flux_lbda.to(units.erg / units.s / units.cm**2 / units.Hz, equivalencies=units.spectral_density(band_lbda * units.AA))
-    return flux_nu.value
-
-def flux_nu_to_mgy(flux_nu):
-    return flux_nu / (3631e-23)
+def convert_flux_unit(flux, lbda, unit_in, unit_out):
+    unit_base = units.erg / units.s / units.cm**2
+    flux = np.asarray(flux) if type(flux) != float else flux
+    lbda = np.asarray(lbda) if type(lbda) != float else lbda
+    equiv = units.spectral_density(lbda * units.AA)
+    if unit_in not in ("Hz", "AA", "mgy"):
+        raise ValueError("{} is not a valid flux unit.".format(unit_in))
+    if unit_out not in ("Hz", "AA", "mgy"):
+        raise ValueError("{} is not a valid flux unit.".format(unit_out))
+    if unit_in == unit_out:
+        return flux
+    elif "mgy" not in (unit_in, unit_out):
+        if unit_in == "Hz" and unit_out == "AA":
+            unit_in, unit_out = unit_base / units.Hz, unit_base / units.AA
+        elif unit_in == "AA" and unit_out == "Hz":
+            unit_in, unit_out = unit_base / units.AA, unit_base / units.Hz
+        return ((flux*unit_in).to(unit_out, equivalencies=equiv)).value
+    elif unit_out == "mgy":
+        if unit_in == "AA":
+            flux = ((flux*unit_base/units.AA).to(unit_base/units.Hz, equivalencies=equiv)).value
+        return flux / (3631e-23)
+    elif unit_in == "mgy":
+        flux = flux * (3631e-23) * unit_base / units.Hz
+        if unit_out == "AA":
+            flux = flux.to(unit_base/units.AA, equivalencies=equiv)
+        return flux.value
 
 
 
@@ -174,9 +165,9 @@ class SED( BaseObject ):
             raise TypeError("data_sed must be a DataFrame or a dict")
         
         if "mag" in self.data_sed.keys():
-            self.data_sed["flux"] = sed_mag_to_flux(self.data_sed["mag"])
+            self.data_sed["flux"], self.data_sed["flux.err"] = mag_to_flux(self.data_sed["mag"], self.data_sed["mag.err"], band=None, flux_unit="Hz")
         elif "flux" in self.data_sed.keys():
-            self.data_sed["mag"] = sed_flux_to_mag(self.data_sed["flux"])
+            self.data_sed["mag"], self.data_sed["mag.err"] = flux_to_mag(self.data_sed["flux"], self.data_sed["flux.err"], band=None, flux_unit="Hz")
 
     def set_data_meas(self, data_meas=None, z=None, **extras):
         """
@@ -187,11 +178,9 @@ class SED( BaseObject ):
         ######### Option to set : mag or flux ##############
         for band in self.list_bands:
             if "mag" in self.data_meas[band].keys() and "flux" not in self.data_meas[band].keys():
-                self.data_meas[band]["flux"] = band_mag_to_flux(self.data_meas[band]["mag"], band)
-                self.data_meas[band]["flux.err"] = band_mag_to_flux_err(self.data_meas[band]["mag"], self.data_meas[band]["mag.err"], band)
+                self.data_meas[band]["flux"], self.data_meas[band]["flux.err"] = mag_to_flux(self.data_meas[band]["mag"], self.data_meas[band]["mag.err"], band=band, flux_unit="Hz")
             elif "flux" in self.data_meas[band].keys() and "mag" not in self.data_meas[band].keys():
-                self.data_meas[band]["mag"] = band_flux_to_mag(self.data_meas[band]["flux"], band)
-                self.data_meas[band]["mag.err"] = band_flux_to_mag_err(self.data_meas[band]["flux"], self.data_meas[band]["flux.err"], band)
+                self.data_meas[band]["mag"], self.data_meas[band]["mag.err"] = flux_to_mag(self.data_meas[band]["flux"], self.data_meas[band]["flux.err"], band=band, flux_unit="Hz")
         
         self._properties["z"] = z
     
@@ -253,8 +242,8 @@ class SED( BaseObject ):
         Void
         """
         self._derived_properties["data_sed_shifted"] = pandas.DataFrame({"lbda":lbda_z0(self.data_sed["lbda"], self.z),
-                                                                     "flux":flux_z0(self.data_sed["flux"], self.z)})
-        self.data_sed_shifted["mag"] = pandas.Series(sed_flux_to_mag(self.data_sed_shifted["flux"]))
+                                                                         "flux":flux_z0(self.data_sed["flux"], self.z)})
+        self.data_sed_shifted["mag"] = pandas.Series(flux_to_mag(self.data_sed_shifted["flux"], band=None, flux_unit="Hz"))
     
     def k_correction(self):
         """
@@ -270,10 +259,10 @@ class SED( BaseObject ):
                                                                                                   self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])}
                                                   for band in LIST_BANDS}
         for band in LIST_BANDS:
-            self.data_kcorr[band]["mag"] = band_flux_to_mag(self.data_kcorr[band]["flux"], band)
+            self.data_kcorr[band]["mag"] = flux_to_mag(self.data_kcorr[band]["flux"], band=band, flux_unit="Hz")
     
     def show(self, y_plot="flux", sed_shifted=True, plot_bandpasses=False, plot_filter_points=True,
-             xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
+             xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", flux_unit="Hz", savefile=None):
         """
         Plot method.
         
@@ -312,10 +301,16 @@ class SED( BaseObject ):
         """
         x_sed = self.data_sed_shifted["lbda"] if sed_shifted else self.data_sed["lbda"]
         y_sed = self.data_sed_shifted[y_plot] if sed_shifted else self.data_sed[y_plot]
+        y_sed_err = self.data_sed_shifted[y_plot+".err"] if sed_shifted else self.data_sed[y_plot+".err"]
+        if y_plot == "flux":
+            y_sed, y_sed_err = convert_flux_unit((y_sed, y_sed_err), lbda=x_sed, unit_in="Hz", unit_out=flux_unit)
         
         fig, ax = plt.subplots()
+        
+        #SED
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
         ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
+        ax.fill_between(x_sed, y_sed - y_sed_err, y_sed + y_sed_err, alpha=0.5, color="0.7")
         
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
@@ -325,6 +320,7 @@ class SED( BaseObject ):
         
         ax.axhline(ax_ylim[0], color="black", zorder=5)
         
+        #Photometry
         if plot_bandpasses:
             for band in LIST_BANDS:
                 ax.plot(self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]*(ax_ylim[1]-ax_ylim[0]) + ax_ylim[0],
@@ -335,10 +331,16 @@ class SED( BaseObject ):
                 x_point = FILTER_BANDS[band]["lbda"]
                 y_point = self.data_kcorr[band][y_plot] if sed_shifted else self.data_meas[band][y_plot]
                 y_err_point = self.data_kcorr[band][y_plot+".err"] if sed_shifted else self.data_meas[band][y_plot+".err"]
+                if y_plot == "flux":
+                    y_point, y_err_point = convert_flux_unit((y_point, y_err_point), lbda=FILTER_BANDS[band]["lbda"], unit_in="Hz", unit_out=flux_unit)
                 ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=FILTER_BANDS[band]["color"], label=band)
         
             ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
-            ax.set_ylabel(("${m}_{AB}$" if y_plot=="mag" else r"${f}_{\nu}$ $[erg.{s}^{-1}.{cm}^{-2}.{Hz}^{-1}]$"), fontsize="large")
+            if y_plot == "flux":
+                ylabel = "mgy" if flux_unit == "mgy" else \
+                         r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{Hz}^{{-1}}]$" if flux_unit == "Hz" else \
+                         r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$"
+            ax.set_ylabel(ylabel, fontsize="large")
             ax.legend(loc="upper right", ncol=1)
 
         ax.set_xscale(xscale)

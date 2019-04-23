@@ -42,7 +42,8 @@ class SED_prospector( basesed.SED ):
         imax = np.argmax(self.p_res["lnprobability"])
         theta_max = self.p_res["chain"][imax, :].copy()
         data_sed = {"lbda":self.get_sed_wavelength(),
-                    "flux":self.get_sed_flux(theta_max)}
+                    "flux":self.get_sed_flux(theta_max),
+                    "flux.err":self.get_sed_error(**extras)}
         _ = super(SED_prospector, self).set_data_sed( pandas.DataFrame(data_sed))
     
     def context_filters(self, context):
@@ -111,6 +112,7 @@ class SED_prospector( basesed.SED ):
         
         """
         mspec, mphot, mextra = self.p_mod.mean_model(theta, self.p_obs, sps=self.p_sps)
+        mspec = basesed.convert_flux_unit(mspec, lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
         return mspec
     
     def get_sed_wavelength(self):
@@ -126,6 +128,16 @@ class SED_prospector( basesed.SED ):
             wspec = self.p_obs["wavelength"]
         return wspec
     
+    def get_sed_error(self, nb_walkers_points=500, **extras):
+        """
+        
+        """
+        theta = self.p_res["chain"][-nb_walkers_points:, :]
+        mspec = np.empty((nb_walkers_points, self.nb_spec_points))
+        for ii in np.arange(nb_walkers_points):
+            mspec[ii], _, _ = self.p_mod.mean_model(theta[ii], self.p_obs, sps=self.p_sps)
+        return basesed.convert_flux_unit(np.std(mspec, axis=0), lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
+    
     def k_correction(self):
         """
         Recover the integrated flux from every filter bands from the shifted SED.
@@ -136,7 +148,7 @@ class SED_prospector( basesed.SED ):
         -------
         Void
         """
-        _ = super(SED_LePhare, self).k_correction()
+        _ = super(SED_prospector, self).k_correction()
         for band in self.list_bands:
             self.data_kcorr[band]["mag.err"] = self.data_meas[band]["mag.err"]
             self.data_kcorr[band]["flux.err"] = self.data_meas[band]["flux.err"]
@@ -186,3 +198,8 @@ class SED_prospector( basesed.SED ):
             buf.load_sps(**self.p_run_params)
             self._side_properties["p_sps"] = buf.sps
         return self._side_properties["p_sps"]
+
+    @property
+    def nb_spec_points(self):
+        """  """
+        return len(self.get_sed_wavelength())

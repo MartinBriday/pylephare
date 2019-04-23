@@ -1,4 +1,5 @@
 
+import numpy as np
 import pandas
 import os
 
@@ -47,13 +48,16 @@ class SED_LePhare( basesed.SED ):
             while len(sed_index)<9:
                 sed_index = "0"+sed_index
             sed_filename = "Id"+sed_index+".spec"
-            _ = super(SED_LePhare, self).set_data_sed( pandas.read_table(os.path.expanduser(sed_dir+sed_filename),
-                                                                         skiprows=20, names=["lbda", "mag"], sep="  ",
-                                                                         engine="python", nrows=nrows) )
+            sed_data =  pandas.read_table(os.path.expanduser(sed_dir+sed_filename),
+                                          skiprows=20, names=["lbda", "mag"], sep="  ",
+                                          engine="python", nrows=nrows)
         elif sed_index is None and sed_data is not None:
-            _ = super(SED_LePhare, self).set_data_sed( sed_data )
+            sed_data = sed_data
         else:
             raise ValueError("You must input one (and only one) data set option : the spectrum index or a DataFrame with columns = ['lbda', 'mag'].")
+        
+        sed_data["mag.err"] = np.zeros(len(sed_data))
+        _ = super(SED_LePhare, self).set_data_sed( sed_data )
     
     def context_filters(self, context):
         """

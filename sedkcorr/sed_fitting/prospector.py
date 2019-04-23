@@ -128,9 +128,9 @@ class ProspectorSEDFitter( BaseObject ):
                           "mag.err":data[col_syntax[1].replace("band",band)]}
                     for band in self.obs["list_bands"]}
         
-        self.obs["maggies"] = np.asarray([basesed.flux_nu_to_mgy(basesed.band_mag_to_flux(data_mag[band]["mag"], band))
+        self.obs["maggies"] = np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[0]
                                           for band in self.obs["list_bands"]])
-        self.obs["maggies_unc"] = np.asarray([basesed.flux_nu_to_mgy(basesed.band_mag_to_flux_err(data_mag[band]["mag"], data_mag[band]["mag.err"], band))
+        self.obs["maggies_unc"] = np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[1]
                                               for band in self.obs["list_bands"]])
         
         self.obs["zspec"] = data["Z-SPEC"]

@@ -19,7 +19,7 @@ class SED_prospector( basesed.SED ):
     
     PROPERTIES         = ["p_res", "p_obs", "p_mod"]
     SIDE_PROPERTIES    = ["p_run_params", "p_sps"]
-    DERIVED_PROPERTIES = []
+    DERIVED_PROPERTIES = ["sed_stack"]
 
     def read_fit_results(self, filename=None):
         """
@@ -34,13 +34,16 @@ class SED_prospector( basesed.SED ):
         buf.load_model(**self.p_run_params)
         self._properties["p_mod"] = buf.model
     
-    def set_data_sed(self, filename=None, **extras):
+    def set_data_sed(self, filename=None, sps=None, **extras):
         """
         
         """
+        if sps is not None:
+            self._side_properties["p_sps"] = sps
         self.read_fit_results(filename)
         imax = np.argmax(self.p_res["lnprobability"])
         theta_max = self.p_res["chain"][imax, :].copy()
+        self.set_sed_stack(**extras)
         data_sed = {"lbda":self.get_sed_wavelength(),
                     "flux":self.get_sed_flux(theta_max),
                     "flux.err":self.get_sed_error(**extras)}
@@ -128,7 +131,7 @@ class SED_prospector( basesed.SED ):
             wspec = self.p_obs["wavelength"]
         return wspec
     
-    def get_sed_error(self, nb_walkers_points=500, **extras):
+    def set_sed_stack(self, nb_walkers_points=500, **extras):
         """
         
         """
@@ -136,9 +139,33 @@ class SED_prospector( basesed.SED ):
         mspec = np.empty((nb_walkers_points, self.nb_spec_points))
         for ii in np.arange(nb_walkers_points):
             mspec[ii], _, _ = self.p_mod.mean_model(theta[ii], self.p_obs, sps=self.p_sps)
-        return basesed.convert_flux_unit(np.std(mspec, axis=0), lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
+        self._derived_properties["sed_stack"] = mspec
+        
+    def get_sed_error(self, nb_walkers_points=None, **extras):
+        """
+        
+        """
+        if nb_walkers_points is not None:
+            set_sed_stack(nb_walkers_points)
+        return basesed.convert_flux_unit(np.std(self.sed_stack, axis=0), lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
     
-    def k_correction(self):
+    def get_kcorr_error(self, nb_walkers_points=None, **extras):
+        """
+        
+        """
+        if nb_walkers_points is not None:
+            set_sed_stack(nb_walkers_points)
+        kcorr_stack = []
+        data_lbda = self.get_sed_wavelength()
+        for data_sed in self.sed_stack:
+            data_sed = basesed.convert_flux_unit(data_sed, lbda=data_lbda, unit_in="mgy", unit_out="Hz")
+            data_sed = {"lbda":data_lbda, "flux":data_sed}
+            data_kcorr = self.get_phot(data_sed=data_sed, bands=None)
+            kcorr_stack.append([data_kcorr[band] for band in basesed.LIST_BANDS])
+        kcorr_errors = {band:np.std(kcorr_stack, axis=0)[ii] for ii, band in enumerate(basesed.LIST_BANDS)}
+        return kcorr_errors
+    
+    def k_correction(self, **extras):
         """
         Recover the integrated flux from every filter bands from the shifted SED.
         Then convert them into magnitudes.
@@ -148,15 +175,14 @@ class SED_prospector( basesed.SED ):
         -------
         Void
         """
-        _ = super(SED_prospector, self).k_correction()
-        for band in self.list_bands:
-            self.data_kcorr[band]["mag.err"] = self.data_meas[band]["mag.err"]
-            self.data_kcorr[band]["flux.err"] = self.data_meas[band]["flux.err"]
+        _ = super(SED_prospector, self).k_correction(kcorr_flux_error=self.get_kcorr_error(**extras))
+
+    def show_walkers(self, figsize=(20,10)):
+        """
         
-        for band in basesed.FILTER_BANDS:
-            if band not in self.list_bands:
-                self.data_kcorr[band]["flux.err"] = 0.
-                self.data_kcorr[band]["mag.err"] = 0.
+        """
+        tracefig = traceplot(self.p_res, figsize=figsize)
+        return tracefig
 
     
     
@@ -198,6 +224,11 @@ class SED_prospector( basesed.SED ):
             buf.load_sps(**self.p_run_params)
             self._side_properties["p_sps"] = buf.sps
         return self._side_properties["p_sps"]
+
+    @property
+    def sed_stack(self):
+        """  """
+        return self._derived_properties["sed_stack"]
 
     @property
     def nb_spec_points(self):

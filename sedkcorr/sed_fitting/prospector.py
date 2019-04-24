@@ -152,6 +152,12 @@ class ProspectorSEDFitter( BaseObject ):
         """
         model_params = TemplateLibrary["parametric_sfh"]
         
+        model_params["tau"]["prior"] = priors.LogUniform(mini=1e-1, maxi=1e2)
+        model_params["mass"]["init"] = 1e8
+        model_params["mass"]["prior"] = priors.LogUniform(mini=1e5, maxi=1e11)
+        model_params["logzsol"]["prior"] = priors.TopHat(mini=-2., maxi=2.)
+        model_params["tage"]["prior"] = priors.TopHat(mini=0.001, maxi=13.8)
+        
         # make sure zred is fixed
         model_params["zred"]["isfree"] = False
         # And set the value to the object_redshift keyword
@@ -164,6 +170,14 @@ class ProspectorSEDFitter( BaseObject ):
         if add_neb:
             # Add nebular emission (with fixed parameters)
             model_params.update(TemplateLibrary["nebular"])
+        
+        model_params["logssfr"] = {"N":1,
+                                   "isfree":True,
+                                   "init":-11.,
+                                   "prior":priors.TopHat(mini=-15., maxi=-8.),
+                                   "depends_on":None,
+                                   "units":"log(sSFR)",
+                                   }
     
         # Now instantiate the model using this new dictionary of parameter specifications
         self._properties["model"] = SedModel(model_params)

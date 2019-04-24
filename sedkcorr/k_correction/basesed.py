@@ -242,10 +242,20 @@ class SED( BaseObject ):
         Void
         """
         self._derived_properties["data_sed_shifted"] = pandas.DataFrame({"lbda":lbda_z0(self.data_sed["lbda"], self.z),
-                                                                         "flux":flux_z0(self.data_sed["flux"], self.z)})
-        self.data_sed_shifted["mag"] = pandas.Series(flux_to_mag(self.data_sed_shifted["flux"], band=None, flux_unit="Hz"))
+                                                                         "flux":flux_z0(self.data_sed["flux"], self.z),
+                                                                         "flux.err":flux_z0(self.data_sed["flux.err"], self.z)})
+        self.data_sed_shifted["mag"], self.data_sed_shifted["mag.err"] = flux_to_mag(self.data_sed_shifted["flux"], self.data_sed_shifted["flux.err"], band=None, flux_unit="Hz")
     
-    def k_correction(self):
+    def get_phot(self, data_sed=None, bands=None):
+        """
+        
+        """
+        list_bands = LIST_BANDS if bands is None else bands if type(bands)==list else [bands]
+        data_kcorr = {band:spectroscopy.synthesize_photometry(data_sed["lbda"], data_sed["flux"], self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])
+                      for band in list_bands}
+        return data_kcorr
+    
+    def k_correction(self, kcorr_flux_error=None):
         """
         Recover the integrated flux from every filter bands from the shifted SED.
         Then convert them into magnitudes.
@@ -255,11 +265,12 @@ class SED( BaseObject ):
         -------
         Void
         """
-        self._derived_properties["data_kcorr"] = {band:{"flux":spectroscopy.synthesize_photometry(self.data_sed_shifted["lbda"], self.data_sed_shifted["flux"],
-                                                                                                  self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])}
-                                                  for band in LIST_BANDS}
+        data_kcorr = self.get_phot(data_sed=self.data_sed_shifted, bands=None)
+        data_kcorr = {k:{"flux":v} for k, v in data_kcorr.items()}
+        self._derived_properties["data_kcorr"] = data_kcorr
         for band in LIST_BANDS:
-            self.data_kcorr[band]["mag"] = flux_to_mag(self.data_kcorr[band]["flux"], band=band, flux_unit="Hz")
+            self.data_kcorr[band]["flux.err"] = 0. if kcorr_flux_error is None else kcorr_flux_error[band]
+            self.data_kcorr[band]["mag"], self.data_kcorr[band]["mag.err"] = flux_to_mag(self.data_kcorr[band]["flux"], self.data_kcorr[band]["flux.err"], band=band, flux_unit="Hz")
     
     def show(self, y_plot="flux", sed_shifted=True, plot_bandpasses=False, plot_filter_points=True,
              xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", flux_unit="Hz", savefile=None):

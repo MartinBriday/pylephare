@@ -8,7 +8,8 @@ import os
 #Parameters initialization
 from prospect.models import priors, SedModel
 from prospect.models.templates import TemplateLibrary
-from prospect.sources import CSPSpecBasis
+from prospect.models.transforms import zfrac_to_masses, stellar_logzsol
+from prospect.sources import CSPSpecBasis, FastStepBasis
 from sedpy.observate import load_filters
 
 #SED fitting
@@ -31,6 +32,20 @@ RUN_PARAMS = {'verbose':True,
               'debug':False,
               'outfile':'test_snf',
               'output_pickles': False,
+              'model_params': "parametric_sfh",
+              'mcmc': "dynesty",
+              # Optimization parameters
+              'do_powell': False,
+              'ftol':0.5e-5,
+              'maxfev': 5000,
+              'do_levenberg': True,
+              'nmin': 10,
+              # emcee fitting parameters
+              'nwalkers':128,
+              'nburn': [16, 32, 64],
+              'niter': 512,
+              'interval': 0.25,
+              'initial_disp': 0.1,
               # dynesty Fitter parameters
               'nested_bound': 'multi', # bounding method
               'nested_sample': 'unif', # sampling method
@@ -58,7 +73,7 @@ class ProspectorSEDFitter( BaseObject ):
     
     PROPERTIES         = ["run_params", "obs", "sps", "model"]
     SIDE_PROPERTIES    = []
-    DERIVED_PROPERTIES = ["dynestyout"]
+    DERIVED_PROPERTIES = ["mcmc_res"]
     
     def __init__(self, **kwargs):
         """
@@ -144,19 +159,43 @@ class ProspectorSEDFitter( BaseObject ):
         """
         
         """
-        self._properties["sps"] = CSPSpecBasis(zcontinuous=zcontinuous) if sps is None else sps
+        if self.run_params["model_params"] == "parametric_sfh":
+            self._properties["sps"] = CSPSpecBasis(zcontinuous=zcontinuous) if sps is None else sps
+        else:
+            self._properties["sps"] = FastStepBasis(zcontinuous=zcontinuous) if sps is None else sps
     
     def load_model(self, add_dust=False, add_neb=False, **extras):
         """
         
         """
-        model_params = TemplateLibrary["parametric_sfh"]
+        model_params = TemplateLibrary[self.run_params["model_params"]]
         
-        model_params["tau"]["prior"] = priors.LogUniform(mini=1e-1, maxi=1e2)
-        model_params["mass"]["init"] = 1e8
-        model_params["mass"]["prior"] = priors.LogUniform(mini=1e5, maxi=1e11)
+        # Adjust model initial values (only important for emcee)
+        model_params["dust2"]["init"] = 0.1
+        model_params["logzsol"]["init"] = -0.3
+        if self.run_params["model_params"] == "parametric_sfh":
+            model_params["tage"]["init"] = 13.
+            model_params["mass"]["init"] = 1e8
+            model_params["tau"]["init"] = 1.
+        
+        # If we are going to be using emcee, it is useful to provide an
+        # initial scale for the cloud of walkers (the default is 0.1)
+        # For dynesty these can be skipped
+        if self.run_params["model_params"] == "parametric_sfh":
+            model_params["mass"]["init_disp"] = 1e7
+            model_params["tau"]["init_disp"] = 3.0
+            model_params["tage"]["init_disp"] = 5.0
+            model_params["tage"]["disp_floor"] = 2.0
+            model_params["dust2"]["disp_floor"] = 0.1
+        
+        #Priors
         model_params["logzsol"]["prior"] = priors.TopHat(mini=-2., maxi=2.)
-        model_params["tage"]["prior"] = priors.TopHat(mini=0.001, maxi=13.8)
+        if self.run_params["model_params"] == "parametric_sfh":
+            model_params["tau"]["prior"] = priors.LogUniform(mini=1e-1, maxi=1e2)
+            model_params["mass"]["prior"] = priors.LogUniform(mini=1e5, maxi=1e11)
+            model_params["tage"]["prior"] = priors.TopHat(mini=0.001, maxi=20.8)
+        if "logmass" in model_params.keys():
+            model_params["logmass"]["prior"] = priors.TopHat(mini=5., maxi=12.)
         
         # make sure zred is fixed
         model_params["zred"]["isfree"] = False
@@ -170,19 +209,11 @@ class ProspectorSEDFitter( BaseObject ):
         if add_neb:
             # Add nebular emission (with fixed parameters)
             model_params.update(TemplateLibrary["nebular"])
-        
-        model_params["logssfr"] = {"N":1,
-                                   "isfree":True,
-                                   "init":-11.,
-                                   "prior":priors.TopHat(mini=-15., maxi=-8.),
-                                   "depends_on":None,
-                                   "units":"log(sSFR)",
-                                   }
     
         # Now instantiate the model using this new dictionary of parameter specifications
         self._properties["model"] = SedModel(model_params)
     
-    def lnprobfn(self, theta, model=None, obs=None, nested=True, verbose=False):
+    def lnprobfn(self, theta, model=None, obs=None, sps=None, noise=None, nested=True, residuals=False, verbose=False):
         """
         
         """
@@ -243,6 +274,101 @@ class ProspectorSEDFitter( BaseObject ):
         except:
             pass
         sys.exit(0)
+
+    def mcmc_dynesty(self, pool, nprocs):
+        """
+        
+        """
+        if self.run_params['verbose']:
+            print('dynesty sampling...')
+        tstart = time.time()  # time it
+        dynestyout = fitting.run_dynesty_sampler(self.lnprobfn, self.prior_transform, self.model.ndim,
+                                                 pool=pool, queue_size=nprocs,
+                                                 stop_function=stopping_function,
+                                                 wt_function=weight_function,
+                                                 **self.run_params)
+        ndur = time.time() - tstart
+        print('done dynesty in {0}s'.format(ndur))
+        return dynestyout
+    
+    def init_guess(self, initial_theta, pool):
+        """
+        
+        """
+        from prospect.fitting.fitting import run_minimize
+        
+        if self.run_params['verbose']:
+            print('Starting minimization...')
+        
+        if not np.isfinite(self.model.prior_product(self.model.initial_theta.copy())):
+            halt("Halting: initial parameter position has zero prior probability.")
+        
+        nmin = self.run_params.get('nmin', 1)
+        if pool is not None:
+            nmin = max([nmin, pool.size])
+        
+        if bool(self.run_params.get('do_powell', False)):
+            powell_opt = {'ftol': self.run_params['ftol'], 'xtol': 1e-6, 'maxfev': self.run_params['maxfev']}
+            guesses, pdur, best = run_minimize(self.obs, self.model, self.sps, noise=None, lnprobfn=self.lnprobfn,
+                                               min_method='powell', min_opts={"options": powell_opt},
+                                               nmin=nmin, pool=pool)
+            initial_center = fitting.reinitialize(guesses[best].x, self.model, edge_trunc=self.run_params.get('edge_trunc', 0.1))
+            initial_prob = -guesses[best]['fun']
+            if self.run_params['verbose']:
+                print('done Powell in {0}s'.format(pdur))
+                print('best Powell guess:{0}'.format(initial_center))
+        
+        elif bool(self.run_params.get('do_levenberg', False)):
+            lm_opt = {"xtol": 5e-16, "ftol": 5e-16}
+            guesses, pdur, best = run_minimize(self.obs, self.model, self.sps, noise=None, lnprobfn=self.lnprobfn,
+                                               min_method='lm', min_opts=lm_opt,
+                                               nmin=nmin, pool=pool)
+            initial_center = fitting.reinitialize(guesses[best].x, self.model, edge_trunc=self.run_params.get('edge_trunc', 0.1))
+            initial_prob = None
+            if self.run_params['verbose']:
+                print('done L-M in {0}s'.format(pdur))
+                print('best L-M guess:{0}'.format(initial_center))
+        
+        else:
+            if self.run_params['verbose']:
+                print('No minimization requested.')
+            guesses = None
+            pdur = 0.0
+            initial_center = initial_theta.copy()
+            initial_prob = None
+
+        return {"guesses":guesses, "pdur":pdur, "initial_center":initial_center, "initial_prob":initial_prob}
+
+    def mcmc_emcee(self, pool):
+        """
+        
+        """
+        postkwargs = {}
+        initial_theta = self.model.rectify_theta(self.model.initial_theta)
+        
+        try:
+            import h5py
+            hfile = h5py.File(self.hfilename, "a")
+            print("Writing to file {}".format(self.hfilename))
+            write_results.write_h5_header(hfile, self.run_params, self.model)
+            write_results.write_obs_to_h5(hfile, self.obs)
+        except(ImportError):
+            hfile = None
+        
+        init_guess = self.init_guess(initial_theta, pool)
+        
+        if self.run_params['verbose']:
+            print('emcee sampling...')
+        tstart = time.time()
+        out = fitting.run_emcee_sampler(self.lnprobfn, init_guess["initial_center"], self.model,
+                                        postkwargs=postkwargs, prob0=init_guess["initial_prob"],
+                                        pool=pool, hdf5=hfile, **self.run_params)
+        esampler, burn_p0, burn_prob0 = out
+        ndur = time.time() - tstart
+        if self.run_params['verbose']:
+            print('done emcee in {0}s'.format(ndur))
+        
+        return {"hfile":hfile, "esampler":esampler, "burn_p0":burn_p0, "burn_prob0":burn_prob0, "init_guess":init_guess, "ndur":ndur}
     
     def run_fit(self, pool=None, nprocs=1, write_res=False):
         """
@@ -265,22 +391,17 @@ class ProspectorSEDFitter( BaseObject ):
         # -------
         # Sample
         # -------
-        if self.run_params['verbose']:
-            print('dynesty sampling...')
-        tstart = time.time()  # time it
-        dynestyout = fitting.run_dynesty_sampler(self.lnprobfn, self.prior_transform, self.model.ndim,
-                                                 pool=pool, queue_size=nprocs,
-                                                 stop_function=stopping_function,
-                                                 wt_function=weight_function,
-                                                 **self.run_params)
-        ndur = time.time() - tstart
-        print('done dynesty in {0}s'.format(ndur))
-        self._derived_properties["dynestyout"] = dynestyout
+        if self.run_params["mcmc"] == "dynesty":
+            mcmc_res = self.mcmc_dynesty(pool, nprocs)
+        elif self.run_params["mcmc"] == "emcee":
+            mcmc_res = self.mcmc_emcee(pool)
+        
+        self._derived_properties["mcmc_res"] = mcmc_res
 
         if write_res:
-            self.write_results(ndur)
+            self.write_results((None if self.run_params["mcmc"]=="dynesty" else self.mcmc_res["hfile"]), ndur)
 
-    def write_results(self, ndur=0.):
+    def write_results(self, hfile=None, ndur=0.):
         """
         
         """
@@ -298,8 +419,14 @@ class ProspectorSEDFitter( BaseObject ):
             write_results.write_model_pickle(self.run_params['outfile'] + '_model', self.model, powell=None, paramfile_text=partext)
     
         # Write HDF5
-        hfile = self.run_params['outfile'] + '_mcmc.h5'
-        write_results.write_hdf5(hfile, self.run_params, self.model, self.obs, self.dynestyout, None, tsample=ndur)
+        if self.run_params["mcmc"] == "dynesty":
+            write_results.write_hdf5(self.hfilename, self.run_params, self.model, self.obs, self.mcmc_res, None, tsample=ndur)
+        elif self.run_params["mcmc"] == "emcee":
+            hfile = self.hfilename if hfile is None else hfile
+            write_results.write_hdf5(hfile, self.run_params, self.model, self.obs, self.mcmc_res["esampler"], None, #self.mcmc_res["init_guess"]["guesses"],
+                                     toptimize=self.mcmc_res["init_guess"]["pdur"], tsample=self.mcmc_res["ndur"],
+                                     sampling_initial_center=self.mcmc_res["init_guess"]["initial_center"],
+                                     post_burnin_center=self.mcmc_res["burn_p0"], post_burnin_prob=self.mcmc_res["burn_prob0"])
     
             
     
@@ -336,7 +463,12 @@ class ProspectorSEDFitter( BaseObject ):
         return self._properties["model"]
 
     @property
-    def dynestyout(self):
+    def mcmc_res(self):
         """  """
-        return self._derived_properties["dynestyout"]
+        return self._derived_properties["mcmc_res"]
+
+    @property
+    def hfilename(self):
+        """  """
+        return self.run_params["outfile"] + "_mcmc_" + self.run_params["mcmc"] + ".h5"
 

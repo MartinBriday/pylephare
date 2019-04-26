@@ -41,8 +41,14 @@ class SED_prospector( basesed.SED ):
         if sps is not None:
             self._side_properties["p_sps"] = sps
         self.read_fit_results(filename)
+        
         imax = np.argmax(self.p_res["lnprobability"])
-        theta_max = self.p_res["chain"][imax, :].copy()
+        if self.p_run_params["mcmc"] == "emcee":
+            i, j = np.unravel_index(imax, self.p_res['lnprobability'].shape)
+            theta_max = self.p_res['chain'][i, j, :].copy()
+        else:
+            theta_max = self.p_res["chain"][imax, :]
+        
         self.set_sed_stack(**extras)
         data_sed = {"lbda":self.get_sed_wavelength(),
                     "flux":self.get_sed_flux(theta_max),

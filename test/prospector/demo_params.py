@@ -14,7 +14,8 @@ run_params = {'verbose':True,
               'output_pickles': False,
               # Optimization parameters
               'do_powell': False,
-              'ftol':0.5e-5, 'maxfev': 5000,
+              'ftol':0.5e-5,
+              'maxfev': 5000,
               'do_levenberg': True,
               'nmin': 10,
               # emcee fitting parameters

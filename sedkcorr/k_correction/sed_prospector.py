@@ -4,6 +4,7 @@ import pandas
 
 from prospect.io.read_results import results_from, get_sps
 from prospect.io.read_results import traceplot, subcorner
+from prospect.utils.plotting import quantile
 
 
 from ..sed_fitting import prospector
@@ -45,7 +46,7 @@ class SED_prospector( basesed.SED ):
         imax = np.argmax(self.p_res["lnprobability"])
         if self.p_run_params["mcmc"] == "emcee":
             i, j = np.unravel_index(imax, self.p_res['lnprobability'].shape)
-            theta_max = self.p_res['chain'][i, j, :].copy()
+            theta_max = self.p_res["chain"][i, j, :].copy()
         else:
             theta_max = self.p_res["chain"][imax, :]
         
@@ -137,11 +138,27 @@ class SED_prospector( basesed.SED ):
             wspec = self.p_obs["wavelength"]
         return wspec
     
+    def get_theta_pcts(self):
+        """
+        
+        """
+        post_pcts = {param:quantile(self.p_res["chain"][:, ii], percents=[16, 50, 84],
+                                    weights=self.p_res.get("weights", None))
+                     for ii, param in enumerate(self.p_res["theta_labels"])}
+        return
+    
     def set_sed_stack(self, nb_walkers_points=500, **extras):
         """
         
         """
-        theta = self.p_res["chain"][-nb_walkers_points:, :]
+        randint = np.random.randint
+        if self.p_run_params["mcmc"] == "emcee":
+            rand_chain = randint(self.p_run_params["nwalkers"], size=nb_walkers_points)
+            rand_iter = randint(self.p_run_params["niter"], size=nb_walkers_points)
+            theta = self.p_res["chain"][rand_chain, rand_iter, :]
+        elif self.p_run_params["mcmc"] == "dynesty":
+            theta = self.p_res["chain"][-nb_walkers_points:, :]
+        
         mspec = np.empty((nb_walkers_points, self.nb_spec_points))
         for ii in np.arange(nb_walkers_points):
             mspec[ii], _, _ = self.p_mod.mean_model(theta[ii], self.p_obs, sps=self.p_sps)
@@ -151,16 +168,16 @@ class SED_prospector( basesed.SED ):
         """
         
         """
-        if nb_walkers_points is not None:
-            set_sed_stack(nb_walkers_points)
+        if nb_walkers_points is not None and len(self.sed_stack) != nb_walkers_points:
+            self.set_sed_stack(nb_walkers_points)
         return basesed.convert_flux_unit(np.std(self.sed_stack, axis=0), lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
     
     def get_kcorr_error(self, nb_walkers_points=None, **extras):
         """
         
         """
-        if nb_walkers_points is not None:
-            set_sed_stack(nb_walkers_points)
+        if nb_walkers_points is not None and len(self.sed_stack) != nb_walkers_points:
+            self.set_sed_stack(nb_walkers_points)
         kcorr_stack = []
         data_lbda = self.get_sed_wavelength()
         for data_sed in self.sed_stack:
@@ -183,11 +200,11 @@ class SED_prospector( basesed.SED ):
         """
         _ = super(SED_prospector, self).k_correction(kcorr_flux_error=self.get_kcorr_error(**extras))
 
-    def show_walkers(self, figsize=(20,10)):
+    def show_walkers(self, figsize=(9,7), **kwargs):
         """
         
         """
-        tracefig = traceplot(self.p_res, figsize=figsize)
+        tracefig = traceplot(self.p_res, figsize=figsize, **kwargs)
         return tracefig
 
     

@@ -289,7 +289,7 @@ class ProspectorSEDFitter( BaseObject ):
                                                  **self.run_params)
         ndur = time.time() - tstart
         print('done dynesty in {0}s'.format(ndur))
-        return dynestyout
+        return {"dynestyout":dynestyout, "ndur":ndur}
     
     def init_guess(self, initial_theta, pool):
         """
@@ -399,9 +399,9 @@ class ProspectorSEDFitter( BaseObject ):
         self._derived_properties["mcmc_res"] = mcmc_res
 
         if write_res:
-            self.write_results((None if self.run_params["mcmc"]=="dynesty" else self.mcmc_res["hfile"]), ndur)
+            self.write_results()
 
-    def write_results(self, hfile=None, ndur=0.):
+    def write_results(self):
         """
         
         """
@@ -420,10 +420,10 @@ class ProspectorSEDFitter( BaseObject ):
     
         # Write HDF5
         if self.run_params["mcmc"] == "dynesty":
-            write_results.write_hdf5(self.hfilename, self.run_params, self.model, self.obs, self.mcmc_res, None, tsample=ndur)
+            write_results.write_hdf5(self.hfilename, self.run_params, self.model, self.obs, self.mcmc_res["dynestyout"], None, tsample=self.mcmc_res["ndur"])
         elif self.run_params["mcmc"] == "emcee":
             hfile = self.hfilename if hfile is None else hfile
-            write_results.write_hdf5(hfile, self.run_params, self.model, self.obs, self.mcmc_res["esampler"], None, #self.mcmc_res["init_guess"]["guesses"],
+            write_results.write_hdf5(self.mcmc_res["hfile"], self.run_params, self.model, self.obs, self.mcmc_res["esampler"], None, #self.mcmc_res["init_guess"]["guesses"],
                                      toptimize=self.mcmc_res["init_guess"]["pdur"], tsample=self.mcmc_res["ndur"],
                                      sampling_initial_center=self.mcmc_res["init_guess"]["initial_center"],
                                      post_burnin_center=self.mcmc_res["burn_p0"], post_burnin_prob=self.mcmc_res["burn_prob0"])

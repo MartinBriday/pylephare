@@ -20,7 +20,7 @@ class SED_prospector( basesed.SED ):
     
     PROPERTIES         = ["p_res", "p_obs", "p_mod"]
     SIDE_PROPERTIES    = ["p_run_params", "p_sps"]
-    DERIVED_PROPERTIES = ["sed_stack"]
+    DERIVED_PROPERTIES = ["post_pcts", "sed_stack"]
 
     def read_fit_results(self, filename=None):
         """
@@ -138,26 +138,31 @@ class SED_prospector( basesed.SED ):
             wspec = self.p_obs["wavelength"]
         return wspec
     
-    def get_theta_pcts(self):
+    def set_post_pcts(self):
         """
         
         """
-        post_pcts = {param:quantile(self.p_res["chain"][:, ii], percents=[16, 50, 84],
-                                    weights=self.p_res.get("weights", None))
-                     for ii, param in enumerate(self.p_res["theta_labels"])}
-        return
+        post_pcts = [quantile(self.p_res["chain"][:, ii], percents=[16, 50, 84],
+                              weights=self.p_res.get("weights", None))
+                     for ii, param in enumerate(self.p_res["theta_labels"])]
+        self._derived_properties["post_pcts"] = post_pcts
     
     def set_sed_stack(self, nb_walkers_points=500, **extras):
         """
         
         """
         randint = np.random.randint
+        theta = []
         if self.p_run_params["mcmc"] == "emcee":
             rand_chain = randint(self.p_run_params["nwalkers"], size=nb_walkers_points)
             rand_iter = randint(self.p_run_params["niter"], size=nb_walkers_points)
             theta = self.p_res["chain"][rand_chain, rand_iter, :]
         elif self.p_run_params["mcmc"] == "dynesty":
-            theta = self.p_res["chain"][-nb_walkers_points:, :]
+            while len(theta) < nb_walkers_points:
+                rand_iter = randint(len(self.p_res["chain"]))
+                buf_theta = self.p_res["chain"][rand_iter, :]
+                if np.prod([self.post_pcts[ii][0]<elt<self.post_pcts[ii][2] for ii, elt in enumerate(buf_theta)]):
+                    theta.append(buf_theta)
         
         mspec = np.empty((nb_walkers_points, self.nb_spec_points))
         for ii in np.arange(nb_walkers_points):
@@ -247,6 +252,13 @@ class SED_prospector( basesed.SED ):
             buf.load_sps(**self.p_run_params)
             self._side_properties["p_sps"] = buf.sps
         return self._side_properties["p_sps"]
+            
+    @property
+    def post_pcts(self):
+        """  """
+        if self._derived_properties["post_pcts"] is None:
+            self.set_post_pcts()
+        return self._derived_properties["post_pcts"]
 
     @property
     def sed_stack(self):

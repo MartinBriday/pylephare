@@ -132,39 +132,54 @@ class ProspectorSEDFitter( BaseObject ):
                 idx.append(ii)
         return [band for band in basesed.LIST_BANDS if basesed.FILTER_BANDS[band]["context_id"] in idx]
     
-    def load_obs(self, data=None, col_syntax=["mag_band", "mag_band_err"], **extras):
+    def load_obs(self, data=None, data_type="phot", input_flux_unit="Hz", zspec=None, context_filters=None,
+                 col_syntax={"mag":"mag_band", "mag.err":"mag_band_err", "lbda":"lbda", "flux":"flux", "flux.err":"flux.err"},
+                 **extras):
         """
         
         """
-        self.obs["list_bands"] = self.context_filters(data["CONTEXT"])
-        self.obs["filters"] = load_filters([basesed.FILTER_BANDS[band]["prospector_name"] for band in self.obs["list_bands"]])
+        self.obs["list_bands"] = self.context_filters(data["CONTEXT"] if context_filters is None else context_filters) \
+                                 if data_type=="phot" else None
+        self.obs["filters"] = load_filters([basesed.FILTER_BANDS[band]["prospector_name"] for band in self.obs["list_bands"]]) \
+                              if data_type=="phot" else None
+        self.obs["zspec"] = data["Z-SPEC"] if zspec is None else zspec
+
+        ##### Photometric input #####
+        if data_type == "phot":
+            data_mag = {band:{"mag":data[col_syntax["mag"].replace("band",band)],
+                              "mag.err":data[col_syntax["mag.err"].replace("band",band)]}
+                        for band in self.obs["list_bands"]}
         
-        data_mag = {band:{"mag":data[col_syntax[0].replace("band",band)],
-                          "mag.err":data[col_syntax[1].replace("band",band)]}
-                    for band in self.obs["list_bands"]}
-        
-        self.obs["maggies"] = np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[0]
-                                          for band in self.obs["list_bands"]])
-        self.obs["maggies_unc"] = np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[1]
+            self.obs["maggies"] = np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[0]
                                               for band in self.obs["list_bands"]])
+            self.obs["maggies_unc"] = np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[1]
+                                                  for band in self.obs["list_bands"]])
+            self.obs["wavelength"] = None
+            self.obs["spectrum"] = None
+            self.obs["unc"] = None
+            self.obs["mask"] = None
         
-        self.obs["zspec"] = data["Z-SPEC"]
-        
-        self.obs["wavelength"] = None
-        self.obs["spectrum"] = None
-        self.obs["unc"] = None
-        self.obs["mask"] = None
+        ##### Spectroscopic input #####
+        elif data_type == "spec":
+            data_spec = basesed.convert_flux_unit((data[col_syntax["flux"]], data[col_syntax["flux.err"]]),
+                                                  lbda=data[col_syntax["lbda"]], unit_in=input_flux_unit, unit_out="mgy")
+            self.obs["maggies"] = None
+            self.obs["maggies_unc"] = None
+            self.obs["wavelength"] = data[col_syntax["lbda"]]
+            self.obs["spectrum"] = data_spec[0]
+            self.obs["unc"] = data_spec[1]
+            self.obs["mask"] = None
     
-    def load_sps(self, zcontinuous=1, sps=None, **extras):
+    def load_sps(self, sps=None, **extras):
         """
         
         """
         if self.run_params["model_params"] == "parametric_sfh":
-            self._properties["sps"] = CSPSpecBasis(zcontinuous=zcontinuous) if sps is None else sps
+            self._properties["sps"] = CSPSpecBasis(zcontinuous=self.run_params["zcontinuous"]) if sps is None else sps
         else:
-            self._properties["sps"] = FastStepBasis(zcontinuous=zcontinuous) if sps is None else sps
+            self._properties["sps"] = FastStepBasis(zcontinuous=self.run_params["zcontinuous"]) if sps is None else sps
     
-    def load_model(self, add_dust=False, add_neb=False, **extras):
+    def load_model(self, imposed_priors=None, **extras):
         """
         
         """
@@ -197,16 +212,29 @@ class ProspectorSEDFitter( BaseObject ):
         if "logmass" in model_params.keys():
             model_params["logmass"]["prior"] = priors.TopHat(mini=5., maxi=12.)
         
+        if imposed_priors is not None:
+            for k, v in imposed_priors.items():
+                if k == "dust2":
+                    model_params[k]["prior"] = priors.ClippedNormal(mean=v["mean"], sigma=v["sigma"], mini=0., maxi=10.)
+                elif k == "logmass":
+                    model_params[k]["prior"] = priors.ClippedNormal(mean=v["mean"], sigma=v["sigma"], mini=0., maxi=20.)
+                else:
+                    try:
+                        model_params[k]["prior"] = priors.Normal(mean=v["mean"], sigma=v["sigma"])
+                    except:
+                        print("'{}' is not a valid model parameter.".format(k))
+                        continue
+        
         # make sure zred is fixed
         model_params["zred"]["isfree"] = False
         # And set the value to the object_redshift keyword
         model_params["zred"]["init"] = self.obs["zspec"]
     
-        if add_dust:
+        if self.run_params["add_dust"]:
             # Add dust emission (with fixed dust SED parameters)
             model_params.update(TemplateLibrary["dust_emission"])
     
-        if add_neb:
+        if self.run_params["add_neb"]:
             # Add nebular emission (with fixed parameters)
             model_params.update(TemplateLibrary["nebular"])
     

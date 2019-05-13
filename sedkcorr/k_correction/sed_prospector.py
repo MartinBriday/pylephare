@@ -161,8 +161,9 @@ class SED_prospector( basesed.SED ):
             while len(theta) < nb_walkers_points:
                 rand_iter = randint(len(self.p_res["chain"]))
                 buf_theta = self.p_res["chain"][rand_iter, :]
-                if np.prod([self.post_pcts[ii][0]<elt<self.post_pcts[ii][2] for ii, elt in enumerate(buf_theta)]):
-                    theta.append(buf_theta)
+#                if np.prod([np.abs(elt-self.post_pcts[ii][1]) < ((self.post_pcts[ii][2]-self.post_pcts[ii][0])/2)*1000
+#                            for ii, elt in enumerate(buf_theta)]):  #self.post_pcts[ii][0]<elt<self.post_pcts[ii][2]
+                theta.append(buf_theta)
         
         mspec = np.empty((nb_walkers_points, self.nb_spec_points))
         for ii in np.arange(nb_walkers_points):
@@ -175,7 +176,8 @@ class SED_prospector( basesed.SED ):
         """
         if nb_walkers_points is not None and len(self.sed_stack) != nb_walkers_points:
             self.set_sed_stack(nb_walkers_points)
-        return basesed.convert_flux_unit(np.std(self.sed_stack, axis=0), lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
+        buf_q = np.quantile(self.sed_stack, [0.16, 0.50, 0.84], axis=0)
+        return basesed.convert_flux_unit((buf_q[2]-buf_q[0])/2, lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
     
     def get_kcorr_error(self, nb_walkers_points=None, **extras):
         """

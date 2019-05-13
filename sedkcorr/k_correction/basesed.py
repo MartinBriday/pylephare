@@ -350,7 +350,7 @@ class SED( BaseObject ):
             if y_plot == "flux":
                 ylabel = "mgy" if flux_unit == "mgy" else \
                          r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{Hz}^{{-1}}]$" if flux_unit == "Hz" else \
-                         r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$"
+                         r"${{f}}_{{\lambda}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$"
             ax.set_ylabel(ylabel, fontsize="large")
             ax.legend(loc="upper right", ncol=1)
 

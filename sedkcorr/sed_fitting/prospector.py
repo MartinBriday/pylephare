@@ -135,12 +135,15 @@ class ProspectorSEDFitter( BaseObject ):
                 idx.append(ii)
         return [band for band in basesed.LIST_BANDS if basesed.FILTER_BANDS[band]["context_id"] in idx]
     
-    def load_obs(self, data=None, data_type="phot", input_flux_unit="Hz", zspec=None, context_filters=None,
+    def load_obs(self, obs=None, data=None, data_type="phot", input_flux_unit="Hz", zspec=None, context_filters=None,
                  col_syntax={"mag":"mag_band", "mag.err":"mag_band_err", "lbda":"lbda", "flux":"flux", "flux.err":"flux.err"},
                  **extras):
         """
         
         """
+        if obs is not None:
+            self._properties["obs"] = obs
+            return
         self.obs["list_bands"] = self.context_filters(data["CONTEXT"] if context_filters is None else context_filters) \
                                  if data_type=="phot" else None
         self.obs["filters"] = load_filters([basesed.FILTER_BANDS[band]["prospector_name"] for band in self.obs["list_bands"]]) \

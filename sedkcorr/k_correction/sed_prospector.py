@@ -18,11 +18,11 @@ class SED_prospector( basesed.SED ):
     
     """
     
-    PROPERTIES         = ["p_res", "p_obs", "p_mod"]
-    SIDE_PROPERTIES    = ["p_run_params", "p_sps"]
+    PROPERTIES         = ["p_res", "p_obs", "p_mod", "p_sps"]
+    SIDE_PROPERTIES    = ["p_run_params"]
     DERIVED_PROPERTIES = ["post_pcts", "sed_stack"]
 
-    def read_fit_results(self, filename=None):
+    def read_fit_results(self, filename=None, sps=None, **extras):
         """
         
         """
@@ -31,17 +31,18 @@ class SED_prospector( basesed.SED ):
         self._properties["p_obs"] = obs
         
         buf = prospector.ProspectorSEDFitter()
-        buf._properties["obs"] = self.p_obs
-        buf.load_model(**self.p_run_params)
+        buf.set_run_params(auto_add=True, **self.p_run_params)
+        buf.load_obs(self.p_obs)
+        buf.load_model()
+        buf.load_sps(sps)
         self._properties["p_mod"] = buf.model
+        self._properties["p_sps"] = buf.sps
     
-    def set_data_sed(self, filename=None, sps=None, **extras):
+    def set_data_sed(self, filename=None, **extras):
         """
         
         """
-        if sps is not None:
-            self._side_properties["p_sps"] = sps
-        self.read_fit_results(filename)
+        self.read_fit_results(filename, **extras)
         
         imax = np.argmax(self.p_res["lnprobability"])
         if self.p_run_params["mcmc"] == "emcee":
@@ -240,6 +241,11 @@ class SED_prospector( basesed.SED ):
     def p_mod(self):
         """  """
         return self._properties["p_mod"]
+    
+    @property
+    def p_sps(self):
+        """  """
+        return self._properties["p_sps"]
 
     @property
     def p_run_params(self):
@@ -247,16 +253,6 @@ class SED_prospector( basesed.SED ):
         if self._side_properties["p_run_params"] is None:
             self._side_properties["p_run_params"] = self.p_res["run_params"]
         return self._side_properties["p_run_params"]
-    
-    @property
-    def p_sps(self):
-        """  """
-        if self._side_properties["p_sps"] is None:
-            buf = prospector.ProspectorSEDFitter()
-            buf.set_run_params(auto_add=True, **self.p_run_params)
-            buf.load_sps()
-            self._side_properties["p_sps"] = buf.sps
-        return self._side_properties["p_sps"]
             
     @property
     def post_pcts(self):

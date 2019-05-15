@@ -138,12 +138,12 @@ class SED_prospector( basesed.SED ):
             wspec = self.p_obs["wavelength"]
         return wspec
     
-    def set_post_pcts(self):
+    def set_post_pcts(self, weights=False):
         """
         
         """
         post_pcts = [quantile(self.p_res["chain"][:, ii], percents=[16, 50, 84],
-                              weights=self.p_res.get("weights", None))
+                              weights=(self.p_res.get("weights", None) if weights else None))
                      for ii, param in enumerate(self.p_res["theta_labels"])]
         self._derived_properties["post_pcts"] = post_pcts
     
@@ -158,13 +158,15 @@ class SED_prospector( basesed.SED ):
             rand_iter = randint(self.p_run_params["niter"], size=nb_walkers_points)
             theta = self.p_res["chain"][rand_chain, rand_iter, :]
         elif self.p_run_params["mcmc"] == "dynesty":
-            while len(theta) < nb_walkers_points:
-                rand_iter = randint(len(self.p_res["chain"]))
-                buf_theta = self.p_res["chain"][rand_iter, :]
+            rand_iter = randint(len(self.p_res["chain"]), size=nb_walkers_points)
+            theta = self.p_res["chain"][rand_iter, :]
+#            while len(theta) < nb_walkers_points:
+#                rand_iter = randint(len(self.p_res["chain"]))
+#                buf_theta = self.p_res["chain"][rand_iter, :]
 #                if np.prod([np.abs(elt-self.post_pcts[ii][1]) < ((self.post_pcts[ii][2]-self.post_pcts[ii][0])/2)*1000
 #                            for ii, elt in enumerate(buf_theta)]):  #self.post_pcts[ii][0]<elt<self.post_pcts[ii][2]
-                theta.append(buf_theta)
-        
+#                theta.append(buf_theta)
+
         mspec = np.empty((nb_walkers_points, self.nb_spec_points))
         for ii in np.arange(nb_walkers_points):
             mspec[ii], _, _ = self.p_mod.mean_model(theta[ii], self.p_obs, sps=self.p_sps)
@@ -251,7 +253,8 @@ class SED_prospector( basesed.SED ):
         """  """
         if self._side_properties["p_sps"] is None:
             buf = prospector.ProspectorSEDFitter()
-            buf.load_sps(**self.p_run_params)
+            buf.set_run_params(auto_add=True, **self.p_run_params)
+            buf.load_sps()
             self._side_properties["p_sps"] = buf.sps
         return self._side_properties["p_sps"]
             

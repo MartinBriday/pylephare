@@ -91,25 +91,28 @@ class ProspectorSEDFitter( BaseObject ):
         self.load_model(**kwargs)
         return
     
-    def set_run_params(self, **kwargs):
+    def set_run_params(self, auto_add=False, **kwargs):
         """
         
         """
         for key, value in kwargs.items():
             if key not in self.run_params:
-                print("{} is not an existing parameter. If you really want to add it, execute add_run_params().".format(key))
-                continue
-            self.run_params[key] = value
+                if auto_add:
+                    self.add_run_params(**{key:value})
+                else:
+                    print("{} is not an existing parameter. If you really want to add it, execute add_run_params().".format(key))
+            else:
+                self.run_params[key] = value
     
     def add_run_params(self, **kwargs):
         """
         
         """
         for key, value in kwargs.items():
-            if key not in self.run_params:
+            if key in self.run_params:
                 print("{} is already existing. If you really want to change it, execute set_run_params().".format(key))
-                continue
-            self.run_params[key] = value
+            else:
+                self.run_params[key] = value
     
     def context_filters(self, context):
         """

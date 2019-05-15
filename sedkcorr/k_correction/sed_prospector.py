@@ -32,7 +32,7 @@ class SED_prospector( basesed.SED ):
         
         buf = prospector.ProspectorSEDFitter()
         buf.set_run_params(auto_add=True, **self.p_run_params)
-        buf.load_obs(self.p_obs)
+        buf.load_obs(obs=self.p_obs)
         buf.load_model()
         buf.load_sps(sps)
         self._properties["p_mod"] = buf.model

@@ -324,6 +324,11 @@ class SED( BaseObject ):
         ax.fill_between(x_sed, y_sed - y_sed_err, y_sed + y_sed_err, alpha=0.5, color="0.7")
         
         ax.set_xlim(xlim)
+        if ylim == (None, None):
+            xmin, xmax = ax.get_xlim()
+            mask = (xmin < np.asarray(x_sed)) * (np.asarray(x_sed) < xmax)
+            ymin, ymax = np.min((np.asarray(y_sed)-np.asarray(y_sed_err))[mask]), np.max((np.asarray(y_sed)+np.asarray(y_sed_err))[mask])
+            ylim = (ymin if ymin>0 else 0, ymax)
         ax.set_ylim(ylim)
         ax_ylim = ax.get_ylim()
         if y_plot=="flux" and ylim[0] is None:

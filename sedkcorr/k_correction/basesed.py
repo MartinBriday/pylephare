@@ -62,7 +62,7 @@ def lbda_z0(lbda, z):
     return lbda/(1+z)
 
 def flux_z0(flux, z):
-    return flux/(1+z)**3
+    return flux/((1+z)**3)
 
 def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz"):
     if band is None:

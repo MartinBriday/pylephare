@@ -6,6 +6,29 @@ import os
 from . import basesed
 
 
+def lephare_output_file_reader(filename, filter_list):
+    """
+    
+    """
+    with open(filename, "r") as f1:
+        buf_file = f1.readlines()
+    buf_delimiter = buf_file[0]
+
+    #Skiprows
+    skiprows = [ii for ii, line in enumerate(buf_file) if line==buf_delimiter]
+    skiprows = (skiprows[1] - skiprows[0])
+
+    #Column names
+    ii_col_names = [ii for ii, line in enumerate(buf_file) if "Output format" in line][0]
+    col_names = [name for line in buf_file[ii_col_names+1:skiprows] for name in line.split(" ")]
+    for elt in ["", ",", "\n", "#"]+[str(ii) for ii in range(1000)]:
+        while elt in col_names: col_names.remove(elt)
+    for ii, name in enumerate(col_names):
+        if "()" in name:
+            col_names.remove(name)
+            for jj, filt in enumerate(filter_list):
+                col_names.insert(ii+jj, name.replace("()", "_{}".format(filt)))
+    return pandas.read_csv(filename, sep=' ', skipinitialspace=True, skiprows=skiprows+1, names=col_names)
 
 
 class SED_LePhare( basesed.SED ):

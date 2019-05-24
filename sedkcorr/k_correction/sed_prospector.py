@@ -38,7 +38,7 @@ class SED_prospector( basesed.SED ):
         self._properties["p_mod"] = buf.model
         self._properties["p_sps"] = buf.sps
     
-    def set_data_sed(self, filename=None, **extras):
+    def set_data_sed(self, filename=None, fit_errors=True, **extras):
         """
         
         """
@@ -51,10 +51,11 @@ class SED_prospector( basesed.SED ):
         else:
             theta_max = self.p_res["chain"][imax, :]
         
-        self.set_sed_stack(**extras)
+        if fit_errors:
+            self.set_sed_stack(**extras)
         data_sed = {"lbda":self.get_sed_wavelength(),
                     "flux":self.get_sed_flux(theta_max),
-                    "flux.err":self.get_sed_error(**extras)}
+                    "flux.err":np.zeros(self.nb_spec_points) if not fit_errors else self.get_sed_error(**extras)}
         _ = super(SED_prospector, self).set_data_sed( pandas.DataFrame(data_sed))
     
     def context_filters(self, context):
@@ -139,12 +140,13 @@ class SED_prospector( basesed.SED ):
             wspec = self.p_obs["wavelength"]
         return wspec
     
-    def set_post_pcts(self, weights=False):
+    def set_post_pcts(self, weights=False, chain_frac=None):
         """
         
         """
-        post_pcts = [quantile(self.p_res["chain"][:, ii], percents=[16, 50, 84],
-                              weights=(self.p_res.get("weights", None) if weights else None))
+        chain_iter = 0 if chain_frac is None else -(int(len(self.p_res["chain"])*chain_frac))
+        post_pcts = [quantile(self.p_res["chain"][chain_iter:, ii], percents=[16, 50, 84],
+                              weights=(self.p_res["weights"][chain_iter:] if weights else None))
                      for ii, param in enumerate(self.p_res["theta_labels"])]
         self._derived_properties["post_pcts"] = post_pcts
     
@@ -195,7 +197,9 @@ class SED_prospector( basesed.SED ):
             data_sed = {"lbda":data_lbda, "flux":data_sed}
             data_kcorr = self.get_phot(data_sed=data_sed, bands=None)
             kcorr_stack.append([data_kcorr[band] for band in basesed.LIST_BANDS])
-        kcorr_errors = {band:np.std(kcorr_stack, axis=0)[ii] for ii, band in enumerate(basesed.LIST_BANDS)}
+        kcorr_errors = {band:np.quantile(kcorr_stack, [0.16, 0.84], axis=0)[ii] for ii, band in enumerate(basesed.LIST_BANDS)}
+        for band in basesed.LIST_BANDS:
+            kcorr_errors[band] = (kcorr_errors[band][0]+kcorr_errors[band][1])/2
         return kcorr_errors
     
     def k_correction(self, **extras):

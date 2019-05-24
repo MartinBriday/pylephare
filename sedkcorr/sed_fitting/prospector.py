@@ -135,7 +135,7 @@ class ProspectorSEDFitter( BaseObject ):
                 idx.append(ii)
         return [band for band in basesed.LIST_BANDS if basesed.FILTER_BANDS[band]["context_id"] in idx]
     
-    def load_obs(self, data=None, data_type="phot", input_flux_unit="Hz", zspec=None, context_filters=None,
+    def load_obs(self, data_phot=None, data_spec=None, mask_spec=None, input_flux_unit="Hz", zspec=None, context_filters=None,
                  col_syntax={"mag":"mag_band", "mag.err":"mag_band_err", "lbda":"lbda", "flux":"flux", "flux.err":"flux.err"},
                  obs=None, **extras):
         """
@@ -144,37 +144,34 @@ class ProspectorSEDFitter( BaseObject ):
         if obs is not None:
             self._properties["obs"] = obs
             return
-        self.obs["list_bands"] = self.context_filters(data["CONTEXT"] if context_filters is None else context_filters) \
-                                 if data_type=="phot" else None
+        self.obs["list_bands"] = self.context_filters(context_filters) if data_phot is not None else None
         self.obs["filters"] = load_filters([basesed.FILTER_BANDS[band]["prospector_name"] for band in self.obs["list_bands"]]) \
-                              if data_type=="phot" else None
-        self.obs["zspec"] = data["Z-SPEC"] if zspec is None else zspec
+                              if data_phot is not None else None
+        self.obs["zspec"] = zspec
 
         ##### Photometric input #####
-        if data_type == "phot":
-            data_mag = {band:{"mag":data[col_syntax["mag"].replace("band",band)],
-                              "mag.err":data[col_syntax["mag.err"].replace("band",band)]}
+        if data_phot is not None:
+            data_mag = {band:{"mag":data_phot[col_syntax["mag"].replace("band",band)],
+                              "mag.err":data_phot[col_syntax["mag.err"].replace("band",band)]}
                         for band in self.obs["list_bands"]}
-        
-            self.obs["maggies"] = np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[0]
-                                              for band in self.obs["list_bands"]])
-            self.obs["maggies_unc"] = np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[1]
-                                                  for band in self.obs["list_bands"]])
-            self.obs["wavelength"] = None
-            self.obs["spectrum"] = None
-            self.obs["unc"] = None
-            self.obs["mask"] = None
+            data_phot = [np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[0]
+                                     for band in self.obs["list_bands"]]),
+                         np.asarray([basesed.mag_to_flux(data_mag[band]["mag"], data_mag[band]["mag.err"], band=band, flux_unit="mgy")[1]
+                                     for band in self.obs["list_bands"]])]
         
         ##### Spectroscopic input #####
-        elif data_type == "spec":
-            data_spec = basesed.convert_flux_unit((data[col_syntax["flux"]], data[col_syntax["flux.err"]]),
-                                                  lbda=data[col_syntax["lbda"]], unit_in=input_flux_unit, unit_out="mgy")
-            self.obs["maggies"] = None
-            self.obs["maggies_unc"] = None
-            self.obs["wavelength"] = data[col_syntax["lbda"]]
-            self.obs["spectrum"] = data_spec[0]
-            self.obs["unc"] = data_spec[1]
-            self.obs["mask"] = None
+        elif data_spec is not None:
+            data_spec = [data_spec[col_syntax["lbda"]],
+                         basesed.convert_flux_unit((data_spec[col_syntax["flux"]], data_spec[col_syntax["flux.err"]]),
+                                                  lbda=data_spec[col_syntax["lbda"]], unit_in=input_flux_unit, unit_out="mgy")]
+
+        ##### Obs dictionnary #####
+        self.obs["maggies"] = None if data_phot is None else data_phot[0]
+        self.obs["maggies_unc"] = None if data_phot is None else data_phot[1]
+        self.obs["wavelength"] = None if data_spec is None else data_spec[0]
+        self.obs["spectrum"] = None if data_spec is None else data_spec[1][0]
+        self.obs["unc"] = None if data_spec is None else data_spec[1][1]
+        self.obs["mask"] = mask_spec
     
     def load_sps(self, sps=None, **extras):
         """
@@ -211,6 +208,7 @@ class ProspectorSEDFitter( BaseObject ):
         
         #Priors
         model_params["logzsol"]["prior"] = priors.TopHat(mini=-2., maxi=2.)
+        model_params["dust2"]["prior"] = priors.TopHat(mini=0., maxi=5.)
         if self.run_params["model_params"] == "parametric_sfh":
             model_params["tau"]["prior"] = priors.LogUniform(mini=1e-1, maxi=1e2)
             model_params["mass"]["prior"] = priors.LogUniform(mini=1e5, maxi=1e11)
@@ -456,7 +454,6 @@ class ProspectorSEDFitter( BaseObject ):
         if self.run_params["mcmc"] == "dynesty":
             write_results.write_hdf5(self.hfilename, self.run_params, self.model, self.obs, self.mcmc_res["dynestyout"], None, tsample=self.mcmc_res["ndur"])
         elif self.run_params["mcmc"] == "emcee":
-            hfile = self.hfilename if hfile is None else hfile
             write_results.write_hdf5(self.mcmc_res["hfile"], self.run_params, self.model, self.obs, self.mcmc_res["esampler"], None, #self.mcmc_res["init_guess"]["guesses"],
                                      toptimize=self.mcmc_res["init_guess"]["pdur"], tsample=self.mcmc_res["ndur"],
                                      sampling_initial_center=self.mcmc_res["init_guess"]["initial_center"],

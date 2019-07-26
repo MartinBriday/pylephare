@@ -323,19 +323,6 @@ class SED( BaseObject ):
         ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
         ax.fill_between(x_sed, y_sed - y_sed_err, y_sed + y_sed_err, alpha=0.5, color="0.7")
         
-        ax.set_xlim(xlim)
-        if ylim == (None, None):
-            xmin, xmax = ax.get_xlim()
-            mask = (xmin < np.asarray(x_sed)) * (np.asarray(x_sed) < xmax)
-            ymin, ymax = np.min((np.asarray(y_sed)-np.asarray(y_sed_err))[mask]), np.max((np.asarray(y_sed)+np.asarray(y_sed_err))[mask])
-            ylim = (ymin if ymin>0 else 0, ymax)
-        ax.set_ylim(ylim)
-        ax_ylim = ax.get_ylim()
-        if y_plot=="flux" and ylim[0] is None:
-            ax_ylim = (0., ax_ylim[1])
-        
-        ax.axhline(ax_ylim[0], color="black", zorder=5)
-        
         #Photometry
         if plot_bandpasses:
             for band in LIST_BANDS:
@@ -358,6 +345,19 @@ class SED( BaseObject ):
                          r"${{f}}_{{\lambda}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$"
             ax.set_ylabel(ylabel, fontsize="large")
             ax.legend(loc="upper right", ncol=1)
+                
+        ax.set_xlim(xlim)
+        if ylim == (None, None):
+            xmin, xmax = ax.get_xlim()
+        mask = (xmin < np.asarray(x_sed)) * (np.asarray(x_sed) < xmax)
+        ymin, ymax = np.min((np.asarray(y_sed)-np.asarray(y_sed_err))[mask]), np.max((np.asarray(y_sed)+np.asarray(y_sed_err))[mask])
+        ylim = (ymin if ymin>0 else 0, ymax)
+        ax.set_ylim(ylim)
+        ax_ylim = ax.get_ylim()
+        if y_plot=="flux" and ylim[0] is None:
+        ax_ylim = (0., ax_ylim[1])
+
+        ax.axhline(ax_ylim[0], color="black", zorder=5)
 
         ax.set_xscale(xscale)
         if y_plot=="flux":

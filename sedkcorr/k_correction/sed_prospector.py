@@ -20,7 +20,7 @@ class SED_prospector( basesed.SED ):
     
     PROPERTIES         = ["p_res", "p_obs", "p_mod", "p_sps"]
     SIDE_PROPERTIES    = ["p_run_params"]
-    DERIVED_PROPERTIES = ["post_pcts", "sed_stack"]
+    DERIVED_PROPERTIES = ["post_pcts", "sed_stack", "phot_stack"]
 
     def read_fit_results(self, filename=None, sps=None, **extras):
         """
@@ -150,7 +150,7 @@ class SED_prospector( basesed.SED ):
                      for ii, param in enumerate(self.p_res["theta_labels"])]
         self._derived_properties["post_pcts"] = post_pcts
     
-    def set_sed_stack(self, nb_walkers_points=500, **extras):
+    def set_sed_stack(self, nb_walkers_points=500, opt_random=True, **extras):
         """
         
         """
@@ -162,18 +162,14 @@ class SED_prospector( basesed.SED ):
             theta = self.p_res["chain"][rand_chain, rand_iter, :]
         elif self.p_run_params["mcmc"] == "dynesty":
             rand_iter = randint(len(self.p_res["chain"]), size=nb_walkers_points)
-            theta = self.p_res["chain"][rand_iter, :]
-#            while len(theta) < nb_walkers_points:
-#                rand_iter = randint(len(self.p_res["chain"]))
-#                buf_theta = self.p_res["chain"][rand_iter, :]
-#                if np.prod([np.abs(elt-self.post_pcts[ii][1]) < ((self.post_pcts[ii][2]-self.post_pcts[ii][0])/2)*1000
-#                            for ii, elt in enumerate(buf_theta)]):  #self.post_pcts[ii][0]<elt<self.post_pcts[ii][2]
-#                theta.append(buf_theta)
+            theta = self.p_res["chain"][rand_iter, :] if opt_random else self.p_res["chain"][-nb_walkers_points:, :]
 
         mspec = np.empty((nb_walkers_points, self.nb_spec_points))
+        mphot = np.empty((nb_walkers_points, self.nb_phot_points))
         for ii in np.arange(nb_walkers_points):
-            mspec[ii], _, _ = self.p_mod.mean_model(theta[ii], self.p_obs, sps=self.p_sps)
+            mspec[ii], mphot[ii], _ = self.p_mod.mean_model(theta[ii], self.p_obs, sps=self.p_sps)
         self._derived_properties["sed_stack"] = mspec
+        self._derived_properties["phot_stack"] = mphot
         
     def get_sed_error(self, nb_walkers_points=None, **extras):
         """
@@ -181,8 +177,8 @@ class SED_prospector( basesed.SED ):
         """
         if nb_walkers_points is not None and len(self.sed_stack) != nb_walkers_points:
             self.set_sed_stack(nb_walkers_points)
-        buf_q = np.quantile(self.sed_stack, [0.16, 0.50, 0.84], axis=0)
-        return basesed.convert_flux_unit((buf_q[2]-buf_q[0])/2, lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
+        buf_q = np.quantile(self.sed_stack, [0.16, 0.84], axis=0)
+        return basesed.convert_flux_unit((buf_q[1]-buf_q[0])/2, lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
     
     def get_kcorr_error(self, nb_walkers_points=None, **extras):
         """
@@ -197,9 +193,9 @@ class SED_prospector( basesed.SED ):
             data_sed = {"lbda":data_lbda, "flux":data_sed}
             data_kcorr = self.get_phot(data_sed=data_sed, bands=None)
             kcorr_stack.append([data_kcorr[band] for band in basesed.LIST_BANDS])
-        kcorr_errors = {band:np.quantile(kcorr_stack, [0.16, 0.84], axis=0)[ii] for ii, band in enumerate(basesed.LIST_BANDS)}
+        kcorr_errors = {band:np.quantile(kcorr_stack, [0.16, 0.84], axis=0).T[ii] for ii, band in enumerate(basesed.LIST_BANDS)}
         for band in basesed.LIST_BANDS:
-            kcorr_errors[band] = (kcorr_errors[band][0]+kcorr_errors[band][1])/2
+            kcorr_errors[band] = (kcorr_errors[band][1]-kcorr_errors[band][0])/2
         return kcorr_errors
     
     def k_correction(self, **extras):
@@ -269,8 +265,18 @@ class SED_prospector( basesed.SED ):
     def sed_stack(self):
         """  """
         return self._derived_properties["sed_stack"]
-
+    
+    @property
+    def phot_stack(self):
+        """  """
+        return self._derived_properties["phot_stack"]
+    
     @property
     def nb_spec_points(self):
         """  """
         return len(self.get_sed_wavelength())
+    
+    @property
+    def nb_phot_points(self):
+        """  """
+        return len(self.p_obs["maggies"])

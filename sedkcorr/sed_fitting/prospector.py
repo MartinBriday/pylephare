@@ -25,46 +25,6 @@ from ..k_correction import basesed
 from propobject import BaseObject
 
 
-# --------------#
-#   RUN_PARAMS  #
-# --------------#
-RUN_PARAMS = {'verbose':True,
-              'debug':False,
-              'outfile':'test_snf',
-              'output_pickles': False,
-              'model_params': "parametric_sfh",
-              'mcmc': "dynesty",
-              # Optimization parameters
-              'do_powell': False,
-              'ftol':0.5e-5,
-              'maxfev': 5000,
-              'do_levenberg': True,
-              'nmin': 10,
-              # emcee fitting parameters
-              'nwalkers':128,
-              'nburn': [16, 32, 64],
-              'niter': 512,
-              'interval': 0.25,
-              'initial_disp': 0.1,
-              # dynesty Fitter parameters
-              'nested_bound': 'multi', # bounding method
-              'nested_sample': 'unif', # sampling method
-              'nested_nlive_init': 100,
-              'nested_nlive_batch': 100,
-              'nested_bootstrap': 0,
-              'nested_dlogz_init': 0.05,
-              'nested_weight_kwargs': {"pfrac": 1.0},
-              'nested_stop_kwargs': {"post_thresh": 0.1},
-              # Model parameters
-              'add_neb': False,
-              'add_dust': False,
-              # SPS parameters
-              'zcontinuous': 1,
-              # Fit parameters
-              'noise_model':False
-              }
-
-
 
 class ProspectorSEDFitter( BaseObject ):
     """
@@ -75,12 +35,47 @@ class ProspectorSEDFitter( BaseObject ):
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = ["mcmc_res"]
     
+    RUN_PARAMS = {'verbose':True,
+                  'debug':False,
+                  'outfile':'test_snf',
+                  'output_pickles': False,
+                  'model_params': "parametric_sfh",
+                  'mcmc': "dynesty",
+                  # Optimization parameters
+                  'do_powell': False,
+                  'ftol':0.5e-5,
+                  'maxfev': 5000,
+                  'do_levenberg': True,
+                  'nmin': 10,
+                  # emcee fitting parameters
+                  'nwalkers':128,
+                  'nburn': [16, 32, 64],
+                  'niter': 512,
+                  'interval': 0.25,
+                  'initial_disp': 0.1,
+                  # dynesty Fitter parameters
+                  'nested_bound': 'multi', # bounding method
+                  'nested_sample': 'unif', # sampling method
+                  'nested_nlive_init': 100,
+                  'nested_nlive_batch': 100,
+                  'nested_bootstrap': 0,
+                  'nested_dlogz_init': 0.05,
+                  'nested_weight_kwargs': {"pfrac": 1.0},
+                  'nested_stop_kwargs': {"post_thresh": 0.1},
+                  # Model parameters
+                  'add_neb': False,
+                  'add_dust': False,
+                  # SPS parameters
+                  'zcontinuous': 1,
+                  # Fit parameters
+                  'noise_model':False
+                  }
+    
     def __init__(self, **kwargs):
         """
         
         """
-        if kwargs != {}:
-            self.set_data(**kwargs)
+        self.set_data(**kwargs)
 
     def set_data(self, **kwargs):
         """
@@ -473,7 +468,7 @@ class ProspectorSEDFitter( BaseObject ):
     def run_params(self):
         """  """
         if self._properties["run_params"] is None:
-            self._properties["run_params"] = RUN_PARAMS
+            self._properties["run_params"] = self.RUN_PARAMS
         return self._properties["run_params"]
 
     @property

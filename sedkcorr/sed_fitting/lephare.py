@@ -1,6 +1,8 @@
 
 import numpy as np
 import pandas
+import os
+import subprocess
 import pkg_resources
 
 from propobject import BaseObject
@@ -21,10 +23,13 @@ class LePhareSEDFitter( BaseObject ):
         """
         self.set_data(**kwargs)
 
-    def set_data(self, data_path=None, ):
+    def set_data(self, data_path=None, **kwargs):
         """
         
         """
+        self._side_properties["path_bin"] = pkg_resources.resource_filename(__name__, "bin/") + "/"
+        self._side_properties["path_init"] = pkg_resources.resource_filename(__name__, "init/") + "/"
+        self._side_properties["path_results"] = pkg_resources.resource_filename(__name__, "results/") + "/"
         return
     
     def _write_para_(self, line, new_param_value):
@@ -34,7 +39,7 @@ class LePhareSEDFitter( BaseObject ):
         if type(line) == int:
             idx_line = line
         elif type(line) == str:
-            with open(pkg_resources.resource_filename(__name__, "bin/lephare_zphot_input.para"), "r") as file:
+            with open(self.path_bin+"lephare_zphot_input.para", "r") as file:
                 file_buf = [line for line in file]
             for ii, line in enumerate(file_buf):
                 if line.split(" ")[0] == line:
@@ -47,7 +52,7 @@ class LePhareSEDFitter( BaseObject ):
         line_splited[1] = new_param_value
         file_buf[idx_line] = " ".join(line_splited) + "\n"
 
-        with open(pkg_resources.resource_filename(__name__, "bin/lephare_zphot_input.para"), "w") as file:
+        with open(self.path_bin+"lephare_zphot_input.para", "w") as file:
             for line in file_buf:
                 file.write(line)
     
@@ -56,11 +61,34 @@ class LePhareSEDFitter( BaseObject ):
         
         """
         self._write_para_("CAT_IN", data_path)
+    
+    def run_sedtolib(self):
+        """
+        
+        """
+        os.chdir(self.path_init)
+        subprocess.run("$LEPHAREDIR/source/sedtolib -t S -c {}/lephare_zphot_input.para".format(self.path_bin), shell=True)
+        return
+    
+    
 
     #-------------------#
     #   Properties      #
     #-------------------#
     @property
+    def path_bin(self):
+        """  """
+        return self._side_properties["path_bin"]
+
+    @property
+    def path_init(self):
+        """  """
+        return self._side_properties["path_init"]
+
+    @property
+    def path_results(self):
+        """  """
+        return self._side_properties["path_results"]
 
 
 

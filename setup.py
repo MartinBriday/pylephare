@@ -69,7 +69,7 @@ if __name__ == "__main__":
           download_url=DOWNLOAD_URL,
           install_requires=install_requires,
           packages=packages,
-          package_data={"sedkcorr":["k_correction/filter_bandpass/*.dat", "sed_fitting/a/", "sed_fitting/bin/", "sed_fitting/init/", "sed_fitting/results/"]},
+          package_data={"sedkcorr":["k_correction/filter_bandpass/*.dat", "sed_fitting/config/*", "sed_fitting/init/*", "sed_fitting/results/*"]},
           classifiers=[
               'Intended Audience :: Science/Research',
               'Programming Language :: Python :: 2.7',

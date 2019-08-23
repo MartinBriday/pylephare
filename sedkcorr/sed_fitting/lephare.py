@@ -13,114 +13,19 @@ class LePhareSEDFitter( BaseObject ):
     
     """
 
-    PROPERTIES         = ["data", "input_param_file", "output_param_file"]
+    PROPERTIES         = ["input_param_file", "output_param_file"]
     SIDE_PROPERTIES    = ["path_results"]
     DERIVED_PROPERTIES = []
     
-    INPUT_PARAM = {#CREATION OF LIBRARIES FROM SEDs List
-                   "STAR_SED":"$LEPHAREDIR/sed/STAR/STAR_MOD.list",
-                   "STAR_FSCALE":3.432E-09,
-                   "STAR_LIB":"LIB_STAR",
-                   "QSO_SED":"$LEPHAREDIR/sed/QSO/QSO_MOD.list",
-                   "QSO_FSCALE":1.,
-                   "QSO_LIB":"LIB_QSO",
-                   "GAL_SED":"$LEPHAREDIR/sed/GAL/BC03_CHAB/BC03_MOD.list",
-                   "GAL_FSCALE":1.,
-                   "GAL_LIB":"LIB_BC03",
-                   "SEL_AGE":"$LEPHAREDIR/sed/GAL/BC03_CHAB/BC03_AGE.list",
-                   "AGE_RANGE":(0.,13.55e9),
-                   #FILTERS
-                   "FILTER_LIST":["sdss/up.pb","sdss/gp.pb","sdss/rp.pb","sdss/ip.pb","sdss/zp.pb"],
-                   "TRANS_TYPE":0,
-                   "FILTER_CALIB":0,
-                   "FILTER_FILE":"sdss.filt",
-                   #THEORETICAL MAGNITUDES
-                   "STAR_LIB_IN":"LIB_STAR",
-                   "STAR_LIB_OUT":"STAR",
-                   "QSO_LIB_IN":"LIB_QSO",
-                   "QSO_LIB_OUT":"QSO",
-                   "GAL_LIB_IN":"LIB_BC03",
-                   "GAL_LIB_OUT":"BC03",
-                   "MAGTYPE":"AB",
-                   "Z_STEP":(0.004,0.20,0.1),
-                   "COSMOLOGY":(70,0.3,0.7),
-                   "MOD_EXTINC":(1,27),
-                   "EXTINC_LAW":"LMC_Fitzpatrick.dat",
-                   "EB_V":(0.0,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.6,0.7,0.8),
-                   "EM_LINES":"YES",
-                   "Z_FORM":(8,7,6,5,4,3),
-                   "LIB_ASCII":"YES",
-                   #PHOTOMETRIC REDSHIFTS
-                   "CAT_IN":"",
-                   "INP_TYPE":"M",
-                   "CAT_MAG":"AB",
-                   "CAT_FMT":"MEME",
-                   "CAT_LINES":(1,100000),
-                   "CAT_TYPE":"LONG",
-                   "CAT_OUT":"",
-                   "PARA_OUT":pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_output.para",
-                   "BD_SCALE":0,
-                   "GLB_CONTEXT":-1,
-                   "FORB_CONTEXT":-1,
-                   "ERR_SCALE":(0.052,0.026,0.05,0.02,0.02,0.02,0.03),
-                   "ERR_FACTOR":1.,
-                   "ZPHOTLIB":("BC03","STAR","QSO"),
-                   "ADD_EMLINES":"YES",
-                   "FIR_LIB":"NONE",
-                   "FIR_LMIN":7.,
-                   "FIR_CONT":-1,
-                   "FIR_SCALE":-1,
-                   "FIR_FREESCALE":"NO",
-                   "FIR_SUBSTELLAR":"NO",
-                   "PHYS_LIB":"NONE",
-                   "PHYS_CONT":-1,
-                   "PHYS_SCALE":-1,
-                   "PHYS_NMAX":100000,
-                   "MASS_SCALE":(6.,16.),
-                   "MAG_ABS":(-10.,-26.),
-                   "MAG_REF":6,
-                   "ZFORM_MIN":(5,5,5,5,5,5,3,1),
-                   "Z_RANGE":(0,0.20),
-                   "EBV_RANGE":(0.,1.),
-                   "NZ_PRIOR":(4,2,4),
-                   "ZFIX":"YES",
-                   "Z_INTERP":"NO",
-                   "DZ_WIN":0.25,
-                   "MIN_THRES":0.1,
-                   "PROB_INTZ":(0,0.5,0.5,1.,1.,1.5),
-                   "MABS_METHOD":1,
-                   "MABS_CONTEXT":-1,
-                   "MABS_REF":4,
-                   "MABS_FILT":(3,4,5,6),
-                   "MABS_ZBIN":(0,0.5,1,1.5,2,3,3.5,4),
-                   "SPEC_OUT":"YES",
-                   "CHI2_OUT":"NO",
-                   "PDZ_OUT":"NONE",
-                   "PDZ_MABS_FILT":(2,10,14),
-                   "FAST_MODE":"NO",
-                   "COL_NUM":3,
-                   "COL_SIGMA":3,
-                   "COL_SEL":"AND",
-                   "APPLY_SYSSHIFT":(0.007,-0.001,0.001,-0.003,0.006),
-                   "AUTO_ADAPT":"NO",
-                   "ADAPT_BAND":(4,2,4),
-                   "ADAPT_LIM":(10,22.0),
-                   "ADAPT_POLY":1,
-                   "ADAPT_METH":1,
-                   "ADAPT_CONTEXT":-1,
-                   "ADAPT_ZBIN":(0.01,0.1),
-                   "ADAPT_MODBIN":(1,1000),
-                   "ERROR_ADAPT":"NO"}
-    
     PATH_LEPHAREDIR = os.path.expanduser(os.getenv("LEPHAREDIR"))
 
-    def __init__(self, **kwargs):
+    def __init__(self, data_path=None, **kwargs):
         """
         
         """
-        self.set_data(**kwargs)
+        self.set_data(data_path, **kwargs)
 
-    def set_data(self, data=None, input_param_file=None, output_param_file=None, path_results=None, **kwargs):
+    def set_data(self, data_path=None, input_param_file=None, output_param_file=None, path_results=None, **kwargs):
         """
         
         """
@@ -131,9 +36,8 @@ class LePhareSEDFitter( BaseObject ):
         self._side_properties["path_results"] = pkg_resources.resource_filename(__name__, "results/") + "/" \
                                                 if path_results is None else path_results
         
-        list_commented_param = ["Z_FORM", "FORB_CONTEXT", "ZFORM_MIN", "NZ_PRIOR", "PROB_INTZ", "PDZ_MABS_FILT", "APPLY_SYSSHIFT"]
-        for key, value in self.INPUT_PARAM.items():
-            self.change_input_param(key, value, True is key in list_commented_param else False)
+        if data_path is not None:
+            self.change_input_param("CAT_IN", data_path)
 
     def _get_idx_line_(self, file, line):
         """
@@ -189,12 +93,6 @@ class LePhareSEDFitter( BaseObject ):
             for line in file_buf:
                 file.write(line)
     
-    def _set_data_path_(self, data_path):
-        """
-        
-        """
-        self._write_para_("CAT_IN", data_path)
-    
     def run_sedtolib(self, input_param_file=None):
         """
         
@@ -247,24 +145,14 @@ class LePhareSEDFitter( BaseObject ):
     #   Properties      #
     #-------------------#
     @property
-    def input_param(self):
+    def input_param_file(self):
         """  """
-        return self._properties["input_param"]
-    
+        return self._properties["input_param_file"]
+
     @property
-    def output_param(self):
+    def output_param_file(self):
         """  """
-        return self._properties["output_param"]
-    
-    @property
-    def path_config(self):
-        """  """
-        return self._side_properties["path_config"]
-    
-    @property
-    def path_init(self):
-        """  """
-        return self._side_properties["path_init"]
+        return self._properties["output_param_file"]
     
     @property
     def path_results(self):

@@ -13,11 +13,12 @@ class LePhareSEDFitter( BaseObject ):
     
     """
 
-    PROPERTIES         = ["input_param", "output_param"]
-    SIDE_PROPERTIES    = ["path_config", "path_init", "path_results"]
+    PROPERTIES         = ["data", "input_param_file", "output_param_file"]
+    SIDE_PROPERTIES    = ["path_results"]
     DERIVED_PROPERTIES = []
     
-    INPUT_PARAM = {"STAR_SED":"$LEPHAREDIR/sed/STAR/STAR_MOD.list",
+    INPUT_PARAM = {#CREATION OF LIBRARIES FROM SEDs List
+                   "STAR_SED":"$LEPHAREDIR/sed/STAR/STAR_MOD.list",
                    "STAR_FSCALE":3.432E-09,
                    "STAR_LIB":"LIB_STAR",
                    "QSO_SED":"$LEPHAREDIR/sed/QSO/QSO_MOD.list",
@@ -28,16 +29,18 @@ class LePhareSEDFitter( BaseObject ):
                    "GAL_LIB":"LIB_BC03",
                    "SEL_AGE":"$LEPHAREDIR/sed/GAL/BC03_CHAB/BC03_AGE.list",
                    "AGE_RANGE":(0.,13.55e9),
-                   "FILTER_LIST":["galex/FUV.pb","galex/NUV.pb","sdss/up.pb","sdss/gp.pb","sdss/rp.pb","sdss/ip.pb","sdss/zp.pb"],
+                   #FILTERS
+                   "FILTER_LIST":["sdss/up.pb","sdss/gp.pb","sdss/rp.pb","sdss/ip.pb","sdss/zp.pb"],
                    "TRANS_TYPE":0,
                    "FILTER_CALIB":0,
-                   "FILTER_FILE":"snf_galex_sdss.filt",
-                   "STAR_LIB_IN":"snf_LIB_STAR",
-                   "STAR_LIB_OUT":"snf_STAR",
-                   "QSO_LIB_IN":"snf_LIB_QSO",
-                   "QSO_LIB_OUT":"snf_QSO",
-                   "GAL_LIB_IN":"snf_LIB_BC03",
-                   "GAL_LIB_OUT":"snf_BC03",
+                   "FILTER_FILE":"sdss.filt",
+                   #THEORETICAL MAGNITUDES
+                   "STAR_LIB_IN":"LIB_STAR",
+                   "STAR_LIB_OUT":"STAR",
+                   "QSO_LIB_IN":"LIB_QSO",
+                   "QSO_LIB_OUT":"QSO",
+                   "GAL_LIB_IN":"LIB_BC03",
+                   "GAL_LIB_OUT":"BC03",
                    "MAGTYPE":"AB",
                    "Z_STEP":(0.004,0.20,0.1),
                    "COSMOLOGY":(70,0.3,0.7),
@@ -47,20 +50,21 @@ class LePhareSEDFitter( BaseObject ):
                    "EM_LINES":"YES",
                    "Z_FORM":(8,7,6,5,4,3),
                    "LIB_ASCII":"YES",
-                   "CAT_IN":"$LEPHAREDIR/data/SNf/SNf_mag_1kpc_124_lephare.csv",
+                   #PHOTOMETRIC REDSHIFTS
+                   "CAT_IN":"",
                    "INP_TYPE":"M",
                    "CAT_MAG":"AB",
                    "CAT_FMT":"MEME",
                    "CAT_LINES":(1,100000),
                    "CAT_TYPE":"LONG",
-                   "CAT_OUT":"$LEPHAREDIR/data/SNF/SNf_mag_1kpc_124_lephare.out",
-                   "PARA_OUT":"$LEPHAREDIR/config/snf_host_zphot_output.para",
+                   "CAT_OUT":"",
+                   "PARA_OUT":pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_output.para",
                    "BD_SCALE":0,
                    "GLB_CONTEXT":-1,
                    "FORB_CONTEXT":-1,
                    "ERR_SCALE":(0.052,0.026,0.05,0.02,0.02,0.02,0.03),
                    "ERR_FACTOR":1.,
-                   "ZPHOTLIB":("snf_BC03","snf_STAR","snf_QSO"),
+                   "ZPHOTLIB":("BC03","STAR","QSO"),
                    "ADD_EMLINES":"YES",
                    "FIR_LIB":"NONE",
                    "FIR_LMIN":7.,
@@ -116,22 +120,20 @@ class LePhareSEDFitter( BaseObject ):
         """
         self.set_data(**kwargs)
 
-    def set_data(self, **kwargs):
+    def set_data(self, data=None, input_param_file=None, output_param_file=None, path_results=None, **kwargs):
         """
         
         """
-        self.set_path({"config":None, "init":None, "results":None})
+        self._properties["input_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_input.para" \
+                                               if input_param_file is None else input_param_file
+        self._properties["input_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_output.para" \
+                                               if input_param_file is None else input_param_file
+        self._side_properties["path_results"] = pkg_resources.resource_filename(__name__, "results/") + "/" \
+                                                if path_results is None else path_results
+        
         list_commented_param = ["Z_FORM", "FORB_CONTEXT", "ZFORM_MIN", "NZ_PRIOR", "PROB_INTZ", "PDZ_MABS_FILT", "APPLY_SYSSHIFT"]
         for key, value in self.INPUT_PARAM.items():
-            self._write_param_(key, value, True is key in list_commented_param else False)
-    
-    def set_path(self, which={"config":None, "init":None, "results":None}):
-        """
-        
-        """
-        for key, value in which.items():
-            path = (pkg_resources.resource_filename(__name__, key+"/") + "/") if v is None else value
-            self._side_properties["path_"+key] = path
+            self.change_input_param(key, value, True is key in list_commented_param else False)
 
     def _get_idx_line_(self, file, line):
         """
@@ -140,11 +142,15 @@ class LePhareSEDFitter( BaseObject ):
         if type(line) == int:
             idx_line = line
         elif type(line) == str:
+            flag_no_match = True
             for ii, line in enumerate(file_buf):
                 splitted_line = line.split()
                 if line in splitted_line[0] or splitted_line[1] == line:
                     idx_line = ii
+                    flag_no_match = False
                     break
+            if flag_no_match:
+                raise ValueError("{} is not a known parameter in the input parameters file.".format(line))
         else:
             raise ValueError("'line' must be either integer (line index) or string (first word of the line)")
         return idx_line
@@ -163,11 +169,11 @@ class LePhareSEDFitter( BaseObject ):
             new_param_value = ",".join([str(elt) for elt in new_param_value])
         return new_param_value
     
-    def _write_param_(self, line, new_param_value, force_comment=False):
+    def change_input_param(self, line, new_param_value, force_comment=False):
         """
         
         """
-        with open(self.path_config+"lephare_zphot_input.para", "r") as file:
+        with open(self.input_param_file, "r") as file:
             file_buf = [line for line in file]
         idx_line = self._get_idx_line_(file_buf, line)
         new_param_value = self._get_new_param_value_(new_param_value)
@@ -179,7 +185,7 @@ class LePhareSEDFitter( BaseObject ):
             splitted_line.insert(0, "#")
         file_buf[idx_line] = " ".join(splitted_line) + "\n"
 
-        with open(self.path_config+"lephare_zphot_input.para", "w") as file:
+        with open(self.input_param_file, "w") as file:
             for line in file_buf:
                 file.write(line)
     
@@ -189,55 +195,49 @@ class LePhareSEDFitter( BaseObject ):
         """
         self._write_para_("CAT_IN", data_path)
     
-    def run_sedtolib(self, path_config=None):
+    def run_sedtolib(self, input_param_file=None):
         """
         
         """
         if path_config is not None:
-            self.set_path({"path_config":path_config})
+            self._properties["input_param_file"] = input_param_file
         
         for elt in ["S", "Q", "G"]:
-            cmd = "{}/source/sedtolib -t {} -c {}/lephare_zphot_input.para".format(self.PATH_LEPHAREDIR, elt, self.path_config)
+            cmd = "{}/source/sedtolib -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
             subprocess.run(cmd.split())
     
-    def run_mag_star(self, path_config=None, path_init=None):
+    def run_mag_star(self, input_param_file=None):
         """
         
         """
         if path_config is not None:
-            self.set_path({"path_config":path_config})
-        if path_init is not None:
-            self.set_path({"path_init":path_init})
+            self._properties["input_param_file"] = input_param_file
         
-        os.chdir(self.path_init)
-        cmd = "{}/source/mag_star -c {}/lephare_zphot_input.para".format(self.PATH_LEPHAREDIR, self.path_config)
+        cmd = "{}/source/mag_star -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
     
-    def run_mag_gal(self, path_config=None, path_init=None):
+    def run_mag_gal(self, input_param_file=None):
         """
         
         """
         if path_config is not None:
-            self.set_path({"path_config":path_config})
-        if path_init is not None:
-            self.set_path({"path_init":path_init})
+            self._properties["input_param_file"] = input_param_file
         
-        os.chdir(self.path_init)
         for elt in ["Q", "G"]:
-            cmd = "{}/source/mag_gal -t {} -c {}/lephare_zphot_input.para".format(self.PATH_LEPHAREDIR, elt, self.path_config)
+            cmd = "{}/source/mag_gal -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
             subprocess.run(cmd.split())
     
-    def run_zphota(self, path_config=None, path_results=None):
+    def run_zphota(self, input_param_file=None, path_results=None):
         """
         
         """
         if path_config is not None:
-            self.set_path({"path_config":path_config})
+            self._properties["input_param_file"] = input_param_file
         if path_results is not None:
-            self.set_path({"path_results":path_results})
+            self._side_properties["path_results"] = path_results
         
         os.chdir(self.path_results)
-        cmd = "{}/source/zphota -c {}/lephare_zphot_input.para".format(self.PATH_LEPHAREDIR, self.path_config)
+        cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
         return
     

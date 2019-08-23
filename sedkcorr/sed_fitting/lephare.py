@@ -45,7 +45,7 @@ class LePhareSEDFitter( BaseObject ):
                    "EXTINC_LAW":"LMC_Fitzpatrick.dat",
                    "EB_V":(0.0,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.6,0.7,0.8),
                    "EM_LINES":"YES",
-                   #"Z_FORM":(8,7,6,5,4,3),
+                   "Z_FORM":(8,7,6,5,4,3),
                    "LIB_ASCII":"YES",
                    "CAT_IN":"$LEPHAREDIR/data/SNf/SNf_mag_1kpc_124_lephare.csv",
                    "INP_TYPE":"M",
@@ -57,7 +57,7 @@ class LePhareSEDFitter( BaseObject ):
                    "PARA_OUT":"$LEPHAREDIR/config/snf_host_zphot_output.para",
                    "BD_SCALE":0,
                    "GLB_CONTEXT":-1,
-                   #"FORB_CONTEXT":-1,
+                   "FORB_CONTEXT":-1,
                    "ERR_SCALE":(0.052,0.026,0.05,0.02,0.02,0.02,0.03),
                    "ERR_FACTOR":1.,
                    "ZPHOTLIB":("snf_BC03","snf_STAR","snf_QSO"),
@@ -75,15 +75,15 @@ class LePhareSEDFitter( BaseObject ):
                    "MASS_SCALE":(6.,16.),
                    "MAG_ABS":(-10.,-26.),
                    "MAG_REF":6,
-                   #"ZFORM_MIN":(5,5,5,5,5,5,3,1),
+                   "ZFORM_MIN":(5,5,5,5,5,5,3,1),
                    "Z_RANGE":(0,0.20),
                    "EBV_RANGE":(0.,1.),
-                   #"NZ_PRIOR":(4,2,4),
+                   "NZ_PRIOR":(4,2,4),
                    "ZFIX":"YES",
                    "Z_INTERP":"NO",
                    "DZ_WIN":0.25,
                    "MIN_THRES":0.1,
-                   #"PROB_INTZ":(0,0.5,0.5,1.,1.,1.5),
+                   "PROB_INTZ":(0,0.5,0.5,1.,1.,1.5),
                    "MABS_METHOD":1,
                    "MABS_CONTEXT":-1,
                    "MABS_REF":4,
@@ -92,12 +92,12 @@ class LePhareSEDFitter( BaseObject ):
                    "SPEC_OUT":"YES",
                    "CHI2_OUT":"NO",
                    "PDZ_OUT":"NONE",
-                   #"PDZ_MABS_FILT":(2,10,14),
+                   "PDZ_MABS_FILT":(2,10,14),
                    "FAST_MODE":"NO",
                    "COL_NUM":3,
                    "COL_SIGMA":3,
                    "COL_SEL":"AND",
-                   #"APPLY_SYSSHIFT":(0.007,-0.001,0.001,-0.003,0.006),
+                   "APPLY_SYSSHIFT":(0.007,-0.001,0.001,-0.003,0.006),
                    "AUTO_ADAPT":"NO",
                    "ADAPT_BAND":(4,2,4),
                    "ADAPT_LIM":(10,22.0),
@@ -121,8 +121,9 @@ class LePhareSEDFitter( BaseObject ):
         
         """
         self.set_path({"config":None, "init":None, "results":None})
+        list_commented_param = ["Z_FORM", "FORB_CONTEXT", "ZFORM_MIN", "NZ_PRIOR", "PROB_INTZ", "PDZ_MABS_FILT", "APPLY_SYSSHIFT"]
         for key, value in self.INPUT_PARAM.items():
-            self._write_param_(key, value)
+            self._write_param_(key, value, True is key in list_commented_param else False)
     
     def set_path(self, which={"config":None, "init":None, "results":None}):
         """
@@ -132,17 +133,16 @@ class LePhareSEDFitter( BaseObject ):
             path = (pkg_resources.resource_filename(__name__, key+"/") + "/") if v is None else value
             self._side_properties["path_"+key] = path
 
-    def _get_idx_line_(self, line):
+    def _get_idx_line_(self, file, line):
         """
         
         """
         if type(line) == int:
             idx_line = line
         elif type(line) == str:
-            with open(self.path_config+"lephare_zphot_input.para", "r") as file:
-                file_buf = [line for line in file]
             for ii, line in enumerate(file_buf):
-                if line.split(" ")[0] == line:
+                splitted_line = line.split()
+                if line in splitted_line[0] or splitted_line[1] == line:
                     idx_line = ii
                     break
         else:
@@ -163,16 +163,21 @@ class LePhareSEDFitter( BaseObject ):
             new_param_value = ",".join([str(elt) for elt in new_param_value])
         return new_param_value
     
-    def _write_param_(self, line, new_param_value):
+    def _write_param_(self, line, new_param_value, force_comment=False):
         """
         
         """
-        idx_line = self._get_idx_line_(line)
+        with open(self.path_config+"lephare_zphot_input.para", "r") as file:
+            file_buf = [line for line in file]
+        idx_line = self._get_idx_line_(file_buf, line)
         new_param_value = self._get_new_param_value_(new_param_value)
         
-        line_splited = file_buf[idx_line].split()
-        line_splited[1] = new_param_value
-        file_buf[idx_line] = " ".join(line_splited) + "\n"
+        splitted_line = file_buf[idx_line].split()
+        idx_param = 2 if splitted_line[0][0] == "#" else 1
+        splitted_line[idx_param] = new_param_value
+        if force_comment:
+            splitted_line.insert(0, "#")
+        file_buf[idx_line] = " ".join(splitted_line) + "\n"
 
         with open(self.path_config+"lephare_zphot_input.para", "w") as file:
             for line in file_buf:

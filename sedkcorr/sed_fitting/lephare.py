@@ -54,7 +54,7 @@ class LePhareSEDFitter( BaseObject ):
                     flag_no_match = False
                     break
             if flag_no_match:
-                raise ValueError("{} is not a known parameter in the input parameters file.".format(line))
+                raise ValueError("{} is not a known parameter in the parameters file.".format(line))
         else:
             raise ValueError("'line' must be either integer (line index) or string (first word of the line)")
         return idx_line
@@ -73,18 +73,39 @@ class LePhareSEDFitter( BaseObject ):
             new_param_value = ",".join([str(elt) for elt in new_param_value])
         return new_param_value
     
+    def _get_cleared_line_(self, idx_line):
+        """
+        
+        """
+        flag_comment = False
+        splitted_line = file_buf[idx_line].split()
+        if splitted_line[0] == "#":
+            splitted_line.pop(0)
+            flag_comment = True
+        elif len(splitted_line[0])>1 and splitted_line[0][0] == "#":
+            splitted_line[0] = splitted_line[0].replace("#", "")
+            flag_comment = True
+        return splitted_line, flag_comment
+    
+    def _get_file_lines(self, file):
+        """
+        
+        """
+        with open(file, "r") as file:
+            file_buf = [line for line in file]
+        return file_buf
+    
     def change_input_param(self, line, new_param_value, force_comment=False):
         """
         
         """
-        with open(self.input_param_file, "r") as file:
-            file_buf = [line for line in file]
+        file_buf = self._get_file_lines(self.input_param_file)
         idx_line = self._get_idx_line_(file_buf, line)
         new_param_value = self._get_new_param_value_(new_param_value)
         
-        splitted_line = file_buf[idx_line].split()
-        idx_param = 2 if splitted_line[0][0] == "#" else 1
-        splitted_line[idx_param] = new_param_value
+        splitted_line, _ = self._get_cleared_line_(idx_line)
+        #idx_param = 2 if splitted_line[0][0] == "#" else 1
+        splitted_line[1] = new_param_value
         if force_comment:
             splitted_line.insert(0, "#")
         file_buf[idx_line] = " ".join(splitted_line) + "\n"
@@ -92,6 +113,54 @@ class LePhareSEDFitter( BaseObject ):
         with open(self.input_param_file, "w") as file:
             for line in file_buf:
                 file.write(line)
+
+    def change_output_param(self, line, force_comment):
+        """
+        
+        """
+        file_buf = self._get_file_lines(self.output_param_file)
+        idx_line = self._get_idx_line_(file_buf, line)
+        splitted_line, _ = self._get_cleared_line_(idx_line)
+        
+        if force_comment:
+            splitted_line.insert(0, "#")
+        file_buf[idx_line] = " ".join(splitted_line) + "\n"
+        
+        with open(self.input_param_file, "w") as file:
+            for line in file_buf:
+                file.write(line)
+
+    def _print_param_details_(self, param):
+        """
+        
+        """
+        if param in self.INPUT_PARAM:
+            which = "input"
+        elif param in self.OUTPUT_PARAM:
+            which = "output"
+        else:
+            raise ValueError("'{}' neither is in input parameter list nor output parameter list.".format(param))
+        file_buf = self._get_file_lines(self._properties[which+"_param_file"])
+        idx_line = self._get_idx_line_(file_buf, param)
+        splitted_line, flag_comment = self._get_cleared_line_(idx_line)
+        
+        txt_param = "{} : {} (comented? : {})".format(param, splitted_line[1] if which=="input" else "", flag_comment)
+        
+        print(txt_param)
+        return
+
+    def describe_params(self, which="input"):
+        """
+        
+        """
+        if which == "input":
+            list_param = self.INPUT_PARAM
+        elif which == "output":
+            list_param = self.OUTPUT_PARAM
+        else:
+            raise ValueError("'which' must be either 'input' or 'output'".)
+        for _param in list_param:
+            self._print_param_details_(_param)
     
     def run_sedtolib(self, input_param_file=None):
         """

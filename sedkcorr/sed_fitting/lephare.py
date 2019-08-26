@@ -29,7 +29,7 @@ class LePhareSEDFitter( BaseObject ):
                    "COL_SEL", "APPLY_SYSSHIFT", "AUTO_ADAPT", "ADAPT_BAND", "ADAPT_LIM", "ADAPT_POLY", "ADAPT_METH", "ADAPT_CONTEXT",
                    "ADAPT_ZBIN", "ADAPT_MODBIN", "ERROR_ADAPT"]
     
-    OUPUT_PARAM = ["IDENT", "Z_BEST", "Z_BEST68_LOW", "Z_BEST68_HIGH", "Z_ML", "Z_ML68_LOW", "Z_ML68_HIGH", "Z_BEST90_LOW",
+    OUTPUT_PARAM = ["IDENT", "Z_BEST", "Z_BEST68_LOW", "Z_BEST68_HIGH", "Z_ML", "Z_ML68_LOW", "Z_ML68_HIGH", "Z_BEST90_LOW",
                    "Z_BEST90_HIGH", "Z_BEST99_LOW", "Z_BEST99_HIGH", "CHI_BEST", "MOD_BEST", "EXTLAW_BEST", "EBV_BEST", "ZF_BEST",
                    "MAG_ABS_BEST", "PDZ_BEST", "SCALE_BEST", "DIST_MOD_BEST", "NBAND_USED", "NBAND_ULIM", "Z_SEC", "CHI_SEC",
                    "MOD_SEC", "AGE_SEC", "EBV_SEC", "ZF_SEC", "MAG_ABS_SEC", "PDZ_SEC", "SCALE_SEC", "Z_QSO", "CHI_QSO", "MOD_QSO",
@@ -84,13 +84,13 @@ class LePhareSEDFitter( BaseObject ):
         """
         self._properties["input_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_input.para" \
                                                if input_param_file is None else input_param_file
-        self._properties["input_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_output.para" \
-                                               if input_param_file is None else input_param_file
+        self._properties["output_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_output.para" \
+                                               if output_param_file is None else output_param_file
         self._side_properties["path_results"] = pkg_resources.resource_filename(__name__, "results/") + "/" \
                                                 if path_results is None else path_results
         
         if data_path is not None:
-            self.change_input_param("CAT_IN", data_path)
+            self.change_param("CAT_IN", data_path)
 
     def _get_idx_line_(self, file, line):
         """
@@ -100,16 +100,16 @@ class LePhareSEDFitter( BaseObject ):
             idx_line = line
         elif type(line) == str:
             flag_no_match = True
-            for ii, line in enumerate(file_buf):
-                splitted_line = line.split()
-                if line in splitted_line[0] or splitted_line[1] == line:
+            for ii, _line in enumerate(file):
+                splitted_line = _line.split()
+                if len(splitted_line)>0 and (line in splitted_line[0] or (len(splitted_line)>1 and splitted_line[1] == line)):
                     idx_line = ii
                     flag_no_match = False
                     break
             if flag_no_match:
                 raise ValueError("{} is not a known parameter in the parameters file.".format(line))
         else:
-            raise ValueError("'line' must be either integer (line index) or string (first word of the line)")
+            raise ValueError("'line' ( = {}) must be either integer (line index) or string (first word of the line)".format(line))
         return idx_line
     
     def _get_new_param_value_(self, new_param_value):
@@ -126,12 +126,12 @@ class LePhareSEDFitter( BaseObject ):
             new_param_value = ",".join([str(elt) for elt in new_param_value])
         return new_param_value
     
-    def _get_cleared_line_(self, idx_line):
+    def _get_cleared_line_(self, line):
         """
         
         """
         flag_comment = False
-        splitted_line = file_buf[idx_line].split()
+        splitted_line = line.split()
         if splitted_line[0] == "#":
             splitted_line.pop(0)
             flag_comment = True
@@ -148,62 +148,54 @@ class LePhareSEDFitter( BaseObject ):
             file_buf = [line for line in file]
         return file_buf
     
-    def change_input_param(self, line, new_param_value, force_comment=False):
-        """
-        
-        """
-        file_buf = self._get_file_lines(self.input_param_file)
-        idx_line = self._get_idx_line_(file_buf, line)
-        new_param_value = self._get_new_param_value_(new_param_value)
-        
-        splitted_line, _ = self._get_cleared_line_(idx_line)
-        #idx_param = 2 if splitted_line[0][0] == "#" else 1
-        splitted_line[1] = new_param_value
-        if force_comment:
-            splitted_line.insert(0, "#")
-        file_buf[idx_line] = " ".join(splitted_line) + "\n"
-
-        with open(self.input_param_file, "w") as file:
-            for line in file_buf:
-                file.write(line)
-
-    def change_output_param(self, line, force_comment):
-        """
-        
-        """
-        file_buf = self._get_file_lines(self.output_param_file)
-        idx_line = self._get_idx_line_(file_buf, line)
-        splitted_line, _ = self._get_cleared_line_(idx_line)
-        
-        if force_comment:
-            splitted_line.insert(0, "#")
-        file_buf[idx_line] = " ".join(splitted_line) + "\n"
-        
-        with open(self.input_param_file, "w") as file:
-            for line in file_buf:
-                file.write(line)
-
-    def _print_param_details_(self, param, phys_param_idx=None):
+    def _get_config_(self, param):
         """
         
         """
         if param in self.INPUT_PARAM:
-            which = "input"
-        elif param in self.OUTPUT_PARAM:
-            which = "output"
+            config = "input"
+        elif param in self.OUTPUT_PARAM + ["PHYS_PARA{}_{}".format(ii, jj) for ii in self.PHYS_PARAM.keys() for jj in ["BEST", "MED", "INF", "SUP"]]:
+            config = "output"
         else:
             raise ValueError("'{}' neither is in input parameter list nor output parameter list.".format(param))
-        file_buf = self._get_file_lines(self._properties[which+"_param_file"])
+        return config
+    
+    def change_param(self, param, new_param_value=None, force_comment=False):
+        """
+        
+        """
+        config = self._get_config_(param)
+        file_buf = self._get_file_lines(self._properties[config+"_param_file"])
         idx_line = self._get_idx_line_(file_buf, param)
-        splitted_line, flag_comment = self._get_cleared_line_(idx_line)
+        new_param_value = self._get_new_param_value_(new_param_value)
         
-        if "{}" in param and 1 <= phys_param_idx <= 27:
-            param = param.format(phys_param_idx) + " ({})".format(self.PHYS_PARAM[phys_param_idx])
+        splitted_line, _ = self._get_cleared_line_(file_buf[idx_line])
+        if config == "input":
+            splitted_line[1] = new_param_value
+        if force_comment:
+            splitted_line.insert(0, "#")
+        file_buf[idx_line] = " ".join(splitted_line) + "\n"
+
+        with open(self._properties[config+"_param_file"], "w") as file:
+            for line in file_buf:
+                file.write(line)
+
+    def _print_param_details_(self, param):
+        """
         
-        txt_param = "{} : {} (comented? : {})".format(param, splitted_line[1] if which=="input" else "", flag_comment)
+        """
+        config = self._get_config_(param)
+        file_buf = self._get_file_lines(self._properties[config+"_param_file"])
+        idx_line = self._get_idx_line_(file_buf, param)
+        splitted_line, flag_comment = self._get_cleared_line_(file_buf[idx_line])
+        
+        if "PHYS_PARA" in param:
+            phys_param_idx = ["PARA{}".format(ii) for ii in self.PHYS_PARAM.keys()].index(param.split("_")[1]) + 1
+            param += " ({})".format(self.PHYS_PARAM[str(phys_param_idx)])
+        
+        txt_param = "{} : {} (comented? : {})".format(param, splitted_line[1] if config=="input" else "", flag_comment)
         
         print(txt_param)
-        return
 
     def describe_params(self, which_config="input", which_param=None):
         """
@@ -214,15 +206,15 @@ class LePhareSEDFitter( BaseObject ):
         elif which_config == "output" and which_param in [None, "all", "*"]:
             list_param = self.OUTPUT_PARAM
         elif which_param not in [None, "all", "*"] and type(which_param) in [str, list]:
-            list_param = np.atleast_1d(which_param)
+            list_param = which_param if type(which_param) == list else [which_param]
         else:
             raise ValueError("'which_config' must be either 'input' or 'output' ; \n",
-                             "'which_param' must be in [None, 'all', '*'], or one parameter or a list of parameters (in those two cases, which_config is not needed".)
-
+                             "'which_param' must be in [None, 'all', '*'], or one parameter or a list of parameters (in those two cases, which_config is not needed.")
+        
         for _param in list_param:
             if "{}" in _param:
                 for ii in self.PHYS_PARAM.keys():
-                    self._print_param_details_(_param, ii)
+                    self._print_param_details_(_param.format(ii))
             else:
                 self._print_param_details_(_param)
     

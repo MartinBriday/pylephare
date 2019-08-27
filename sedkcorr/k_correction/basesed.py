@@ -355,7 +355,7 @@ class SED( BaseObject ):
         ax.set_ylim(ylim)
         ax_ylim = ax.get_ylim()
         if y_plot=="flux" and ylim[0] is None:
-        ax_ylim = (0., ax_ylim[1])
+            ax_ylim = (0., ax_ylim[1])
 
         ax.axhline(ax_ylim[0], color="black", zorder=5)
 

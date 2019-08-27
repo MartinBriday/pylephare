@@ -14,7 +14,7 @@ class LePhareSEDFitter( BaseObject ):
     """
 
     PROPERTIES         = ["input_param_file", "output_param_file"]
-    SIDE_PROPERTIES    = ["path_results"]
+    SIDE_PROPERTIES    = ["results_path"]
     DERIVED_PROPERTIES = []
     
     INPUT_PARAM = ["STAR_SED", "STAR_FSCALE", "STAR_LIB", "QSO_SED", "QSO_FSCALE", "QSO_LIB", "GAL_SED", "GAL_FSCALE", "GAL_LIB",
@@ -71,6 +71,7 @@ class LePhareSEDFitter( BaseObject ):
                   "27":"Lg(Ldust_hot[Lo])"}
     
     PATH_LEPHAREDIR = os.path.expanduser(os.getenv("LEPHAREDIR"))
+    PATH_LEPHAREWORK = os.path.expanduser(os.getenv("LEPHAREWORK"))
 
     def __init__(self, data_path=None, **kwargs):
         """
@@ -78,19 +79,26 @@ class LePhareSEDFitter( BaseObject ):
         """
         self.set_data(data_path, **kwargs)
 
-    def set_data(self, data_path=None, input_param_file=None, output_param_file=None, path_results=None, **kwargs):
+    def set_data(self, data_path=None, input_param_file=None, output_param_file=None, results_path=None, **kwargs):
         """
         
         """
         self._properties["input_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_input.para" \
-                                               if input_param_file is None else input_param_file
+                                               if input_param_file is None else os.path.abspath(input_param_file)
         self._properties["output_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_output.para" \
-                                               if output_param_file is None else output_param_file
-        self._side_properties["path_results"] = pkg_resources.resource_filename(__name__, "results/") + "/" \
-                                                if path_results is None else path_results
+                                               if output_param_file is None else os.path.abspath(output_param_file)
+        
+        self.change_param("PARA_OUT", self.output_param_file, False)
         
         if data_path is not None:
-            self.change_param("CAT_IN", data_path)
+            self.change_param("CAT_IN", os.path.abspath(data_path))
+        if results_path is not None:
+            self.change_param("CAT_OUT", os.path.abspath(results_path))
+        
+        if results_path is not None:
+            results_path = "/".join(results_path.split("/")[:-1]) + "/"
+        self._side_properties["results_path"] = pkg_resources.resource_filename(__name__, "results/") + "/" \
+            if results_path is None else os.path.abspath(results_path)
 
     def _get_idx_line_(self, file, line):
         """
@@ -180,7 +188,7 @@ class LePhareSEDFitter( BaseObject ):
             for line in file_buf:
                 file.write(line)
 
-    def _print_param_details_(self, param):
+    def _get_param_details_(self, param):
         """
         
         """
@@ -193,7 +201,15 @@ class LePhareSEDFitter( BaseObject ):
             phys_param_idx = ["PARA{}".format(ii) for ii in self.PHYS_PARAM.keys()].index(param.split("_")[1]) + 1
             param += " ({})".format(self.PHYS_PARAM[str(phys_param_idx)])
         
-        txt_param = "{} : {} (comented? : {})".format(param, splitted_line[1] if config=="input" else "", flag_comment)
+        return param, splitted_line[1] if config=="input" else "", flag_comment
+
+    def _print_param_details_(self, param):
+        """
+        
+        """
+        param, value, flag_comment = self._get_param_details_(param)
+        
+        txt_param = "{} : {} (comented? : {})".format(param, value, flag_comment)
         
         print(txt_param)
 
@@ -218,48 +234,60 @@ class LePhareSEDFitter( BaseObject ):
             else:
                 self._print_param_details_(_param)
     
-    def run_sedtolib(self, input_param_file=None):
+    def run_sedtolib(self, input_param_file=None, update=False):
         """
         
         """
-        if path_config is not None:
-            self._properties["input_param_file"] = input_param_file
+        if input_param_file is not None:
+            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+    
+        lib_s_k, lib_s_v, _ = self._get_param_details_("STAR_LIB")
+        lib_q_k, lib_q_v, _ = self._get_param_details_("QSO_LIB")
+        lib_g_k, lib_g_v, _ = self._get_param_details_("GAL_LIB")
         
-        for elt in ["S", "Q", "G"]:
-            cmd = "{}/source/sedtolib -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
+        if not np.prod([os.path.isfile(self.PATH_LEPHAREWORK+"/lib_bin/"+elt+".bin") for elt in [lib_s_v, lib_q_v, lib_g_v]]) or update:
+            for elt in ["S", "Q", "G"]:
+                cmd = "{}/source/sedtolib -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
+                subprocess.run(cmd.split())
+    
+    def run_mag_star(self, input_param_file=None, update=False):
+        """
+        
+        """
+        if input_param_file is not None:
+            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+        
+        lib_s_k, lib_s_v, _ = self._get_param_details_("STAR_LIB_OUT")
+        
+        if not os.path.isfile(self.PATH_LEPHAREWORK+"/lib_mag/"+lib_s_v+".bin") or update:
+            cmd = "{}/source/mag_star -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
             subprocess.run(cmd.split())
     
-    def run_mag_star(self, input_param_file=None):
+    def run_mag_gal(self, input_param_file=None, update=False):
         """
         
         """
-        if path_config is not None:
-            self._properties["input_param_file"] = input_param_file
+        if input_param_file is not None:
+            self._properties["input_param_file"] = os.path.abspath(input_param_file)
         
-        cmd = "{}/source/mag_star -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
-        subprocess.run(cmd.split())
+        lib_q_k, lib_q_v, _ = self._get_param_details_("QSO_LIB_OUT")
+        lib_g_k, lib_g_v, _ = self._get_param_details_("GAL_LIB_OUT")
+        
+        if not np.prod([os.path.isfile(self.PATH_LEPHAREWORK+"/lib_mag/"+elt+".bin") for elt in [lib_q_v, lib_g_v]]) or update:
+            for elt in ["Q", "G"]:
+                cmd = "{}/source/mag_gal -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
+                subprocess.run(cmd.split())
     
-    def run_mag_gal(self, input_param_file=None):
+    def run_zphota(self, input_param_file=None, results_path=None):
         """
         
         """
-        if path_config is not None:
-            self._properties["input_param_file"] = input_param_file
+        if input_param_file is not None:
+            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+        if results_path is not None:
+            self._side_properties["results_path"] = os.path.abspath(results_path)
         
-        for elt in ["Q", "G"]:
-            cmd = "{}/source/mag_gal -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
-            subprocess.run(cmd.split())
-    
-    def run_zphota(self, input_param_file=None, path_results=None):
-        """
-        
-        """
-        if path_config is not None:
-            self._properties["input_param_file"] = input_param_file
-        if path_results is not None:
-            self._side_properties["path_results"] = path_results
-        
-        os.chdir(self.path_results)
+        os.chdir(self.results_path)
         cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
         return
@@ -280,8 +308,8 @@ class LePhareSEDFitter( BaseObject ):
         return self._properties["output_param_file"]
     
     @property
-    def path_results(self):
+    def results_path(self):
         """  """
-        return self._side_properties["path_results"]
+        return self._side_properties["results_path"]
 
 

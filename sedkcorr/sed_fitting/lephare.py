@@ -137,7 +137,7 @@ class LePhareSEDFitter( BaseObject ):
         if data is not None:
             if type(data) is pandas.DataFrame:
                 data_path = pkg_resources.resource_filename(__name__, "config/")+"/data.csv"
-                data.to_csv(data_path, sep=" ")
+                data.to_csv(data_path, sep=" ", header=False)
             elif type(data) is str:
                 data_path = data
             else:
@@ -307,10 +307,13 @@ class LePhareSEDFitter( BaseObject ):
         if force_comment:
             splitted_line.insert(0, "#")
         file_buf[idx_line] = " ".join(splitted_line) + "\n"
-
+        
         with open(self._properties[config+"_param_file"], "w") as file:
             for line in file_buf:
                 file.write(line)
+        
+        if param in ["{}_LIB".format(elt) for elt in ["STAR", "QSO", "GAL"]]:
+            self.change_param(param+"_IN", new_param_value, False)
 
     def _get_param_details_(self, param):
         """

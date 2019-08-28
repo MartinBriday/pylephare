@@ -7,19 +7,19 @@
 #------      STELLAR LIBRARY (ASCII SEDs)
 STAR_SED	    $LEPHAREDIR/sed/STAR/STAR_MOD.list	# STAR list (full path)
 STAR_FSCALE	3.432E-09				# Arbitrary Flux Scale 
-STAR_LIB    	snf_LIB_STAR				# Bin. STAR LIBRARY ->
+STAR_LIB    	LIB_STAR				# Bin. STAR LIBRARY ->
 							# $LEPHAREWORK/lib_bin
 #
 #------      QSO LIBRARY (ASCII SEDs) 
 QSO_SED		$LEPHAREDIR/sed/QSO/QSO_MOD.list        # QSO list (full path)
 QSO_FSCALE	1					# Arbitrary Flux Scale 
-QSO_LIB		snf_LIB_QSO				# Bin. QSO LIBRARY ->
+QSO_LIB		LIB_QSO				# Bin. QSO LIBRARY ->
 							# $LEPHAREWORK/lib_bin
 #
 #------      GALAXY LIBRARY (ASCII or BINARY SEDs) 
 GAL_SED	    $LEPHAREDIR/sed/GAL/BC03_CHAB/BC03_MOD.list  # GAL list (full path)
 GAL_FSCALE	1.					# Arbitrary Flux Scale
-GAL_LIB		snf_LIB_BC03  				# Bin. GAL LIBRARY ->
+GAL_LIB		LIB_BC03  				# Bin. GAL LIBRARY ->
 							# $LEPHAREWORK/lib_bin
 SEL_AGE   $LEPHAREDIR/sed/GAL/BC03_CHAB/BC03_AGE.list   # Age list(full path)
 							# (def=NONE)	
@@ -44,7 +44,7 @@ FILTER_CALIB    0                       # 0[-def]:  fnu=ctt
                                         # 2      :  fnu=nu 
                                         # 3      :  fnu=Black Body @ T=10000K
                                         # 4      :  for MIPS (leff with nu fnu=ctt and flux with BB @ 10000K  
-FILTER_FILE	snf_galex_sdss.filt		# output name of filter's file  ->
+FILTER_FILE	filters.filt		# output name of filter's file  ->
                                         # $LEPHAREWORK/filt/
 #
 ############################################################################
@@ -57,16 +57,16 @@ FILTER_FILE	snf_galex_sdss.filt		# output name of filter's file  ->
 ############################################################################
 #
 #-------     From STELLAR LIBRARY   
-STAR_LIB_IN	 snf_LIB_STAR      # Input  STELLAR LIBRARY in $LEPHAREWORK/lib_bin/
-STAR_LIB_OUT	 snf_STAR      # Output STELLAR MAGN    -> $LEPHAREWORK/lib_mag/
+STAR_LIB_IN	 LIB_STAR      # Input  STELLAR LIBRARY in $LEPHAREWORK/lib_bin/
+STAR_LIB_OUT	 STAR      # Output STELLAR MAGN    -> $LEPHAREWORK/lib_mag/
 #
 #-------     From QSO     LIBRARY   
-QSO_LIB_IN	 snf_LIB_QSO	      # Input  QSO LIBRARY  in $LEPHAREWORK/lib_bin/
-QSO_LIB_OUT	 snf_QSO      # Output QSO MAGN     -> $LEPHAREWORK/lib_mag/
+QSO_LIB_IN	 LIB_QSO	      # Input  QSO LIBRARY  in $LEPHAREWORK/lib_bin/
+QSO_LIB_OUT	 QSO      # Output QSO MAGN     -> $LEPHAREWORK/lib_mag/
 #
 #-------     From GALAXY  LIBRARY  
-GAL_LIB_IN	 snf_LIB_BC03	      # Input  GAL LIBRARY  in $LEPHAREWORK/lib_bin/
-GAL_LIB_OUT	 snf_BC03      # Output GAL LIBRARY  -> $LEPHAREWORK/lib_mag/ 
+GAL_LIB_IN	 LIB_BC03	      # Input  GAL LIBRARY  in $LEPHAREWORK/lib_bin/
+GAL_LIB_OUT	 BC03      # Output GAL LIBRARY  -> $LEPHAREWORK/lib_mag/
 #
 #-------   MAG + Z_STEP + EXTINCTION + COSMOLOGY 
 MAGTYPE         AB		     # Magnitude type (AB or VEGA)
@@ -91,15 +91,15 @@ LIB_ASCII       YES		     # Writes output in ASCII
 #
 #
 #-------    Input Catalog Informations   
-CAT_IN       $LEPHAREDIR/data/SNf/SNf_mag_1kpc_124_lephare.csv  # Input catalog  (full path)
+CAT_IN       $LEPHAREDIR/data/data.csv  # Input catalog  (full path)
 INP_TYPE     M		          # Input type      (F:Flux or M:MAG)
 CAT_MAG      AB                   # Input Magnitude (AB or VEGA)
 CAT_FMT      MEME  		  # MEME: (Mag,Err)i  
   		                  # MMEE: (Mag)i,(Err)i  
 CAT_LINES    1,100000             #  MIN and MAX RANGE of ROWS used in input cat [def:-99,-99]
 CAT_TYPE     LONG	          # Input Format    (LONG,SHORT-def)
-CAT_OUT	     $LEPHAREDIR/data/SNF/SNf_mag_1kpc_124_lephare.out	# Output catalog (full path)
-PARA_OUT     $LEPHAREDIR/config/snf_host_zphot_output.para  # Ouput parameter (full path)
+CAT_OUT	     $LEPHAREDIR/data/data.out	# Output catalog (full path)
+PARA_OUT     lephare_zphot_output.para  # Ouput parameter (full path)
 #
 BD_SCALE     0		          # Bands used for scaling 
 			          # (Sum 2^n; n=0->nbd-1, 0[-def]:all bands)
@@ -111,7 +111,7 @@ ERR_SCALE  0.052,0.026,0.05,0.02,0.02,0.02,0.03  # errors per band added in quad
 ERR_FACTOR  1.0                    # error scaling factor 1.0 [-def] 
 #
 #-------    Theoretical libraries  
-ZPHOTLIB    snf_BC03,snf_STAR,snf_QSO    # Library used for Chi2 (max:3)
+ZPHOTLIB    BC03,STAR,QSO    # Library used for Chi2 (max:3)
 ADD_EMLINES  YES 
 #
 ########    PHOTOMETRIC REDSHIFTS OPTIONS      ###########

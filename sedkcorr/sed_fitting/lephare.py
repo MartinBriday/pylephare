@@ -10,7 +10,7 @@ from propobject import BaseObject
 
 class LePhareSEDFitter( BaseObject ):
     """
-    
+    This class is a python "wrapper" (sort of) to run LePhare SED fitting.
     """
 
     PROPERTIES         = ["input_param_file", "output_param_file"]
@@ -73,15 +73,59 @@ class LePhareSEDFitter( BaseObject ):
     PATH_LEPHAREDIR = os.path.expanduser(os.getenv("LEPHAREDIR"))
     PATH_LEPHAREWORK = os.path.expanduser(os.getenv("LEPHAREWORK"))
 
-    def __init__(self, data_path=None, **kwargs):
+    def __init__(self, data=None, **kwargs):
         """
+        The class constructor automatically execute the set_data method.
         
+        Parameters
+        ----------
+        data : [string or pandas.DataFrame]
+            Path of the data file or a DataFrame, both of them in a format readable by LePhare fitter.
+        
+        input_param_file : [string or None]
+            Path of the input parameter file.
+            If 'None', the default file is imported from the package ('/config').
+        
+        output_param_file : [string or None]
+            Path of the output parameter file.
+            If 'None', the default file is imported from the package ('/config').
+        
+        results_path : [string or None]
+            Path for the results of the SED fitter.
+            If 'None', the default folder is located in the package ('/results').
+        
+        
+        Returns
+        -------
+        Void
         """
         self.set_data(data_path, **kwargs)
 
-    def set_data(self, data_path=None, input_param_file=None, output_param_file=None, results_path=None, **kwargs):
+    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, **kwargs):
         """
+        Set up the file paths about the data, the config files (input and output) and the results path.
         
+        Parameters
+        ----------
+        data : [string or pandas.DataFrame]
+            Path of the data file or a DataFrame, both of them in a format readable by LePhare fitter.
+        
+        input_param_file : [string or None]
+            Path of the input parameter file.
+            If 'None', the default file is imported from the package ('/config').
+        
+        output_param_file : [string or None]
+            Path of the output parameter file.
+            If 'None', the default file is imported from the package ('/config').
+        
+        results_path : [string or None]
+            Path for the results of the SED fitter.
+            If 'None', the default folder is located in the package ('/results').
+        
+        
+        Returns
+        -------
+        Void
         """
         self._properties["input_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_input.para" \
                                                if input_param_file is None else os.path.abspath(input_param_file)
@@ -90,19 +134,39 @@ class LePhareSEDFitter( BaseObject ):
         
         self.change_param("PARA_OUT", self.output_param_file, False)
         
-        if data_path is not None:
+        if data is not None:
+            if type(data) is pandas.DataFrame:
+                data_path = pkg_resources.resource_filename(__name__, "config/")+"/data.csv"
+                data.to_csv(data_path, sep=" ")
+            elif type(data) is str:
+                data_path = data
+            else:
+                raise TypeError("data must be a DataFrame or a string")
             self.change_param("CAT_IN", os.path.abspath(data_path))
+
         if results_path is not None:
             self.change_param("CAT_OUT", os.path.abspath(results_path))
-        
-        if results_path is not None:
             results_path = "/".join(results_path.split("/")[:-1]) + "/"
         self._side_properties["results_path"] = pkg_resources.resource_filename(__name__, "results/") + "/" \
-            if results_path is None else os.path.abspath(results_path)
+                                                if results_path is None else os.path.abspath(results_path)
 
     def _get_idx_line_(self, file, line):
         """
+        Return the line index from a file, corresponding to a given parameter.
         
+        Parameters
+        ----------
+        file : [list]
+            List of the lines included in a file.
+        
+        line : [string or int]
+            Name of the parameter we want to look for in the file.
+            You can give an integer (the index of the line, the method will return the same number...
+        
+        
+        Returns
+        -------
+        int
         """
         if type(line) == int:
             idx_line = line
@@ -122,7 +186,17 @@ class LePhareSEDFitter( BaseObject ):
     
     def _get_new_param_value_(self, new_param_value):
         """
+        Return the new parameter value in string in a "LePhare" format.
         
+        Parameters
+        ----------
+        new_param_value : [string or int or float or tuple or list]
+            New value we want to give to an input parameter.
+        
+        
+        Returns
+        -------
+        str
         """
         if new_param_value in ["YES", "yes", "Yes", True]:
             new_param_value = "YES"
@@ -136,7 +210,18 @@ class LePhareSEDFitter( BaseObject ):
     
     def _get_cleared_line_(self, line):
         """
+        Return the splitted line and a comment flag ('False' by default).
+        If it's recognized as a commented line, the '#' is removed, but the comment flag is set to 'True'.
         
+        Parameters
+        ----------
+        line : [string]
+            Line of the file we want to split and clear.
+        
+        
+        Returns
+        -------
+        list[str], bool
         """
         flag_comment = False
         splitted_line = line.split()
@@ -150,7 +235,17 @@ class LePhareSEDFitter( BaseObject ):
     
     def _get_file_lines(self, file):
         """
+        Return a list of the lines included in a given file.
         
+        Parameters
+        ----------
+        file : [string]
+            Full path of the file.
+        
+        
+        Returns
+        -------
+        list[string]
         """
         with open(file, "r") as file:
             file_buf = [line for line in file]
@@ -158,7 +253,17 @@ class LePhareSEDFitter( BaseObject ):
     
     def _get_config_(self, param):
         """
+        Return either "input" or "output", depending on the given parameter.
         
+        Parameters
+        ----------
+        param : [string]
+            Parameter we want to know either it is in the input parameter file or the output one.
+        
+        
+        Returns
+        -------
+        str
         """
         if param in self.INPUT_PARAM:
             config = "input"
@@ -168,9 +273,28 @@ class LePhareSEDFitter( BaseObject ):
             raise ValueError("'{}' neither is in input parameter list nor output parameter list.".format(param))
         return config
     
-    def change_param(self, param, new_param_value=None, force_comment=False):
+    def change_param(self, param, new_param_value, force_comment=False):
         """
+        This method change a parameter value in the input/output parameter file.
+        You also can impose the parameter as a comment or not.
         
+        Parameters
+        ----------
+        param : [string]
+            Parameter we want to change the value and/or the comment state.
+        
+        new_param_value : [string or int or float or tuple or list]
+            New value we want to give to an input parameter.
+            Output parameters don't have values (only comment state), so the new value is not taken in acount for this case.
+        
+        force_comment : [bool]
+            Impose a comment state.
+            If True, the parameter is set as a comment (will write '#' at the beginnig of the corresponding line).
+        
+        
+        Returns
+        -------
+        Void
         """
         config = self._get_config_(param)
         file_buf = self._get_file_lines(self._properties[config+"_param_file"])
@@ -190,7 +314,18 @@ class LePhareSEDFitter( BaseObject ):
 
     def _get_param_details_(self, param):
         """
+        Return the details (parameter name, value, comment state) of a given parameter
         
+        Parameters
+        ----------
+        param : [string]
+            Parameter we want to get the details.
+            If the parameter is an output one, the value is a void string.
+        
+        
+        Returns
+        -------
+        str, str, bool
         """
         config = self._get_config_(param)
         file_buf = self._get_file_lines(self._properties[config+"_param_file"])
@@ -205,7 +340,17 @@ class LePhareSEDFitter( BaseObject ):
 
     def _print_param_details_(self, param):
         """
+        Print the details (parameter name, value, comment state) from a given parameter.
         
+        Parameters
+        ----------
+        param : [string]
+            Parameter we want to print the details.
+        
+        
+        Returns
+        -------
+        Void
         """
         param, value, flag_comment = self._get_param_details_(param)
         
@@ -215,7 +360,22 @@ class LePhareSEDFitter( BaseObject ):
 
     def describe_params(self, which_config="input", which_param=None):
         """
+        This method prints the details (parameter name, value, comment state) of parameters.
         
+        Parameters
+        ----------
+        which_config : [string]
+            Either 'input' or 'output'.
+            Only useful if we want to print every parameter details.
+        
+        which_param : [string or list(string) or None]
+            If None, every parameter details are printed.
+            If one or list of parameters, each is automatically found in the input/output file (so that 'which_config' is useless).
+        
+        
+        Returns
+        -------
+        Void
         """
         if which_config == "input" and which_param in [None, "all", "*"]:
             list_param = self.INPUT_PARAM
@@ -236,7 +396,22 @@ class LePhareSEDFitter( BaseObject ):
     
     def run_sedtolib(self, input_param_file=None, update=False):
         """
+        Execute "$LEPHAREDIR/source/sedtolib -t [S,Q,G] -c [...].para" in the shell.
+        Exception : if the "$LEPAHAREWORK/lib_bin/[...].bin" files already exist, the command is not executed, unless 'update' is True.
         
+        Options
+        -------
+        input_param_file : [string or None]
+            If you want to set a new input parameter file, give the new path here.
+            Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
+        
+        update : [bool]
+            Set to 'True' if you want to execute the command, even if the "$LEPAHAREWORK/lib_bin/[...].bin" files already exist.
+        
+        
+        Returns
+        -------
+        Void
         """
         if input_param_file is not None:
             self._properties["input_param_file"] = os.path.abspath(input_param_file)
@@ -252,7 +427,22 @@ class LePhareSEDFitter( BaseObject ):
     
     def run_mag_star(self, input_param_file=None, update=False):
         """
+        Execute "$LEPHAREDIR/source/mag_star -c [...].para" in the shell.
+        Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists, the command is not executed, unless 'update' is True.
         
+        Options
+        -------
+        input_param_file : [string or None]
+            If you want to set a new input parameter file, give the new path here.
+            Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
+        
+        update : [bool]
+            Set to 'True' if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists.
+            
+            
+        Returns
+        -------
+        Void
         """
         if input_param_file is not None:
             self._properties["input_param_file"] = os.path.abspath(input_param_file)
@@ -265,7 +455,22 @@ class LePhareSEDFitter( BaseObject ):
     
     def run_mag_gal(self, input_param_file=None, update=False):
         """
+        Execute "$LEPHAREDIR/source/mag_gal -t [Q,G] -c [...].para" in the shell.
+        Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist, the command is not executed, unless 'update' is True.
         
+        Options
+        -------
+        input_param_file : [string or None]
+            If you want to set a new input parameter file, give the new path here.
+            Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
+        
+        update : [bool]
+            Set to 'True' if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist.
+            
+            
+        Returns
+        -------
+        Void
         """
         if input_param_file is not None:
             self._properties["input_param_file"] = os.path.abspath(input_param_file)
@@ -280,7 +485,23 @@ class LePhareSEDFitter( BaseObject ):
     
     def run_zphota(self, input_param_file=None, results_path=None):
         """
+        First change current directory to the results path.
+        Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
         
+        Options
+        -------
+        input_param_file : [string or None]
+            If you want to set a new input parameter file, give the new path here.
+            Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
+        
+        results_path : [string or None]
+            If you want to set a new results path, give the new path here.
+            Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
+            
+            
+        Returns
+        -------
+        Void
         """
         if input_param_file is not None:
             self._properties["input_param_file"] = os.path.abspath(input_param_file)
@@ -290,7 +511,6 @@ class LePhareSEDFitter( BaseObject ):
         os.chdir(self.results_path)
         cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
-        return
     
     
 
@@ -299,17 +519,17 @@ class LePhareSEDFitter( BaseObject ):
     #-------------------#
     @property
     def input_param_file(self):
-        """  """
+        """ Path of the input parameter file. """
         return self._properties["input_param_file"]
 
     @property
     def output_param_file(self):
-        """  """
+        """ Path of the output parameter file. """
         return self._properties["output_param_file"]
     
     @property
     def results_path(self):
-        """  """
+        """ Path of the result path. """
         return self._side_properties["results_path"]
 
 

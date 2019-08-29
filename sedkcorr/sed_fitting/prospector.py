@@ -75,43 +75,146 @@ class ProspectorSEDFitter( BaseObject ):
         """
         The class constructor can automatically execute 'set_data'.
             
-        Parameters
-        ----------
-        
-        
         Options
         -------
+        ### load_obs ###
+        Set the 'obs' dictionnary (dealing with measurements) in a 'prospector' format :
+            dict('list_bands', 'filter', 'zspec', 'maggies', 'maggies_unc', 'wavelength', 'spectrum', 'unc', 'mask').
         
+        data_phot : [dict or table or pandas.DataFrame or None]
+            Table of the measured magnitudes and their error.
+            Can be None if you want the algorithm to fit the spectrum instead.
+            Or you can give both to fit both in the same time.
+        
+        data_spec : [dict or table or pandas.DataFrame or None]
+            Table of the measured flux spectrum and its error.
+            Can be None if you want the algorithm to fit the photometry instead.
+            Or you can give both to fit both in the same time.
+        
+        zspec : [list or np.array or pandas.Series]
+            List of the redshift we want to impose to each Type Ia Supernovae.
+        
+        mask_spec : [np.array or list or None]
+            If a spectrum is given (through 'data_spec'), this mask will be applied to the spectrum.
+            If None, the full spectrum is fitted.
+        
+        input_flux_unit : [string]
+            Define the unit of the given spectrum flux :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+            The flux is converted in 'mgy' to be compatible with Prospector.
+        
+        context_filters : [int or None]
+            If photometric measurements are given (through 'data_phot'), this will define the bands to take in account.
+            Knowing the bands in 'data_phot' table, the number we want to set is : sum(2**[band_nb]).
+            For example, bands = ["u", "g", "r", "i", "z"] (band_nb = [0, 1, 2, 3, 4]) :
+            - context_filters = 31 --> ["u", "g", "r", "i", "z"]
+            - context_filters = 30 --> ["g", "r", "i", "z"]
+            - context_filters = 15 --> ["u", "g", "r", "i"]
+            - context_filters = 25 --> ["u", "i", "z"]
+            - etc.
+        
+        col_syntax : [dict]
+            Define the syntax for your table columns concerning 'data_phot' and 'data_spec' input.
+            Keys :
+            - "mag", "mag.err" : put "band" where the filter is specified in the column names.
+                                 (for example "mag_band" means your columns are "mag_u", "mag_g", etc. and "mag_band_err" gives "mag_u_err", etc.)
+            - "flux", "flux.err" : flux and flux error syntax (don't forget "lbda").
+            - "lbda" : wavelenght syntax (if the spectrum is given, so don't forget "flux" and "flux.err").
+        
+        obs : [dict or None]
+            If not None, this will define the 'obs' attribute. Must be prospector compatible.
+        
+        ### load_sps ###
+        sps : [sps instance]
+            If not None, this will set the 'sps' attribute with the given sps.
+        
+        ### load_model ###
+        imposed_priors : [dict or None]
+            Dictionary of model parameters you want to change the prior.
+            In the form of a normal prior, you can change the 'mean' and the 'sigma' of the prior.
         
         
         Returns
         -------
-        
+        Void
         """
         if kwargs != {}:
             self.set_data(**kwargs)
 
     def set_data(self, **kwargs):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Execute 'load_obs', 'load_sps' and 'load_model' functions with the respective given input parameters.
         
         Options
         -------
+        ### load_obs ###
+        Set the 'obs' dictionnary (dealing with measurements) in a 'prospector' format :
+        dict('list_bands', 'filter', 'zspec', 'maggies', 'maggies_unc', 'wavelength', 'spectrum', 'unc', 'mask').
         
+        data_phot : [dict or table or pandas.DataFrame or None]
+            Table of the measured magnitudes and their error.
+            Can be None if you want the algorithm to fit the spectrum instead.
+            Or you can give both to fit both in the same time.
+        
+        data_spec : [dict or table or pandas.DataFrame or None]
+            Table of the measured flux spectrum and its error.
+            Can be None if you want the algorithm to fit the photometry instead.
+            Or you can give both to fit both in the same time.
+        
+        zspec : [list or np.array or pandas.Series]
+            List of the redshift we want to impose to each Type Ia Supernovae.
+        
+        mask_spec : [np.array or list or None]
+            If a spectrum is given (through 'data_spec'), this mask will be applied to the spectrum.
+            If None, the full spectrum is fitted.
+        
+        input_flux_unit : [string]
+            Define the unit of the given spectrum flux :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+            The flux is converted in 'mgy' to be compatible with Prospector.
+        
+        context_filters : [int or None]
+            If photometric measurements are given (through 'data_phot'), this will define the bands to take in account.
+            Knowing the bands in 'data_phot' table, the number we want to set is : sum(2**[band_nb]).
+            For example, bands = ["u", "g", "r", "i", "z"] (band_nb = [0, 1, 2, 3, 4]) :
+            - context_filters = 31 --> ["u", "g", "r", "i", "z"]
+            - context_filters = 30 --> ["g", "r", "i", "z"]
+            - context_filters = 15 --> ["u", "g", "r", "i"]
+            - context_filters = 25 --> ["u", "i", "z"]
+            - etc.
+        
+        col_syntax : [dict]
+            Define the syntax for your table columns concerning 'data_phot' and 'data_spec' input.
+            Keys :
+            - "mag", "mag.err" : put "band" where the filter is specified in the column names.
+                                 (for example "mag_band" means your columns are "mag_u", "mag_g", etc. and "mag_band_err" gives "mag_u_err", etc.)
+            - "flux", "flux.err" : flux and flux error syntax (don't forget "lbda").
+            - "lbda" : wavelenght syntax (if the spectrum is given, so don't forget "flux" and "flux.err").
+        
+        obs : [dict or None]
+            If not None, this will define the 'obs' attribute. Must be prospector compatible.
+        
+        ### load_sps ###
+        sps : [sps instance]
+            If not None, this will set the 'sps' attribute with the given sps.
+        
+        ### load_model ###
+        imposed_priors : [dict or None]
+            Dictionary of model parameters you want to change the prior.
+            In the form of a normal prior, you can change the 'mean' and the 'sigma' of the prior.
         
         
         Returns
         -------
-        
+        Void
         """
         self.load_obs(**kwargs)
         self.load_sps(**kwargs)
         self.load_model(**kwargs)
-        return
     
     def set_run_params(self, auto_add=False, **kwargs):
         """
@@ -187,7 +290,6 @@ class ProspectorSEDFitter( BaseObject ):
                  col_syntax={"mag":"mag_band", "mag.err":"mag_band_err", "lbda":"lbda", "flux":"flux", "flux.err":"flux.err"},
                  obs=None, **extras):
         """
-        Prospector function.
         Set the 'obs' dictionnary (dealing with measurements) in a 'prospector' format :
         dict('list_bands', 'filter', 'zspec', 'maggies', 'maggies_unc', 'wavelength', 'spectrum', 'unc', 'mask').
         
@@ -280,20 +382,16 @@ class ProspectorSEDFitter( BaseObject ):
     
     def load_sps(self, sps=None, **extras):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Create the appropriate sps according to the given 'model_params' set in 'run_param' attribute.
         
         Options
         -------
-        
-        
+        sps : [sps instance]
+            If not None, this will set the 'sps' attribute with the given sps.
         
         Returns
         -------
-        
+        Void
         """
         if self.run_params["model_params"] == "parametric_sfh":
             self._properties["sps"] = CSPSpecBasis(zcontinuous=self.run_params["zcontinuous"]) if sps is None else sps
@@ -302,20 +400,18 @@ class ProspectorSEDFitter( BaseObject ):
     
     def load_model(self, imposed_priors=None, **extras):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Initiate model parameters fitted with thier initial value, prior, and other details.
         
         Options
         -------
-        
+        imposed_priors : [dict or None]
+            Dictionary of model parameters you want to change the prior.
+            In the form of a normal prior, you can change the 'mean' and the 'sigma' of the prior.
         
         
         Returns
         -------
-        
+        Void
         """
         model_params = TemplateLibrary[self.run_params["model_params"]]
         
@@ -376,9 +472,10 @@ class ProspectorSEDFitter( BaseObject ):
         # Now instantiate the model using this new dictionary of parameter specifications
         self._properties["model"] = SedModel(model_params)
     
-    def lnprobfn(self, theta, model=None, obs=None, sps=None, noise=None, nested=True, residuals=False, verbose=False):
+    def _lnprobfn_(self, theta, model=None, obs=None, sps=None, noise=None, nested=True, residuals=False, verbose=False):
         """
-        
+        Ghost function only used in prospector process.
+        Calculate the likelihood on photometry, spectrometry and including the priors.
         
         Parameters
         ----------
@@ -391,7 +488,7 @@ class ProspectorSEDFitter( BaseObject ):
         
         Returns
         -------
-        
+        float
         """
         model = self.model if model is None else model
         obs = self.obs if obs is None else obs
@@ -418,12 +515,12 @@ class ProspectorSEDFitter( BaseObject ):
         else:
             spec_noise, phot_noise = None, None
 
-        vectors = {'spec': spec,
-                   'unc':  obs['unc'],
-                   'sed':  model._spec,
-                   'cal':  model._speccal,
-                   'phot': phot,
-                   'maggies_unc': obs['maggies_unc']}
+        vectors = {"spec": spec,
+                   "unc":  obs["unc"],
+                   "sed":  model._spec,
+                   "cal":  model._speccal,
+                   "phot": phot,
+                   "maggies_unc": obs["maggies_unc"]}
 
         # Calculate likelihoods
         t2 = time.time()
@@ -444,18 +541,14 @@ class ProspectorSEDFitter( BaseObject ):
         """
         Exit, closing pool safely.
         
-        Parameters
-        ----------
-        
-        
         Options
         -------
-        
+        pool : [pool]
         
         
         Returns
         -------
-        
+        Void
         """
         print(message)
         try:
@@ -466,87 +559,87 @@ class ProspectorSEDFitter( BaseObject ):
 
     def mcmc_dynesty(self, pool, nprocs):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Execute prospector mcmc dynesty process.
+        Return, in a dictionnary, the result of dynesty sampler ('dynestyout') and the running time in seconds ('ndur').
         
         Options
         -------
+        pool : [pool]
         
+        nprocs : [int]
+            Number of processors to run the process.
         
         
         Returns
         -------
-        
+        dict
         """
-        if self.run_params['verbose']:
-            print('dynesty sampling...')
+        if self.run_params["verbose"]:
+            print("dynesty sampling...")
         tstart = time.time()  # time it
-        dynestyout = fitting.run_dynesty_sampler(self.lnprobfn, self.prior_transform, self.model.ndim,
+        dynestyout = fitting.run_dynesty_sampler(self._lnprobfn_, self.prior_transform, self.model.ndim,
                                                  pool=pool, queue_size=nprocs,
                                                  stop_function=stopping_function,
                                                  wt_function=weight_function,
                                                  **self.run_params)
         ndur = time.time() - tstart
-        print('done dynesty in {0}s'.format(ndur))
+        print("done dynesty in {0}s".format(ndur))
         return {"dynestyout":dynestyout, "ndur":ndur}
     
-    def init_guess(self, initial_theta, pool):
+    def _init_guess_(self, initial_theta, pool):
         """
-        
+        Return a prospector compatible initial guess.
         
         Parameters
         ----------
-        
+        initial_theta : []
         
         Options
         -------
-        
+        pool : [pool]
         
         
         Returns
         -------
-        
+        dict
         """
         from prospect.fitting.fitting import run_minimize
         
-        if self.run_params['verbose']:
-            print('Starting minimization...')
+        if self.run_params["verbose"]:
+            print("Starting minimization...")
         
         if not np.isfinite(self.model.prior_product(self.model.initial_theta.copy())):
             halt("Halting: initial parameter position has zero prior probability.")
         
-        nmin = self.run_params.get('nmin', 1)
+        nmin = self.run_params.get("nmin", 1)
         if pool is not None:
             nmin = max([nmin, pool.size])
         
-        if bool(self.run_params.get('do_powell', False)):
-            powell_opt = {'ftol': self.run_params['ftol'], 'xtol': 1e-6, 'maxfev': self.run_params['maxfev']}
-            guesses, pdur, best = run_minimize(self.obs, self.model, self.sps, noise=None, lnprobfn=self.lnprobfn,
-                                               min_method='powell', min_opts={"options": powell_opt},
+        if bool(self.run_params.get("do_powell", False)):
+            powell_opt = {"ftol": self.run_params["ftol"], "xtol": 1e-6, "maxfev": self.run_params["maxfev"]}
+            guesses, pdur, best = run_minimize(self.obs, self.model, self.sps, noise=None, lnprobfn=self._lnprobfn_,
+                                               min_method="powell", min_opts={"options": powell_opt},
                                                nmin=nmin, pool=pool)
-            initial_center = fitting.reinitialize(guesses[best].x, self.model, edge_trunc=self.run_params.get('edge_trunc', 0.1))
-            initial_prob = -guesses[best]['fun']
-            if self.run_params['verbose']:
-                print('done Powell in {0}s'.format(pdur))
-                print('best Powell guess:{0}'.format(initial_center))
+            initial_center = fitting.reinitialize(guesses[best].x, self.model, edge_trunc=self.run_params.get("edge_trunc", 0.1))
+            initial_prob = -guesses[best]["fun"]
+            if self.run_params["verbose"]:
+                print("done Powell in {0}s".format(pdur))
+                print("best Powell guess:{0}".format(initial_center))
         
-        elif bool(self.run_params.get('do_levenberg', False)):
+        elif bool(self.run_params.get("do_levenberg", False)):
             lm_opt = {"xtol": 5e-16, "ftol": 5e-16}
-            guesses, pdur, best = run_minimize(self.obs, self.model, self.sps, noise=None, lnprobfn=self.lnprobfn,
-                                               min_method='lm', min_opts=lm_opt,
+            guesses, pdur, best = run_minimize(self.obs, self.model, self.sps, noise=None, lnprobfn=self._lnprobfn_,
+                                               min_method="lm", min_opts=lm_opt,
                                                nmin=nmin, pool=pool)
-            initial_center = fitting.reinitialize(guesses[best].x, self.model, edge_trunc=self.run_params.get('edge_trunc', 0.1))
+            initial_center = fitting.reinitialize(guesses[best].x, self.model, edge_trunc=self.run_params.get("edge_trunc", 0.1))
             initial_prob = None
-            if self.run_params['verbose']:
-                print('done L-M in {0}s'.format(pdur))
-                print('best L-M guess:{0}'.format(initial_center))
+            if self.run_params["verbose"]:
+                print("done L-M in {0}s".format(pdur))
+                print("best L-M guess:{0}".format(initial_center))
         
         else:
-            if self.run_params['verbose']:
-                print('No minimization requested.')
+            if self.run_params["verbose"]:
+                print("No minimization requested.")
             guesses = None
             pdur = 0.0
             initial_center = initial_theta.copy()
@@ -556,20 +649,18 @@ class ProspectorSEDFitter( BaseObject ):
 
     def mcmc_emcee(self, pool):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Execute prospector mcmc emcee process.
+        Return, in a dictionnary, the output file ('hfile', used in the end to save results), the results of emcee ('esampler', 'burn_p0', 'burn_prob0'),
+        the initial guess ('init_guess') and the running time in seconds ('ndur').
         
         Options
         -------
-        
+        pool : [pool]
         
         
         Returns
         -------
-        
+        dict
         """
         postkwargs = {}
         initial_theta = self.model.rectify_theta(self.model.initial_theta)
@@ -583,50 +674,52 @@ class ProspectorSEDFitter( BaseObject ):
         except(ImportError):
             hfile = None
         
-        init_guess = self.init_guess(initial_theta, pool)
+        init_guess = self._init_guess_(initial_theta, pool)
         
-        if self.run_params['verbose']:
-            print('emcee sampling...')
+        if self.run_params["verbose"]:
+            print("emcee sampling...")
         tstart = time.time()
-        out = fitting.run_emcee_sampler(self.lnprobfn, init_guess["initial_center"], self.model,
+        out = fitting.run_emcee_sampler(self._lnprobfn_, init_guess["initial_center"], self.model,
                                         postkwargs=postkwargs, prob0=init_guess["initial_prob"],
                                         pool=pool, hdf5=hfile, **self.run_params)
         esampler, burn_p0, burn_prob0 = out
         ndur = time.time() - tstart
-        if self.run_params['verbose']:
-            print('done emcee in {0}s'.format(ndur))
+        if self.run_params["verbose"]:
+            print("done emcee in {0}s".format(ndur))
         
         return {"hfile":hfile, "esampler":esampler, "burn_p0":burn_p0, "burn_prob0":burn_prob0, "init_guess":init_guess, "ndur":ndur}
     
     def run_fit(self, pool=None, nprocs=1, write_res=False):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Run the fit process, based on the parameters contained in 'run_params' dictionnary.
         
         Options
         -------
+        pool : [pool]
         
+        nprocs : [int]
+            Number of processors to run the process.
+        
+        write_res : [bool]
+            Execute 'write_results' function. Write results in a .h5 file, name based on 'outfile' parameter in 'run_params'.
         
         
         Returns
         -------
-        
+        Void
         """
         try:
-            self.run_params['sps_libraries'] = self.sps.ssp.libraries
+            self.run_params["sps_libraries"] = self.sps.ssp.libraries
         except(AttributeError):
-            self.run_params['sps_libraries'] = None
+            self.run_params["sps_libraries"] = None
         
         if self.run_params.get("debug", False):
-            self.halt('stopping for debug')
+            self.halt("stopping for debug")
         
         # Try to set up an HDF5 file and write basic info to it
-        odir = os.path.dirname(os.path.abspath(self.run_params['outfile']))
+        odir = os.path.dirname(os.path.abspath(self.run_params["outfile"]))
         if (not os.path.exists(odir)):
-            badout = 'Target output directory {} does not exist, please make it.'.format(odir)
+            badout = "Target output directory {} does not exist, please make it.".format(odir)
             halt(badout)
         
         # -------
@@ -644,20 +737,12 @@ class ProspectorSEDFitter( BaseObject ):
 
     def write_results(self):
         """
-        
-        
-        Parameters
-        ----------
-        
-        
-        Options
-        -------
-        
+        Write results in a .h5 file, name based on 'outfile' parameter in 'run_params'.
         
         
         Returns
         -------
-        
+        Void
         """
         # -------------------------
         # Output HDF5 (and pickles if asked for)
@@ -665,12 +750,12 @@ class ProspectorSEDFitter( BaseObject ):
         if self.run_params.get("output_pickles", False):
             # Write the dynesty result object as a pickle
             import pickle
-            with open(self.run_params['outfile'] + '_dns.pkl', 'w') as f:
+            with open(self.run_params["outfile"] + "_dns.pkl", "w") as f:
                 pickle.dump(self.dynestyout, f)
         
             # Write the model as a pickle
             partext = write_results.paramfile_string(**self.run_params)
-            write_results.write_model_pickle(self.run_params['outfile'] + '_model', self.model, powell=None, paramfile_text=partext)
+            write_results.write_model_pickle(self.run_params["outfile"] + "_model", self.model, powell=None, paramfile_text=partext)
     
         # Write HDF5
         if self.run_params["mcmc"] == "dynesty":
@@ -693,35 +778,35 @@ class ProspectorSEDFitter( BaseObject ):
     #-------------------#
     @property
     def run_params(self):
-        """  """
+        """ Dictionnary containing every parameters used in prospector. """
         if self._properties["run_params"] is None:
             self._properties["run_params"] = self.RUN_PARAMS
         return self._properties["run_params"]
 
     @property
     def obs(self):
-        """  """
+        """ Dictionnary, prospector compatible, containing measurements """
         if self._properties["obs"] is None:
             self._properties["obs"] = {}
         return self._properties["obs"]
 
     @property
     def sps(self):
-        """  """
+        """ SPS """
         return self._properties["sps"]
 
     @property
     def model(self):
-        """  """
+        """ Model parameters (initial values, priors, ...). """
         return self._properties["model"]
 
     @property
     def mcmc_res(self):
-        """  """
+        """ MCMC results, depending on the 'dynesty' or 'emcee'. """
         return self._derived_properties["mcmc_res"]
 
     @property
     def hfilename(self):
-        """  """
+        """ Output file name. """
         return self.run_params["outfile"] + "_mcmc_" + self.run_params["mcmc"] + ".h5"
 

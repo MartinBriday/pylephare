@@ -60,102 +60,139 @@ FILTER_BANDS = {"FUV":{"lbda":1539,
 # ------------------#
 def lbda_z0(lbda, z):
     """
-    
+    Shift wavelength to redshift zero.
+    lbda_out = lbda_in / ( 1 + z )
     
     Parameters
     ----------
+    lbda : [float or np.array]
+        Wavelength.
     
-    
-    Options
-    -------
-    
+    z : [float or np.array]
+        Redshift.
     
     
     Returns
     -------
-    
+    float or np.array
     """
     return lbda/(1+z)
 
 def flux_z0(flux, z):
     """
-    
+    Shift flux to redshift zero.
+    flux_out = flux_in / ( ( 1 + z ) ** 3 )
     
     Parameters
     ----------
+    flux : [float or np.array]
+        Flux.
     
-    
-    Options
-    -------
-    
+    z : [float or np.array]
+        Redshift.
     
     
     Returns
     -------
-    
+    float or np.array
     """
     return flux/((1+z)**3)
 
-def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz"):
+def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz", opt_mAB0=True):
     """
-    
+    Convert magnitude to flux.
+    Return the flux and its error.
     
     Parameters
     ----------
+    mag : [float or np.array]
+        Magnitude.
     
+    mag_err : [float or np.array]
+        Magnitude error.
+    
+    band : [string or None]
+        The output flux is converted in the input unit with the wavelength based on this given 'band' filter.
+    
+    flux_unit : [string]
+        Define the output flux unit :
+        - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+        - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+        - "mgy" : mgy (mgy = maggies)
     
     Options
     -------
-    
+    opt_mAB0 : [bool]
+        If True, take in account the filter calibration (AB zero magnitude, depend on the instrument (SDSS, Galex, etc.).
     
     
     Returns
     -------
-    
+    float or np.array, float or np.array
     """
-    if band is None:
+    if opt_mAB0:
+        flux_out = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
+        flux_err_out = (0.4 * np.log(10) * flux_lbda) * mag_err**2
+        unit_in = "AA"
+    else:
         flux_out = 10**((mag + 48.585)/(-2.5))
         flux_err_out = (0.4 * np.log(10) * flux_out)*np.sqrt(mag_err**2 + 0.005**2)
-    elif band in FILTER_BANDS:
-        flux_lbda = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
-        flux_lbda_err_out = (0.4 * np.log(10) * flux_lbda) * mag_err**2
-        if flux_unit in ("AA", "Hz", "mgy"):
-            flux_out, flux_err_out = convert_flux_unit((flux_lbda, flux_lbda_err_out), FILTER_BANDS[band]["lbda"], unit_in="AA", unit_out=flux_unit)
-        else:
-            raise ValueError("{} is not a valid flux unit.".format(flux_unit))
+        unit_in = "Hz"
+
+    if flux_unit in ("AA", "Hz", "mgy"):
+        flux_out, flux_err_out = convert_flux_unit((flux_out, flux_err_out), FILTER_BANDS[band]["lbda"], unit_in=unit_in, unit_out=flux_unit)
     else:
-        raise ValueError("{} is not an existing filter band.".format(band))
+        raise ValueError("{} is not a valid flux unit.".format(flux_unit))
     return flux_out, flux_err_out
 
 def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz"):
     """
-    
+    Convert flux to magnitude.
+    Return the magnitude and its error.
     
     Parameters
     ----------
+    flux : [float or np.array]
+        Flux.
     
+    flux_err : [float or np.array]
+        Flux error.
+    
+    band : [string or None]
+        The input flux is converted in a conversion convenient unit from the input unit with the wavelength based on this given 'band' filter.
+    
+    flux_unit : [string]
+        Define the input flux unit :
+        - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+        - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+        - "mgy" : mgy (mgy = maggies)
     
     Options
     -------
-    
+    opt_mAB0 : [bool]
+        If True, take in account the filter calibration (AB zero magnitude, depend on the instrument (SDSS, Galex, etc.).
     
     
     Returns
     -------
-    
+    float or np.array, float or np.array
     """
-    if band is None:
-        mag_out = -2.5 * np.log10(flux) - 48.585
-        mag_err_out = np.sqrt(((2.5/np.log(10))*(flux_err/flux))**2 + 0.005**2)
-    elif band in FILTER_BANDS:
-        if flux_unit in ("AA", "Hz", "mgy"):
-            flux, flux_err = convert_flux_unit((flux, flux_err), FILTER_BANDS[band]["lbda"], unit_in=flux_unit, unit_out="AA")
-        else:
-            raise ValueError("{} is not a valid flux unit.".format(flux_unit))
+    if opt_mAB0:
+        unit_out = "AA"
+    else:
+        unit_out = "Hz"
+    if flux_unit in ("AA", "Hz", "mgy"):
+        flux, flux_err = convert_flux_unit((flux, flux_err), FILTER_BANDS[band]["lbda"], unit_in=flux_unit, unit_out=unit_out)
+    else:
+        raise ValueError("{} is not a valid flux unit.".format(flux_unit))
+
+    if opt_mAB0:
         mag_out = -2.5 * (np.log10(flux) - FILTER_BANDS[band]["mAB0"])
         mag_err_out = (2.5 / np.log(10)) * (flux_err / flux)
     else:
-        raise ValueError("{} is not an existing filter band.".format(band))
+        mag_out = -2.5 * np.log10(flux) - 48.585
+        mag_err_out = np.sqrt(((2.5/np.log(10))*(flux_err/flux))**2 + 0.005**2)
+
     return mag_out, mag_err_out
 
 def convert_flux_unit(flux, lbda, unit_in, unit_out):

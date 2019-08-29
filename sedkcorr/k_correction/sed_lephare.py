@@ -46,7 +46,7 @@ def lephare_output_file_reader(filename, filter_list):
 
 class SED_LePhare( basesed.SED ):
     """
-    LePhare SED fits
+    This class read LePhare SED fits and do k-correction on it.
     """
     
     PROPERTIES         = []

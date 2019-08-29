@@ -222,7 +222,7 @@ class ProspectorSEDFitter( BaseObject ):
         context_filters : [int or None]
             If photometric measurements are given (through 'data_phot'), this will define the bands to take in account.
             Knowing the bands in 'data_phot' table, the number we want to set is : sum(2**[band_nb]).
-            For example, bands = ["u", "g", "r", "i", "z"] (band_nb = [1, 2, 3, 4, 5]) :
+            For example, bands = ["u", "g", "r", "i", "z"] (band_nb = [0, 1, 2, 3, 4]) :
             - context_filters = 31 --> ["u", "g", "r", "i", "z"]
             - context_filters = 30 --> ["g", "r", "i", "z"]
             - context_filters = 15 --> ["u", "g", "r", "i"]

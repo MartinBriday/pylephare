@@ -75,10 +75,10 @@ class LePhareSEDFitter( BaseObject ):
 
     def __init__(self, data=None, **kwargs):
         """
-        The class constructor automatically execute the set_data method.
+        The class constructor can automatically execute the 'set_data' method.
         
-        Parameters
-        ----------
+        Options
+        -------
         data : [string or pandas.DataFrame]
             Path of the data file or a DataFrame, both of them in a format readable by LePhare fitter.
         
@@ -99,7 +99,8 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        self.set_data(data_path, **kwargs)
+        if data is not None:
+            self.set_data(data, **kwargs)
 
     def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, **kwargs):
         """
@@ -210,8 +211,8 @@ class LePhareSEDFitter( BaseObject ):
     
     def _get_cleared_line_(self, line):
         """
-        Return the splitted line and a comment flag ('False' by default).
-        If it's recognized as a commented line, the '#' is removed, but the comment flag is set to 'True'.
+        Return the splitted line and a comment flag (False by default).
+        If it's recognized as a commented line, the '#' is removed, but the comment flag is set to True.
         
         Parameters
         ----------
@@ -253,7 +254,7 @@ class LePhareSEDFitter( BaseObject ):
     
     def _get_config_(self, param):
         """
-        Return either "input" or "output", depending on the given parameter.
+        Return either 'input' or 'output', depending on the given parameter.
         
         Parameters
         ----------
@@ -409,7 +410,7 @@ class LePhareSEDFitter( BaseObject ):
             Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
         
         update : [bool]
-            Set to 'True' if you want to execute the command, even if the "$LEPAHAREWORK/lib_bin/[...].bin" files already exist.
+            Set to True if you want to execute the command, even if the "$LEPAHAREWORK/lib_bin/[...].bin" files already exist.
         
         
         Returns
@@ -440,7 +441,7 @@ class LePhareSEDFitter( BaseObject ):
             Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
         
         update : [bool]
-            Set to 'True' if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists.
+            Set to True if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists.
             
             
         Returns
@@ -468,7 +469,7 @@ class LePhareSEDFitter( BaseObject ):
             Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
         
         update : [bool]
-            Set to 'True' if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist.
+            Set to True if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist.
             
             
         Returns

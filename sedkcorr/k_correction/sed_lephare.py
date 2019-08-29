@@ -9,6 +9,19 @@ from . import basesed
 def lephare_output_file_reader(filename, filter_list):
     """
     
+    
+    Parameters
+    ----------
+    
+    
+    Options
+    -------
+    
+    
+    
+    Returns
+    -------
+    
     """
     with open(filename, "r") as f1:
         buf_file = f1.readlines()

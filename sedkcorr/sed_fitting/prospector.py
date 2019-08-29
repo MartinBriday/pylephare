@@ -28,57 +28,84 @@ from propobject import BaseObject
 
 class ProspectorSEDFitter( BaseObject ):
     """
-    
+    This class is a python SED fitter using Prospector.
     """
     
     PROPERTIES         = ["run_params", "obs", "sps", "model"]
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = ["mcmc_res"]
     
-    RUN_PARAMS = {'verbose':True,
-                  'debug':False,
-                  'outfile':'test_snf',
-                  'output_pickles': False,
-                  'model_params': "parametric_sfh",
-                  'mcmc': "dynesty",
+    RUN_PARAMS = {"verbose":True,
+                  "debug":False,
+                  "outfile":"test_snf",
+                  "output_pickles": False,
+                  "model_params": "parametric_sfh",
+                  "mcmc": "dynesty",
                   # Optimization parameters
-                  'do_powell': False,
-                  'ftol':0.5e-5,
-                  'maxfev': 5000,
-                  'do_levenberg': True,
-                  'nmin': 10,
+                  "do_powell": False,
+                  "ftol":0.5e-5,
+                  "maxfev": 5000,
+                  "do_levenberg": True,
+                  "nmin": 10,
                   # emcee fitting parameters
-                  'nwalkers':128,
-                  'nburn': [16, 32, 64],
-                  'niter': 512,
-                  'interval': 0.25,
-                  'initial_disp': 0.1,
+                  "nwalkers":128,
+                  "nburn": [16, 32, 64],
+                  "niter": 512,
+                  "interval": 0.25,
+                  "initial_disp": 0.1,
                   # dynesty Fitter parameters
-                  'nested_bound': 'multi', # bounding method
-                  'nested_sample': 'unif', # sampling method
-                  'nested_nlive_init': 100,
-                  'nested_nlive_batch': 100,
-                  'nested_bootstrap': 0,
-                  'nested_dlogz_init': 0.05,
-                  'nested_weight_kwargs': {"pfrac": 1.0},
-                  'nested_stop_kwargs': {"post_thresh": 0.1},
+                  "nested_bound": "multi", # bounding method
+                  "nested_sample": "unif", # sampling method
+                  "nested_nlive_init": 100,
+                  "nested_nlive_batch": 100,
+                  "nested_bootstrap": 0,
+                  "nested_dlogz_init": 0.05,
+                  "nested_weight_kwargs": {"pfrac": 1.0},
+                  "nested_stop_kwargs": {"post_thresh": 0.1},
                   # Model parameters
-                  'add_neb': False,
-                  'add_dust': False,
+                  "add_neb": False,
+                  "add_dust": False,
                   # SPS parameters
-                  'zcontinuous': 1,
+                  "zcontinuous": 1,
                   # Fit parameters
-                  'noise_model':False
+                  "noise_model":False
                   }
     
     def __init__(self, **kwargs):
         """
+        The class constructor can automatically execute 'set_data'.
+            
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
-        self.set_data(**kwargs)
+        if kwargs != {}:
+            self.set_data(**kwargs)
 
     def set_data(self, **kwargs):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         self.load_obs(**kwargs)
@@ -88,7 +115,22 @@ class ProspectorSEDFitter( BaseObject ):
     
     def set_run_params(self, auto_add=False, **kwargs):
         """
+        This method change parameter values.
         
+        Parameters
+        ----------
+        kwargs : [dict]
+            Dictionnary containing the parameters we want to change value as keys, and their new value as [dict] value.
+        
+        Options
+        -------
+        auto_add : [bool]
+            If True and if the given parameters don't exist in the 'run_params' attribute, they will be created in 'run_params'.
+        
+        
+        Returns
+        -------
+        Void
         """
         for key, value in kwargs.items():
             if key not in self.run_params:
@@ -101,7 +143,18 @@ class ProspectorSEDFitter( BaseObject ):
     
     def add_run_params(self, **kwargs):
         """
+        Create new parameters in the 'run_params' attribute.
         
+        Parameters
+        ----------
+        kwargs : [dict]
+            Dictionnary containing the new parameters we want to create.
+            If the parameters already exist, pass.
+        
+        
+        Returns
+        -------
+        Void
         """
         for key, value in kwargs.items():
             if key in self.run_params:
@@ -116,7 +169,7 @@ class ProspectorSEDFitter( BaseObject ):
         Parameters
         ----------
         context : [int]
-        LePhare type context, it defines the used filter bands for the SED fitting.
+            LePhare type context, it defines the used filter bands for the SED fitting.
         
         
         Returns
@@ -134,15 +187,72 @@ class ProspectorSEDFitter( BaseObject ):
                  col_syntax={"mag":"mag_band", "mag.err":"mag_band_err", "lbda":"lbda", "flux":"flux", "flux.err":"flux.err"},
                  obs=None, **extras):
         """
+        Prospector function.
+        Set the 'obs' dictionnary (dealing with measurements) in a 'prospector' format :
+        dict('list_bands', 'filter', 'zspec', 'maggies', 'maggies_unc', 'wavelength', 'spectrum', 'unc', 'mask').
         
+        Parameters
+        ----------
+        data_phot : [dict or table or pandas.DataFrame or None]
+            Table of the measured magnitudes and their error.
+            Can be None if you want the algorithm to fit the spectrum instead.
+            Or you can give both to fit both in the same time.
+        
+        data_spec : [dict or table or pandas.DataFrame or None]
+            Table of the measured flux spectrum and its error.
+            Can be None if you want the algorithm to fit the photometry instead.
+            Or you can give both to fit both in the same time.
+        
+        zspec : [list or np.array or pandas.Series]
+            List of the redshift we want to impose to each Type Ia Supernovae.
+        
+        Options
+        -------
+        mask_spec : [np.array or list or None]
+            If a spectrum is given (through 'data_spec'), this mask will be applied to the spectrum.
+            If None, the full spectrum is fitted.
+        
+        input_flux_unit : [string]
+            Define the unit of the given spectrum flux :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+            The flux is converted in 'mgy' to be compatible with Prospector.
+        
+        context_filters : [int or None]
+            If photometric measurements are given (through 'data_phot'), this will define the bands to take in account.
+            Knowing the bands in 'data_phot' table, the number we want to set is : sum(2**[band_nb]).
+            For example, bands = ["u", "g", "r", "i", "z"] (band_nb = [1, 2, 3, 4, 5]) :
+            - context_filters = 31 --> ["u", "g", "r", "i", "z"]
+            - context_filters = 30 --> ["g", "r", "i", "z"]
+            - context_filters = 15 --> ["u", "g", "r", "i"]
+            - context_filters = 25 --> ["u", "i", "z"]
+            - etc.
+        
+        col_syntax : [dict]
+            Define the syntax for your table columns concerning 'data_phot' and 'data_spec' input.
+            Keys :
+            - "mag", "mag.err" : put "band" where the filter is specified in the column names.
+                                 (for example "mag_band" means your columns are "mag_u", "mag_g", etc. and "mag_band_err" gives "mag_u_err", etc.)
+            - "flux", "flux.err" : flux and flux error syntax (don't forget "lbda").
+            - "lbda" : wavelenght syntax (if the spectrum is given, so don't forget "flux" and "flux.err").
+        
+        obs : [dict or None]
+            If not None, this will define the 'obs' attribute. Must be prospector compatible.
+        
+        
+        Returns
+        -------
+        Void
         """
         if obs is not None:
             self._properties["obs"] = obs
             return
+        
         self.obs["list_bands"] = self.context_filters(context_filters) if data_phot is not None else None
         self.obs["filters"] = load_filters([basesed.FILTER_BANDS[band]["prospector_name"] for band in self.obs["list_bands"]]) \
                               if data_phot is not None else None
-        self.obs["zspec"] = zspec
+        self.obs["zspec"] = np.asarray(zspec)
 
         ##### Photometric input #####
         if data_phot is not None:
@@ -158,7 +268,7 @@ class ProspectorSEDFitter( BaseObject ):
         elif data_spec is not None:
             data_spec = [data_spec[col_syntax["lbda"]],
                          basesed.convert_flux_unit((data_spec[col_syntax["flux"]], data_spec[col_syntax["flux.err"]]),
-                                                  lbda=data_spec[col_syntax["lbda"]], unit_in=input_flux_unit, unit_out="mgy")]
+                                                   lbda=data_spec[col_syntax["lbda"]], unit_in=input_flux_unit, unit_out="mgy")]
 
         ##### Obs dictionnary #####
         self.obs["maggies"] = None if data_phot is None else data_phot[0]
@@ -171,6 +281,19 @@ class ProspectorSEDFitter( BaseObject ):
     def load_sps(self, sps=None, **extras):
         """
         
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         if self.run_params["model_params"] == "parametric_sfh":
             self._properties["sps"] = CSPSpecBasis(zcontinuous=self.run_params["zcontinuous"]) if sps is None else sps
@@ -179,6 +302,19 @@ class ProspectorSEDFitter( BaseObject ):
     
     def load_model(self, imposed_priors=None, **extras):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         model_params = TemplateLibrary[self.run_params["model_params"]]
@@ -243,6 +379,19 @@ class ProspectorSEDFitter( BaseObject ):
     def lnprobfn(self, theta, model=None, obs=None, sps=None, noise=None, nested=True, residuals=False, verbose=False):
         """
         
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         model = self.model if model is None else model
         obs = self.obs if obs is None else obs
@@ -294,6 +443,19 @@ class ProspectorSEDFitter( BaseObject ):
     def halt(message, pool=None):
         """
         Exit, closing pool safely.
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         print(message)
         try:
@@ -304,6 +466,19 @@ class ProspectorSEDFitter( BaseObject ):
 
     def mcmc_dynesty(self, pool, nprocs):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         if self.run_params['verbose']:
@@ -320,6 +495,19 @@ class ProspectorSEDFitter( BaseObject ):
     
     def init_guess(self, initial_theta, pool):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         from prospect.fitting.fitting import run_minimize
@@ -369,6 +557,19 @@ class ProspectorSEDFitter( BaseObject ):
     def mcmc_emcee(self, pool):
         """
         
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         postkwargs = {}
         initial_theta = self.model.rectify_theta(self.model.initial_theta)
@@ -400,6 +601,19 @@ class ProspectorSEDFitter( BaseObject ):
     def run_fit(self, pool=None, nprocs=1, write_res=False):
         """
         
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         try:
             self.run_params['sps_libraries'] = self.sps.ssp.libraries
@@ -430,6 +644,19 @@ class ProspectorSEDFitter( BaseObject ):
 
     def write_results(self):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         # -------------------------

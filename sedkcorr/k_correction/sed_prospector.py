@@ -25,6 +25,19 @@ class SED_prospector( basesed.SED ):
     def read_fit_results(self, filename=None, sps=None, **extras):
         """
         
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         res, obs, mod = results_from(filename, dangerous=False)
         self._properties["p_res"] = res
@@ -40,6 +53,19 @@ class SED_prospector( basesed.SED ):
     
     def set_data_sed(self, filename=None, fit_errors=True, **extras):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         self.read_fit_results(filename, **extras)
@@ -122,6 +148,19 @@ class SED_prospector( basesed.SED ):
     def get_sed_flux(self, theta):
         """
         
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         mspec, mphot, mextra = self.p_mod.mean_model(theta, self.p_obs, sps=self.p_sps)
         mspec = basesed.convert_flux_unit(mspec, lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
@@ -129,6 +168,19 @@ class SED_prospector( basesed.SED ):
     
     def get_sed_wavelength(self):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         if self.p_obs["wavelength"] is None:
@@ -143,6 +195,19 @@ class SED_prospector( basesed.SED ):
     def set_post_pcts(self, weights=False, chain_frac=None):
         """
         
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         chain_iter = 0 if chain_frac is None else -(int(len(self.p_res["chain"])*chain_frac))
         post_pcts = [quantile(self.p_res["chain"][chain_iter:, ii], percents=[16, 50, 84],
@@ -152,6 +217,19 @@ class SED_prospector( basesed.SED ):
     
     def set_sed_stack(self, nb_walkers_points=500, opt_random=True, **extras):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         randint = np.random.randint
@@ -174,6 +252,19 @@ class SED_prospector( basesed.SED ):
     def get_sed_error(self, nb_walkers_points=None, **extras):
         """
         
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         if nb_walkers_points is not None and len(self.sed_stack) != nb_walkers_points:
             self.set_sed_stack(nb_walkers_points)
@@ -182,6 +273,19 @@ class SED_prospector( basesed.SED ):
     
     def get_kcorr_error(self, nb_walkers_points=None, **extras):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         if nb_walkers_points is not None and len(self.sed_stack) != nb_walkers_points:
@@ -212,6 +316,19 @@ class SED_prospector( basesed.SED ):
 
     def show_walkers(self, figsize=(9,7), **kwargs):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         tracefig = traceplot(self.p_res, figsize=figsize, **kwargs)

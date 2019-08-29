@@ -59,12 +59,60 @@ FILTER_BANDS = {"FUV":{"lbda":1539,
 #                   #
 # ------------------#
 def lbda_z0(lbda, z):
+    """
+    
+    
+    Parameters
+    ----------
+    
+    
+    Options
+    -------
+    
+    
+    
+    Returns
+    -------
+    
+    """
     return lbda/(1+z)
 
 def flux_z0(flux, z):
+    """
+    
+    
+    Parameters
+    ----------
+    
+    
+    Options
+    -------
+    
+    
+    
+    Returns
+    -------
+    
+    """
     return flux/((1+z)**3)
 
 def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz"):
+    """
+    
+    
+    Parameters
+    ----------
+    
+    
+    Options
+    -------
+    
+    
+    
+    Returns
+    -------
+    
+    """
     if band is None:
         flux_out = 10**((mag + 48.585)/(-2.5))
         flux_err_out = (0.4 * np.log(10) * flux_out)*np.sqrt(mag_err**2 + 0.005**2)
@@ -80,6 +128,22 @@ def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz"):
     return flux_out, flux_err_out
 
 def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz"):
+    """
+    
+    
+    Parameters
+    ----------
+    
+    
+    Options
+    -------
+    
+    
+    
+    Returns
+    -------
+    
+    """
     if band is None:
         mag_out = -2.5 * np.log10(flux) - 48.585
         mag_err_out = np.sqrt(((2.5/np.log(10))*(flux_err/flux))**2 + 0.005**2)
@@ -95,6 +159,22 @@ def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz"):
     return mag_out, mag_err_out
 
 def convert_flux_unit(flux, lbda, unit_in, unit_out):
+    """
+    
+    
+    Parameters
+    ----------
+    
+    
+    Options
+    -------
+    
+    
+    
+    Returns
+    -------
+    
+    """
     unit_base = units.erg / units.s / units.cm**2
     flux = np.asarray(flux) if type(flux) != float else flux
     lbda = np.asarray(lbda) if type(lbda) != float else lbda
@@ -141,20 +221,59 @@ class SED( BaseObject ):
     
     def __init__(self, **kwargs):
         """
-            
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         if kwargs != {}:
             self.set_data(**kwargs)
     
     def set_data(self, **kwargs):
         """
-            
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
         """
         self.set_data_sed(**kwargs)
         self.set_data_meas(**kwargs)
             
     def set_data_sed(self, data_sed=None, **extras):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         if type(data_sed) is pandas.DataFrame:
@@ -171,6 +290,19 @@ class SED( BaseObject ):
 
     def set_data_meas(self, data_meas=None, z=None, **extras):
         """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
         
         """
         self._properties["data_meas"] = data_meas

@@ -170,7 +170,7 @@ def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz"):
     Options
     -------
     opt_mAB0 : [bool]
-        If True, take in account the filter calibration (AB zero magnitude, depend on the instrument (SDSS, Galex, etc.).
+        If True, take in account the filter calibration (AB zero magnitude), depending on the instrument (SDSS, Galex, etc.).
     
     
     Returns
@@ -197,20 +197,32 @@ def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz"):
 
 def convert_flux_unit(flux, lbda, unit_in, unit_out):
     """
-    
+    Convert the flux unit.
     
     Parameters
     ----------
+    flux : [float or np.array]
+        Input flux.
     
+    lbda : [float or np.array]
+        Wavelength of the flux. Have to be the same size than 'flux'.
     
-    Options
-    -------
+    unit_in : [string]
+        Unit of the input flux :
+        - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+        - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+        - "mgy" : mgy (mgy = maggies)
     
+    unit_in : [string]
+        Unit of the output flux :
+        - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+        - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+        - "mgy" : mgy (mgy = maggies)
     
     
     Returns
     -------
-    
+    float or np.array
     """
     unit_base = units.erg / units.s / units.cm**2
     flux = np.asarray(flux) if type(flux) != float else flux
@@ -249,7 +261,7 @@ def convert_flux_unit(flux, lbda, unit_in, unit_out):
 
 class SED( BaseObject ):
     """
-    
+    This class is a base class to construct an SED from a fitter and apply k-corrections on it.
     """
     
     PROPERTIES         = ["data_sed", "data_meas", "z"]
@@ -258,60 +270,69 @@ class SED( BaseObject ):
     
     def __init__(self, **kwargs):
         """
-        
-        
-        Parameters
-        ----------
-        
+        The constructor can automatically call 'set_data'.
         
         Options
         -------
+        ### set_data_sed ###
+        data_sed : [pandas.DataFrame or dict]
+            Data table of the SED.
         
+        ### set_data_meas ###
+        data_meas : [pandas.DataFrame or table]
+            Data table of the measurements.
+        
+        z : [list(float) or table]
+            Redshift table.
         
         
         Returns
         -------
-        
+        Void
         """
         if kwargs != {}:
             self.set_data(**kwargs)
     
     def set_data(self, **kwargs):
         """
-        
+        Execute 'set_data_sed' and 'set_data_meas'.
+        Basically set up data attributes.
         
         Parameters
         ----------
+        ### set_data_sed ###
+        data_sed : [pandas.DataFrame or dict]
+            Data table of the SED.
         
+        ### set_data_meas ###
+        data_meas : [pandas.DataFrame or table]
+            Data table of the measurements.
         
-        Options
-        -------
-        
+        z : [list(float) or table]
+            Redshift table.
         
         
         Returns
         -------
-        
+        Void
         """
         self.set_data_sed(**kwargs)
         self.set_data_meas(**kwargs)
             
     def set_data_sed(self, data_sed=None, **extras):
         """
-        
+        Turn the input SED data into DataFrame, unless already in pandas.DataFrame type.
+        Automatically add either flux or magnitudes columns if one is missing.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        data_sed : [pandas.DataFrame or dict]
+            Data table of the SED.
         
         
         Returns
         -------
-        
+        Void
         """
         if type(data_sed) is pandas.DataFrame:
             self._properties["data_sed"] = data_sed
@@ -320,27 +341,27 @@ class SED( BaseObject ):
         else:
             raise TypeError("data_sed must be a DataFrame or a dict")
         
-        if "mag" in self.data_sed.keys():
+        if "mag" in self.data_sed.keys() and "flux" not in self.data_sed.keys():
             self.data_sed["flux"], self.data_sed["flux.err"] = mag_to_flux(self.data_sed["mag"], self.data_sed["mag.err"], band=None, flux_unit="Hz")
-        elif "flux" in self.data_sed.keys():
+        elif "flux" in self.data_sed.keys() and "mag" not in self.data_sed.keys():
             self.data_sed["mag"], self.data_sed["mag.err"] = flux_to_mag(self.data_sed["flux"], self.data_sed["flux.err"], band=None, flux_unit="Hz")
 
     def set_data_meas(self, data_meas=None, z=None, **extras):
         """
-        
+        Set up measurements attributes.
         
         Parameters
         ----------
+        data_meas : [pandas.DataFrame or table]
+            Data table of the measurements.
         
-        
-        Options
-        -------
-        
+        z : [list(float) or table]
+            Redshift table.
         
         
         Returns
         -------
-        
+        Void
         """
         self._properties["data_meas"] = data_meas
         
@@ -418,6 +439,21 @@ class SED( BaseObject ):
     def get_phot(self, data_sed=None, bands=None):
         """
         
+        
+        Parameters
+        ----------
+        data_sed : [pandas.DataFrame]
+            Data table of the SED.
+        
+        Options
+        -------
+        bands : [list(string) or None]
+            List of bands you want to get photometric data.
+        
+        
+        Returns
+        -------
+        dict
         """
         list_bands = LIST_BANDS if bands is None else bands if type(bands)==list else [bands]
         data_kcorr = {band:spectroscopy.synthesize_photometry(data_sed["lbda"], data_sed["flux"], self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])
@@ -428,6 +464,11 @@ class SED( BaseObject ):
         """
         Recover the integrated flux from every filter bands from the shifted SED.
         Then convert them into magnitudes.
+        
+        Options
+        -------
+        kcorr_flux_error : [dict or table or None]
+            Error on k-corrected flux.
         
         
         Returns
@@ -470,6 +511,12 @@ class SED( BaseObject ):
         ylim : [tuple[float or None]]
             Set the limits on the y axis.
             If (None, None), the figure has free y axis limits.
+        
+        xscale : [string]
+            Scale of the x axis : "linear", "log", ...
+            
+        yscale : [string]
+            Scale of the y axis : "linear", "log", ...
         
         savefile : [string or None]
             If None, the figure won't be saved.

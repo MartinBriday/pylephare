@@ -80,7 +80,7 @@ class LePhareSEDFitter( BaseObject ):
         Options
         -------
         data : [string or pandas.DataFrame]
-            Path of the data file or a DataFrame, both of them in a format readable by LePhare fitter.
+            Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
         
         input_param_file : [string or None]
             Path of the input parameter file.
@@ -108,8 +108,8 @@ class LePhareSEDFitter( BaseObject ):
         
         Parameters
         ----------
-        data : [string or pandas.DataFrame]
-            Path of the data file or a DataFrame, both of them in a format readable by LePhare fitter.
+        data : [string or pandas.DataFrame or dict]
+            Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
         
         input_param_file : [string or None]
             Path of the input parameter file.
@@ -136,6 +136,8 @@ class LePhareSEDFitter( BaseObject ):
         self.change_param("PARA_OUT", self.output_param_file, False)
         
         if data is not None:
+            if type(data) == dict:
+                data = pandas.DataFrame(data)
             if type(data) is pandas.DataFrame:
                 data_path = pkg_resources.resource_filename(__name__, "config/")+"/data.csv"
                 data.to_csv(data_path, sep=" ", header=False)

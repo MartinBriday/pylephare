@@ -8,20 +8,21 @@ from . import basesed
 
 def lephare_output_file_reader(filename, filter_list):
     """
-    
+    Read a LePhare output file, returning a pandas.DataFrame.
     
     Parameters
     ----------
+    filename : [string]
+        Path of the LePhare file.
     
-    
-    Options
-    -------
-    
+    filter_list : [list(string)]
+        List of filters used in LePhare.
+        Necessary to create the good number of names for columns.
     
     
     Returns
     -------
-    
+    pandas.DataFrame
     """
     with open(filename, "r") as f1:
         buf_file = f1.readlines()
@@ -41,12 +42,13 @@ def lephare_output_file_reader(filename, filter_list):
             col_names.remove(name)
             for jj, filt in enumerate(filter_list):
                 col_names.insert(ii+jj, name.replace("()", "_{}".format(filt)))
-    return pandas.read_csv(filename, sep=' ', skipinitialspace=True, skiprows=skiprows+1, names=col_names)
+    return pandas.read_csv(filename, sep=" ", skipinitialspace=True, skiprows=skiprows+1, names=col_names)
 
 
 class SED_LePhare( basesed.SED ):
     """
-    This class read LePhare SED fits and do k-correction on it.
+    This class read LePhare SED fits and apply k-correction on it.
+    Child of the class 'basesed.SED'.
     """
     
     PROPERTIES         = []
@@ -71,6 +73,11 @@ class SED_LePhare( basesed.SED ):
         sed_dir : [string]
             Path to the SED files folder.
             Needed if sed_index used.
+        
+        nrows : [int]
+            Number of rows to account for the spectrum.
+            Generally, LePhare output three series of data (GAL, QSO, STAR) in a row.
+            This number allow you to only keep GAL serie.
         
         
         Returns
@@ -110,6 +117,13 @@ class SED_LePhare( basesed.SED ):
         ----------
         context : [int]
             LePhare type context, it defines the used filter bands for the SED fitting.
+            Knowing the bands in 'self.list_bands', the number we want to set is : sum(2**[band_nb]).
+            For example, bands = ["u", "g", "r", "i", "z"] (band_nb = [0, 1, 2, 3, 4]) :
+            - context = 31 --> ["u", "g", "r", "i", "z"]
+            - context = 30 --> ["g", "r", "i", "z"]
+            - context = 15 --> ["u", "g", "r", "i"]
+            - context = 25 --> ["u", "i", "z"]
+            - etc.
         
         
         Returns

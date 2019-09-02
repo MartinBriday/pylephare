@@ -15,7 +15,8 @@ from . import basesed
 
 class SED_prospector( basesed.SED ):
     """
-    
+    This class read prospector SED fits and apply k-correction on it.
+    Child of the class 'basesed.SED'.
     """
     
     PROPERTIES         = ["p_res", "p_obs", "p_mod", "p_sps"]
@@ -24,20 +25,22 @@ class SED_prospector( basesed.SED ):
 
     def read_fit_results(self, filename=None, sps=None, **extras):
         """
-        
+        Read the prospector output file and initiate the specicific parameters (obs, model, sps).
         
         Parameters
         ----------
-        
+        filename : [string]
+            Path of the prospector output file.
         
         Options
         -------
-        
+        sps : [prospector.sps]
+            Give a sps to earn the loading time.
         
         
         Returns
         -------
-        
+        Void
         """
         res, obs, mod = results_from(filename, dangerous=False)
         self._properties["p_res"] = res
@@ -53,26 +56,38 @@ class SED_prospector( basesed.SED ):
     
     def set_data_sed(self, filename=None, fit_errors=True, **extras):
         """
-        
+        Extract the fitted SED from the prospector output file and initiate SED data using the parent class (basesed.SED) 'set_data_sed' method.
         
         Parameters
         ----------
-        
+        ilename : [string]
+            Path of the prospector output file.
         
         Options
         -------
+        fit_errors : [bool]
+            If True, generate a stack of spectrum to calcultate SED errors.
         
+        # **extras #
+        
+        ### read_fit_results ###
+        sps : [prospector.sps]
+            Give a sps to earn the loading time.
+        
+        ### get_sed_error ###
+        nb_walkers_points : [int]
+            Number of spectrum to generate in the stack using 'set_sed_stack' method.
         
         
         Returns
         -------
-        
+        Void
         """
         self.read_fit_results(filename, **extras)
         
         imax = np.argmax(self.p_res["lnprobability"])
         if self.p_run_params["mcmc"] == "emcee":
-            i, j = np.unravel_index(imax, self.p_res['lnprobability'].shape)
+            i, j = np.unravel_index(imax, self.p_res["lnprobability"].shape)
             theta_max = self.p_res["chain"][i, j, :].copy()
         else:
             theta_max = self.p_res["chain"][imax, :]
@@ -82,7 +97,7 @@ class SED_prospector( basesed.SED ):
         data_sed = {"lbda":self.get_sed_wavelength(),
                     "flux":self.get_sed_flux(theta_max),
                     "flux.err":np.zeros(self.nb_spec_points) if not fit_errors else self.get_sed_error(**extras)}
-        _ = super(SED_prospector, self).set_data_sed( pandas.DataFrame(data_sed))
+        _ = super(SED_prospector, self).set_data_sed( pandas.DataFrame(data_sed) )
     
     def context_filters(self, context):
         """
@@ -91,7 +106,14 @@ class SED_prospector( basesed.SED ):
         Parameters
         ----------
         context : [int]
-        LePhare type context, it defines the used filter bands for the SED fitting.
+            LePhare type context, it defines the used filter bands for the SED fitting.
+            Knowing the bands in 'self.list_bands', the number we want to set is : sum(2**[band_nb]).
+            For example, bands = ["u", "g", "r", "i", "z"] (band_nb = [0, 1, 2, 3, 4]) :
+            - context = 31 --> ["u", "g", "r", "i", "z"]
+            - context = 30 --> ["g", "r", "i", "z"]
+            - context = 15 --> ["u", "g", "r", "i"]
+            - context = 25 --> ["u", "i", "z"]
+            - etc.
         
         
         Returns
@@ -112,22 +134,22 @@ class SED_prospector( basesed.SED ):
         Parameters
         ----------
         data_meas : [table like]
-        Table like (eg : DataFrame line) of the measurements.
+            Table like (eg : DataFrame line) of the measurements.
         
         z : [float or None]
-        Redshift of the SNeIa host.
-        If None, the redshift is supposed to be in the data_meas table under the name "Z-SPEC".
-        Default is None.
+            Redshift of the SNeIa host.
+            If None, the redshift is supposed to be in the data_meas table under the name "Z-SPEC".
+            Default is None.
         
         col_syntax : [list[string]]
-        Syntax of measurements and errors column names in the data_meas table.
-        Replace the filter band in the column names with the word "band" (eg: ["mag_band", "mag_band_err"]).
+            Syntax of measurements and errors column names in the data_meas table.
+            Replace the filter band in the column names with the word "band" (eg: ["mag_band", "mag_band_err"]).
         
         Options
         -------
         list_bands : [list[string] or None]
-        List of the filter bands used in SED fitting.
-        If None, the LePhare context set list_bands. The context is supposed to be in the data_meas table under the name "CONTEXT".
+            List of the filter bands used in SED fitting.
+            If None, the LePhare context set list_bands. The context is supposed to be in the data_meas table under the name "CONTEXT".
         
         
         Returns
@@ -147,20 +169,18 @@ class SED_prospector( basesed.SED ):
     
     def get_sed_flux(self, theta):
         """
-        
+        Return a complete spectrum, given by a set of fitted parameters.
+        Output unit is erg/cm2/s/Hz.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        theta : [list(float)]
+            List of parameter values fitted in prospector.
         
         
         Returns
         -------
-        
+        list(float)
         """
         mspec, mphot, mextra = self.p_mod.mean_model(theta, self.p_obs, sps=self.p_sps)
         mspec = basesed.convert_flux_unit(mspec, lbda=self.get_sed_wavelength(), unit_in="mgy", unit_out="Hz")
@@ -168,24 +188,17 @@ class SED_prospector( basesed.SED ):
     
     def get_sed_wavelength(self):
         """
-        
-        
-        Parameters
-        ----------
-        
-        
-        Options
-        -------
-        
+        Recover the wavelength table from the prospector output file.
+        If no 'wavelength' was given in the 'obs' dict during prospector fitting, it recovers the fitted one and redshifts it (as it is the restframe).
         
         
         Returns
         -------
-        
+        list(float)
         """
         if self.p_obs["wavelength"] is None:
             # *restframe* spectral wavelengths, since obs["wavelength"] is None
-            a = 1.0 + self.p_obs.get('zspec', 0.0)
+            a = 1.0 + self.p_obs.get("zspec", 0.0)
             wspec = self.p_sps.wavelengths.copy()
             wspec *= a #redshift them
         else:
@@ -194,20 +207,21 @@ class SED_prospector( basesed.SED ):
     
     def set_post_pcts(self, weights=False, chain_frac=None):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Set up as attribute the quantiles on fitted parameters.
         
         Options
         -------
+        weights : [bool]
+            If True, take in account the weights on the chains, given by prospector output file.
+            Default is False (same weight for the whole sample).
         
+        chain_frac : [float or None]
+            Between 0 and 1, fraction of the chains to calculate the quantiles, starting from the end.
         
         
         Returns
         -------
-        
+        Void
         """
         chain_iter = 0 if chain_frac is None else -(int(len(self.p_res["chain"])*chain_frac))
         post_pcts = [quantile(self.p_res["chain"][chain_iter:, ii], percents=[16, 50, 84],
@@ -217,20 +231,23 @@ class SED_prospector( basesed.SED ):
     
     def set_sed_stack(self, nb_walkers_points=500, opt_random=True, **extras):
         """
-        
+        Set up a stack of spectrum in order to get the SED and the fitted photometry errors.
         
         Parameters
         ----------
-        
+        nb_walkers_points : [int]
+            Number of spectrum to generate in the stack.
         
         Options
         -------
-        
+        opt_random : [bool]
+            If True, take *nb_walkers_points* randomly chosen fitted parameters in their chains to generate the spectra.
+            Else take the last *nb_walkers_points* fitted parameters from the chains.
         
         
         Returns
         -------
-        
+        Void
         """
         randint = np.random.randint
         theta = []
@@ -251,20 +268,17 @@ class SED_prospector( basesed.SED ):
         
     def get_sed_error(self, nb_walkers_points=None, **extras):
         """
-        
+        Return the SED error, calculated from the prospector fit result.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        nb_walkers_points : [int]
+            Number of spectrum to generate in the stack using 'set_sed_stack' method.
         
         
         Returns
         -------
-        
+        np.array
         """
         if nb_walkers_points is not None and len(self.sed_stack) != nb_walkers_points:
             self.set_sed_stack(nb_walkers_points)
@@ -273,20 +287,17 @@ class SED_prospector( basesed.SED ):
     
     def get_kcorr_error(self, nb_walkers_points=None, **extras):
         """
-        
+        Return k-correction error, calculated from the prospector fit result.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        nb_walkers_points : [int]
+            Number of spectrum to generate in the stack using 'set_sed_stack' method.
         
         
         Returns
         -------
-        
+        dict
         """
         if nb_walkers_points is not None and len(self.sed_stack) != nb_walkers_points:
             self.set_sed_stack(nb_walkers_points)
@@ -307,6 +318,11 @@ class SED_prospector( basesed.SED ):
         Recover the integrated flux from every filter bands from the shifted SED.
         Then convert them into magnitudes.
         
+        Options
+        -------
+        kcorr_flux_error : [dict or table or None]
+            Error on k-corrected flux.
+
         
         Returns
         -------
@@ -316,20 +332,20 @@ class SED_prospector( basesed.SED ):
 
     def show_walkers(self, figsize=(9,7), **kwargs):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Run 'traceplot' method of 'prospect.io.read_results' with the results loaded with 'set_data_sed'.
         
         Options
         -------
+        figsize : [tuple]
+            Size of the figure (matplotlib.pyplot option).
         
+        showpars : [list(string)]
+            List of the fitted parameters we want to see the chains.
         
         
         Returns
         -------
-        
+        fig
         """
         tracefig = traceplot(self.p_res, figsize=figsize, **kwargs)
         return tracefig
@@ -346,54 +362,54 @@ class SED_prospector( basesed.SED ):
     #-------------------#
     @property
     def p_res(self):
-        """  """
+        """ prospector 'res' """
         return self._properties["p_res"]
 
     @property
     def p_obs(self):
-        """  """
+        """ prospector 'obs' """
         return self._properties["p_obs"]
 
     @property
     def p_mod(self):
-        """  """
+        """ prospector 'model' """
         return self._properties["p_mod"]
     
     @property
     def p_sps(self):
-        """  """
+        """ prospector 'sps' """
         return self._properties["p_sps"]
 
     @property
     def p_run_params(self):
-        """  """
+        """ prospector 'run_params' dictionnary """
         if self._side_properties["p_run_params"] is None:
             self._side_properties["p_run_params"] = self.p_res["run_params"]
         return self._side_properties["p_run_params"]
             
     @property
     def post_pcts(self):
-        """  """
+        """ Quantiles of the fitted parameters """
         if self._derived_properties["post_pcts"] is None:
             self.set_post_pcts()
         return self._derived_properties["post_pcts"]
 
     @property
     def sed_stack(self):
-        """  """
+        """ List of SED spectrum """
         return self._derived_properties["sed_stack"]
     
     @property
     def phot_stack(self):
-        """  """
+        """ List of fitted photometry """
         return self._derived_properties["phot_stack"]
     
     @property
     def nb_spec_points(self):
-        """  """
+        """ Length of the spectrum """
         return len(self.get_sed_wavelength())
     
     @property
     def nb_phot_points(self):
-        """  """
+        """ Number of photometric points """
         return len(self.p_obs["maggies"])

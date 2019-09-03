@@ -137,7 +137,12 @@ class LePhareSEDFitter( BaseObject ):
         
         if data is not None:
             if type(data) == dict:
-                data = pandas.DataFrame(data)
+                try:
+                    data = pandas.DataFrame(data)
+                except(ValueError):
+                    for k, v in data.items():
+                        data[k] = [v]
+                    data = pandas.DataFrame(data)
             if type(data) is pandas.DataFrame:
                 data_path = pkg_resources.resource_filename(__name__, "config/")+"/data.csv"
                 data.to_csv(data_path, sep=" ", header=False)

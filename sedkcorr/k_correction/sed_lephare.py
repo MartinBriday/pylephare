@@ -55,7 +55,7 @@ class SED_LePhare( basesed.SED ):
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = []
     
-    def set_data_sed(self, sed_index=None, sed_data=None, sed_dir=None, nrows=1057, **kwargs):
+    def set_data_sed(self, data_sed=None, sed_index=None, sed_dir=None, nrows=1057, **kwargs):
         """
         Load the SED spectrum.
         
@@ -84,7 +84,7 @@ class SED_LePhare( basesed.SED ):
         -------
         Void
         """
-        if sed_index is not None and sed_data is None:
+        if sed_index is not None and data_sed is None:
             if sed_dir is None:
                 raise ValueError("You did not input the sprectrum directory.")
             sed_index = str(sed_index)
@@ -98,16 +98,16 @@ class SED_LePhare( basesed.SED ):
                     if splitted_line[0] == "0.13598926E+03":
                         break
                     idx_start += 1
-            sed_data =  pandas.read_table(os.path.expanduser(sed_dir+sed_filename),
+            data_sed =  pandas.read_table(os.path.expanduser(sed_dir+sed_filename),
                                           skiprows=idx_start, names=["lbda", "mag"], sep="  ",
                                           engine="python", nrows=nrows)
-        elif sed_index is None and sed_data is not None:
-            sed_data = sed_data
+        elif sed_index is None and data_sed is not None:
+            data_sed = data_sed
         else:
             raise ValueError("You must input one (and only one) data set option : the spectrum index or a DataFrame with columns = ['lbda', 'mag'].")
         
-        sed_data["mag.err"] = np.zeros(len(sed_data))
-        _ = super(SED_LePhare, self).set_data_sed( sed_data )
+        data_sed["mag.err"] = np.zeros(len(data_sed))
+        _ = super(SED_LePhare, self).set_data_sed( data_sed )
     
     def context_filters(self, context):
         """
@@ -166,7 +166,7 @@ class SED_LePhare( basesed.SED ):
         -------
         Void
         """
-        self._side_properties["list_bands"] = self.context_filters(data_meas["CONTEXT"]) if list_bands is None else list_bands
+        self._side_properties["list_bands"] = self.context_filters(int(data_meas["CONTEXT"])) if list_bands is None else list_bands
         z = z if z is not None else data_meas["Z-SPEC"]
         
         data_meas = {band:{"mag":data_meas[col_syntax[0].replace("band",band)],

@@ -132,7 +132,7 @@ def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz", opt_mAB0=True):
     """
     if opt_mAB0:
         flux_out = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
-        flux_err_out = (0.4 * np.log(10) * flux_lbda) * mag_err**2
+        flux_err_out = (0.4 * np.log(10) * flux_out) * mag_err**2
         unit_in = "AA"
     else:
         flux_out = 10**((mag + 48.585)/(-2.5))

@@ -133,8 +133,6 @@ class LePhareSEDFitter( BaseObject ):
         self._properties["output_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_output.para" \
                                                if output_param_file is None else os.path.abspath(output_param_file)
         
-        self.change_param("PARA_OUT", self.output_param_file, False)
-        
         if data is not None:
             if type(data) == dict:
                 try:
@@ -152,11 +150,13 @@ class LePhareSEDFitter( BaseObject ):
                 raise TypeError("data must be a DataFrame or a string")
             self.change_param("CAT_IN", os.path.abspath(data_path))
 
-        if results_path is not None:
-            self.change_param("CAT_OUT", os.path.abspath(results_path))
-            results_path = "/".join(results_path.split("/")[:-1]) + "/"
-        self._side_properties["results_path"] = pkg_resources.resource_filename(__name__, "results/") + "/" \
-                                                if results_path is None else os.path.abspath(results_path)
+        self.change_param("PARA_OUT", self.output_param_file, False)
+
+        if results_path is None:
+            results_path = pkg_resources.resource_filename(__name__, "results/")+"/data.out"
+        
+        self.change_param("CAT_OUT", os.path.abspath(results_path))
+        self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1]) + "/")
 
     def _get_idx_line_(self, file, line):
         """
@@ -322,6 +322,8 @@ class LePhareSEDFitter( BaseObject ):
         
         if param in ["{}_LIB".format(elt) for elt in ["STAR", "QSO", "GAL"]]:
             self.change_param(param+"_IN", new_param_value, False)
+        elif param == "CAT_OUT":
+            self._side_properties["results_path"] = os.path.abspath("/".join(new_param_value.split("/")[:-1]) + "/")
 
     def _get_param_details_(self, param):
         """
@@ -404,6 +406,34 @@ class LePhareSEDFitter( BaseObject ):
                     self._print_param_details_(_param.format(ii))
             else:
                 self._print_param_details_(_param)
+
+    def run_filter(self, input_param_file=None, update=False):
+        """
+        Execute "$LEPHAREDIR/source/filter -c [...].para" in the shell.
+        Exception : if the "$LEPAHAREWORK/filt/[...].filt" files already exist, the command is not executed, unless 'update' is True.
+        
+        Options
+        -------
+        input_param_file : [string or None]
+            If you want to set a new input parameter file, give the new path here.
+            Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
+        
+        update : [bool]
+            Set to True if you want to execute the command, even if the "$LEPAHAREWORK/filt/[...].filt" files already exist.
+        
+        
+        Returns
+        -------
+        Void
+        """
+        if input_param_file is not None:
+            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+                
+        filt_k, filt_v, _ = self._get_param_details_("FILTER_FILE")
+        
+        if not os.path.isfile(self.PATH_LEPHAREWORK+"/filt/"+filt_v+".filt") or update:
+            cmd = "{}/source/filter -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
+            subprocess.run(cmd.split())
     
     def run_sedtolib(self, input_param_file=None, update=False):
         """

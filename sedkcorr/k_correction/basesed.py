@@ -140,12 +140,12 @@ def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz", opt_mAB0=True):
         unit_in = "Hz"
 
     if flux_unit in ("AA", "Hz", "mgy"):
-        flux_out, flux_err_out = convert_flux_unit((flux_out, flux_err_out), FILTER_BANDS[band]["lbda"], unit_in=unit_in, unit_out=flux_unit)
+        flux_out, flux_err_out = convert_flux_unit((flux_out, flux_err_out), FILTER_BANDS[band]["lbda"] if type(band)==str else band, unit_in=unit_in, unit_out=flux_unit)
     else:
         raise ValueError("{} is not a valid flux unit.".format(flux_unit))
     return flux_out, flux_err_out
 
-def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz"):
+def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz", opt_mAB0=True):
     """
     Convert flux to magnitude.
     Return the magnitude and its error.
@@ -182,7 +182,7 @@ def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz"):
     else:
         unit_out = "Hz"
     if flux_unit in ("AA", "Hz", "mgy"):
-        flux, flux_err = convert_flux_unit((flux, flux_err), FILTER_BANDS[band]["lbda"], unit_in=flux_unit, unit_out=unit_out)
+        flux, flux_err = convert_flux_unit((flux, flux_err), FILTER_BANDS[band]["lbda"] if type(band)==str else band, unit_in=flux_unit, unit_out=unit_out)
     else:
         raise ValueError("{} is not a valid flux unit.".format(flux_unit))
 
@@ -342,9 +342,11 @@ class SED( BaseObject ):
             raise TypeError("data_sed must be a DataFrame or a dict")
         
         if "mag" in self.data_sed.keys() and "flux" not in self.data_sed.keys():
-            self.data_sed["flux"], self.data_sed["flux.err"] = mag_to_flux(self.data_sed["mag"], self.data_sed["mag.err"], band=None, flux_unit="Hz")
+            self.data_sed["flux"], self.data_sed["flux.err"] = mag_to_flux(self.data_sed["mag"], self.data_sed["mag.err"],
+                                                                           band=self.data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
         elif "flux" in self.data_sed.keys() and "mag" not in self.data_sed.keys():
-            self.data_sed["mag"], self.data_sed["mag.err"] = flux_to_mag(self.data_sed["flux"], self.data_sed["flux.err"], band=None, flux_unit="Hz")
+            self.data_sed["mag"], self.data_sed["mag.err"] = flux_to_mag(self.data_sed["flux"], self.data_sed["flux.err"],
+                                                                         band=self.data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
 
     def set_data_meas(self, data_meas=None, z=None, **extras):
         """

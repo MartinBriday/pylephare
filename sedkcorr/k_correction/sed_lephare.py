@@ -91,16 +91,16 @@ class SED_LePhare( basesed.SED ):
             while len(sed_index)<9:
                 sed_index = "0"+sed_index
             sed_filename = "Id"+sed_index+".spec"
-            with open(os.path.expanduser(sed_dir+sed_filename), "r") as f1:
-                idx_start = 0
-                for _line in f1:
-                    splitted_line = _line.split()
-                    if splitted_line[0] == "0.13598926E+03":
-                        break
-                    idx_start += 1
-            data_sed =  pandas.read_table(os.path.expanduser(sed_dir+sed_filename),
-                                          skiprows=idx_start, names=["lbda", "mag"], sep="  ",
-                                          engine="python", nrows=nrows)
+            idx_start = 10
+            data_sed =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+                                        skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
+            while data_sed.shape[1] != 2:
+                idx_start += 1
+                data_sed =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+                                            skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
+            data_sed =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+                                        skiprows=idx_start, names=["lbda", "mag"], sep="  ",
+                                        engine="python", nrows=nrows)
         elif sed_index is None and data_sed is not None:
             data_sed = data_sed
         else:

@@ -79,8 +79,9 @@ class LePhareSEDFitter( BaseObject ):
         
         Options
         -------
-        data : [string or pandas.DataFrame]
+        data : [string or pandas.DataFrame or dict]
             Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
+            Only accept the data for one by one object.
         
         input_param_file : [string or None]
             Path of the input parameter file.
@@ -110,6 +111,7 @@ class LePhareSEDFitter( BaseObject ):
         ----------
         data : [string or pandas.DataFrame or dict]
             Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
+            Only accept the data for one by one object.
         
         input_param_file : [string or None]
             Path of the input parameter file.
@@ -535,7 +537,7 @@ class LePhareSEDFitter( BaseObject ):
             If you want to set a new input parameter file, give the new path here.
             Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
         
-        results_path : [string or None]
+        results_path : [string or None]  !!!!!!!!!!!!!!!!!!!!!
             If you want to set a new results path, give the new path here.
             Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
             
@@ -552,6 +554,102 @@ class LePhareSEDFitter( BaseObject ):
         os.chdir(self.results_path)
         cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
+    
+    def _get_nb_filt_(self):
+        """
+        Return the number of filters included in the configuration file ("FILTER_LIST").
+        
+        
+        Returns
+        -------
+        int
+        """
+        _, filt_list, _ = self._get_param_details_("FILTER_LIST")
+        return len(filt_list.split(","))
+
+    def _get_data_(self):
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
+        nb_filt = self._get_nb_filt_()
+        data = pandas.read_csv(self._get_param_details_("CAT_IN")[1], sep=" ")
+        names = []
+        for ii in np.arange(nb_filt):
+            names.append("mag_{}".format(ii))
+            names.append("mag_{}.err".format(ii))
+        names += ["CONTEXT", "Z-SPEC"]
+        names += ["STRING_{}".format(ii) for ii in np.arange(data.shape[1]-(2*nb_filt+3))]
+        data = pandas.read_csv(self._get_param_details_("CAT_IN")[1], sep=" ", names=names)
+        return data
+    
+    def fit_sed_errors(self, nb_fits=100):
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
+        nb_filt = self._get_nb_filt_()
+        data = self._get_data_()
+        rand_mag = np.random.normal(loc=[data["mag_{}".format(ii)] for ii for np.arange(nb_filt)],
+                                    scale=[data["mag_{}.err".format(ii)] for ii for np.arange(nb_filt)],
+                                    size=(nb_filt, nb_fits))
+        for ii in np.arange(nb_fits):
+            for jj in np.arange(nb_filt):
+                data["mag_{}".format(ii)] = rand_mag[jj, ii]
+            data_path = pkg_resources.resource_filename(__name__, "config/")+"/data_buf.csv"
+            data.to_csv(data_path, sep=" ", header=False)
+            self.change_param("CAT_IN", os.path.abspath(data_path), False)
+            results_path = pkg_resources.resource_filename(__name__, "results/")+"/data_buf.out"
+            self.change_param("CAT_OUT", os.path.abspath(results_path))
+            self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1]) + "/")
+            self.run_zphota()
+            
+            sed_filename = "Id000000000.spec"
+            idx_start = 10
+            data_sed =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+                                        skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
+            while data_sed.shape[1] != 2:
+                idx_start += 1
+                data_buf =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+                                            skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
+            data_buf =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+                                        skiprows=idx_start, names=["lbda", "mag"], sep="  ",
+                                        engine="python", nrows=nrows)
+            
+            if ii == 0:
+                data_sed = data_buf
+                data_sed.rename(columns={"mag":"mag0"}, inplace=True)
+            else:
+                data_sed["mag{}".format(ii)] = data_buf["mag"]
+        
+        data_sed.set_index("lbda", inplace=True)
+        data_sed["mean"] = np.mean(data_sed, axis=1)
+        data_sed["scale"] = np.std(data_sed, axis=1)
+        return
     
     
 

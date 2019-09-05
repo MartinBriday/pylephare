@@ -17,37 +17,44 @@ FILTER_BANDS = {"FUV":{"lbda":1539,
                        "color":"xkcd:purple",
                        "mAB0":np.log10(1.40e-15) + 0.4 * 18.82,
                        "context_id":0,
-                       "prospector_name":"galex_FUV"},
+                       "prospector_name":"galex_FUV",
+                       "lephare_name":"galex/FUV.pb"},
                 "NUV":{"lbda":2316,
                        "color":"xkcd:violet",
                        "mAB0":np.log10(2.06e-16) + 0.4 * 20.08,
                        "context_id":1,
-                       "prospector_name":"galex_NUV"},
+                       "prospector_name":"galex_NUV",
+                       "lephare_name":"galex/NUV.pb"},
                 "u":{"lbda":3562,
                      "color":"xkcd:blue",
                      "mAB0":-8.056,
                      "context_id":2,
-                     "prospector_name":"sdss_u0"},
+                     "prospector_name":"sdss_u0",
+                     "lephare_name":"sdss/up.pb"},
                 "g":{"lbda":4719,
                      "color":"xkcd:green",
                      "mAB0":-8.326,
                      "context_id":3,
-                     "prospector_name":"sdss_g0"},
+                     "prospector_name":"sdss_g0",
+                     "lephare_name":"sdss/gp.pb"},
                 "r":{"lbda":6185,
                      "color":"xkcd:red",
                      "mAB0":-8.555,
                      "context_id":4,
-                     "prospector_name":"sdss_r0"},
+                     "prospector_name":"sdss_r0",
+                     "lephare_name":"sdss/rp.pb"},
                 "i":{"lbda":7500,
                      "color":"xkcd:cyan",
                      "mAB0":-8.732,
                      "context_id":5,
-                     "prospector_name":"sdss_i0"},
+                     "prospector_name":"sdss_i0",
+                     "lephare_name":"sdss/ip.pb"},
                 "z":{"lbda":8961,
                      "color":"xkcd:magenta",
                      "mAB0":-8.882,
                     "context_id":6,
-                    "prospector_name":"sdss_z0"},
+                    "prospector_name":"sdss_z0",
+                    "lephare_name":"sdss/zp.pb"},
                 }
 
 
@@ -556,13 +563,13 @@ class SED( BaseObject ):
                     y_point, y_err_point = convert_flux_unit((y_point, y_err_point), lbda=FILTER_BANDS[band]["lbda"], unit_in="Hz", unit_out=flux_unit)
                 ax.errorbar(x_point, y_point, yerr=y_err_point, ls='', marker='o', color=FILTER_BANDS[band]["color"], label=band)
         
-            ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
-            if y_plot == "flux":
-                ylabel = "mgy" if flux_unit == "mgy" else \
-                         r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{Hz}^{{-1}}]$" if flux_unit == "Hz" else \
-                         r"${{f}}_{{\lambda}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$"
-            ax.set_ylabel(ylabel, fontsize="large")
-            ax.legend(loc="upper right", ncol=1)
+        ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
+        if y_plot == "flux":
+            ylabel = "mgy" if flux_unit == "mgy" else \
+                     r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{Hz}^{{-1}}]$" if flux_unit == "Hz" else \
+                     r"${{f}}_{{\lambda}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$"
+        ax.set_ylabel(ylabel, fontsize="large")
+        ax.legend(loc="upper right", ncol=1)
                 
         ax.set_xlim(xlim)
         if ylim == (None, None):

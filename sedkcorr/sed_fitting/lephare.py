@@ -4,8 +4,12 @@ import pandas
 import os
 import subprocess
 import pkg_resources
+import matplotlib.pyplot as plt
+plt.rc('text', usetex=True)
 
 from propobject import BaseObject
+
+from ..k_correction import basesed
 
 
 class LePhareSEDFitter( BaseObject ):
@@ -153,12 +157,28 @@ class LePhareSEDFitter( BaseObject ):
             self.change_param("CAT_IN", os.path.abspath(data_path))
 
         self.change_param("PARA_OUT", self.output_param_file, False)
+        self._set_results_path_(results_path)
 
+    def _set_results_path_(self, results_path=None):
+        """
+        Set attribute 'results_path' and write the result file path in the config file.
+        
+        Parameters
+        ----------
+        results_path : [string or None]
+            Path for the results of the SED fitter.
+            If 'None', the default folder is located in the package ('/results').
+        
+        
+        Returns
+        -------
+        Void
+        """
         if results_path is None:
             results_path = pkg_resources.resource_filename(__name__, "results/")+"/data.out"
         
         self.change_param("CAT_OUT", os.path.abspath(results_path))
-        self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1]) + "/")
+        self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1])) + "/"
 
     def _get_idx_line_(self, file, line):
         """
@@ -537,7 +557,7 @@ class LePhareSEDFitter( BaseObject ):
             If you want to set a new input parameter file, give the new path here.
             Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
         
-        results_path : [string or None]  !!!!!!!!!!!!!!!!!!!!!
+        results_path : [string or None]
             If you want to set a new results path, give the new path here.
             Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
             
@@ -549,13 +569,13 @@ class LePhareSEDFitter( BaseObject ):
         if input_param_file is not None:
             self._properties["input_param_file"] = os.path.abspath(input_param_file)
         if results_path is not None:
-            self._side_properties["results_path"] = os.path.abspath(results_path)
+            self._set_results_path_(results_path)
         
         os.chdir(self.results_path)
         cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
     
-    def _get_nb_filt_(self):
+    def _get_filt_list_(self):
         """
         Return the number of filters included in the configuration file ("FILTER_LIST").
         
@@ -565,94 +585,190 @@ class LePhareSEDFitter( BaseObject ):
         int
         """
         _, filt_list, _ = self._get_param_details_("FILTER_LIST")
-        return len(filt_list.split(","))
-
-    def _get_data_(self):
+        return [self.lephare_filt_to_filt(basesed.FILTER_BANDS, _filt) for _filt in filt_list.split(",")]
+    
+    def _get_context_filters_(self):
         """
-        
-        
-        Parameters
-        ----------
-        
-        
-        Options
-        -------
-        
+        Return a list of the concerned filter bands relative to the given context.
+        Knowing the bands in 'self.filt_list', the context number is : sum(2**[band_nb]).
+        For example, bands = ["u", "g", "r", "i", "z"] (band_nb = [0, 1, 2, 3, 4]) :
+        - context = 31 --> ["u", "g", "r", "i", "z"]
+        - context = 30 --> ["g", "r", "i", "z"]
+        - context = 15 --> ["u", "g", "r", "i"]
+        - context = 25 --> ["u", "i", "z"]
+        - etc.
         
         
         Returns
         -------
-        
+        list(string)
         """
-        nb_filt = self._get_nb_filt_()
+        context = int(self.data_meas["CONTEXT"])
+        idx_list = []
+        for ii in np.arange(len(self.filt_list)-1,-1,-1):
+            if (context - 2**ii) >= 0:
+                context = context - 2**ii
+                idx_list.append(ii)
+        return [band for band in self.filt_list if self.filt_list.index(band) in idx_list]
+
+    def _get_data_meas_(self):
+        """
+        Return a DataFrame of the input data.
+        
+        
+        Returns
+        -------
+        pandas.DataFrame
+        """
         data = pandas.read_csv(self._get_param_details_("CAT_IN")[1], sep=" ")
+        prefix = "mag" if self._get_param_details_("INP_TYPE")[1] == "M" else "flux"
         names = []
-        for ii in np.arange(nb_filt):
-            names.append("mag_{}".format(ii))
-            names.append("mag_{}.err".format(ii))
+        for _filt in self.filt_list:
+            names.append("{}_{}".format(prefix, _filt))
+            names.append("{}_{}.err".format(prefix, _filt))
         names += ["CONTEXT", "Z-SPEC"]
-        names += ["STRING_{}".format(ii) for ii in np.arange(data.shape[1]-(2*nb_filt+3))]
+        names += ["STRING_{}".format(ii) for ii in np.arange(data.shape[1]-(2*len(self.filt_list)+3))]
         data = pandas.read_csv(self._get_param_details_("CAT_IN")[1], sep=" ", names=names)
         return data
     
-    def fit_sed_errors(self, nb_fits=100):
+    def _get_data_sed_(self):
         """
-        
-        
-        Parameters
-        ----------
-        
-        
-        Options
-        -------
-        
+        Return a DataFrame of the fitted SED (wavelength, magnitude).
         
         
         Returns
         -------
-        
+        pandas.DataFrame
         """
-        nb_filt = self._get_nb_filt_()
-        data = self._get_data_()
-        rand_mag = np.random.normal(loc=[data["mag_{}".format(ii)] for ii for np.arange(nb_filt)],
-                                    scale=[data["mag_{}.err".format(ii)] for ii for np.arange(nb_filt)],
-                                    size=(nb_filt, nb_fits))
-        for ii in np.arange(nb_fits):
-            for jj in np.arange(nb_filt):
-                data["mag_{}".format(ii)] = rand_mag[jj, ii]
-            data_path = pkg_resources.resource_filename(__name__, "config/")+"/data_buf.csv"
-            data.to_csv(data_path, sep=" ", header=False)
-            self.change_param("CAT_IN", os.path.abspath(data_path), False)
-            results_path = pkg_resources.resource_filename(__name__, "results/")+"/data_buf.out"
-            self.change_param("CAT_OUT", os.path.abspath(results_path))
-            self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1]) + "/")
-            self.run_zphota()
-            
-            sed_filename = "Id000000000.spec"
-            idx_start = 10
-            data_sed =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
-                                        skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
-            while data_sed.shape[1] != 2:
-                idx_start += 1
-                data_buf =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
-                                            skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
-            data_buf =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
-                                        skiprows=idx_start, names=["lbda", "mag"], sep="  ",
-                                        engine="python", nrows=nrows)
-            
-            if ii == 0:
-                data_sed = data_buf
-                data_sed.rename(columns={"mag":"mag0"}, inplace=True)
-            else:
-                data_sed["mag{}".format(ii)] = data_buf["mag"]
-        
-        data_sed.set_index("lbda", inplace=True)
-        data_sed["mean"] = np.mean(data_sed, axis=1)
-        data_sed["scale"] = np.std(data_sed, axis=1)
-        return
-    
-    
+        sed_filename = "Id000000000.spec"
+        idx_start = 10
+        data_sed =  pandas.read_csv(os.path.expanduser(self.results_path+sed_filename),
+                                    skiprows=idx_start, sep="  ", engine="python", nrows=1050)
+        while data_sed.shape[1] != 2:
+            idx_start += 1
+            data_sed =  pandas.read_csv(os.path.expanduser(self.results_path+sed_filename),
+                                        skiprows=idx_start, sep="  ", engine="python", nrows=1050)
+        data_sed =  pandas.read_csv(os.path.expanduser(self.results_path+sed_filename),
+                                    skiprows=idx_start, names=["lbda", "mag"], sep="  ",
+                                    engine="python", nrows=1050)
+        return data_sed
 
+    def show(self, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
+        """
+        Plot method.
+        Return dict("fig", "ax").
+        
+        Parameters
+        ----------
+        y_unit : [string]
+            Choice to plot "mag" or flux with "AA" (Angstrom), "Hz" (Herz) or "mgy" (maggies) unit.
+        
+        Options
+        -------
+        plot_phot : [bool]
+            If True, plot the photometry points with errors, either in flux or magnitude.
+        
+        xlim : [tuple[float or None]]
+            Set the limits on the x axis.
+            If (None, None), the figure has free x axis limits.
+        
+        ylim : [tuple[float or None]]
+            Set the limits on the y axis.
+            If (None, None), the figure has free y axis limits.
+        
+        xscale : [string]
+            Scale of the x axis : "linear", "log", ...
+        
+        yscale : [string]
+            Scale of the y axis : "linear", "log", ...
+        
+        savefile : [string or None]
+            If None, the figure won't be saved.
+            To save it, input a path directory + filename.
+        
+        
+        Returns
+        -------
+        dict
+        """
+        x_sed = self.data_sed["lbda"]
+        y_sed = self.data_sed["mag"]
+        y_sed_err = np.zeros(len(y_sed))
+        if y_unit in ["Hz", "AA", "mgy"]:
+            y_sed, _ = basesed.mag_to_flux(y_sed, y_sed_err, band=x_sed, flux_unit=y_unit, opt_mAB0=False)
+        
+        fig, ax = plt.subplots()
+        
+        #SED
+        opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
+        ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
+        
+        #Photometry
+        if plot_phot:
+            prefix = "mag" if self._get_param_details_("INP_TYPE")[1] == "M" else "flux"
+            for _filt in self._get_context_filters_():
+                x_phot = basesed.FILTER_BANDS[_filt]["lbda"]
+                y_phot = float(self.data_meas["{}_{}".format(prefix, _filt)])
+                y_phot_err = float(self.data_meas["{}_{}.err".format(prefix, _filt)])
+                if y_unit in ["Hz", "AA", "mgy"] and prefix == "mag":
+                    y_phot, y_phot_err = basesed.mag_to_flux(y_phot, y_phot_err, band=_filt, flux_unit=y_unit, opt_mAB0=True)
+                elif y_unit == "mag" and prefix == "flux":
+                    y_phot, y_phot_err = basesed.flux_to_mag(y_phot, y_phot_err, band=_filt, flux_unit="Hz", opt_mAB0=True)
+                ax.errorbar(x_phot, y_phot, yerr=y_phot_err, ls="", marker="o", color=basesed.FILTER_BANDS[_filt]["color"], label=_filt)
+        
+        #Writings
+        ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
+        ylabel = "mgy" if y_unit == "mgy" else \
+                 r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{Hz}^{{-1}}]$" if y_unit == "Hz" else \
+                 r"${{f}}_{{\lambda}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$" if y_unit == "AA" else \
+                 "mag"
+        ax.set_ylabel(ylabel, fontsize="large")
+        ax.legend(loc="upper right", ncol=1)
+
+        #Fig view
+        ax.set_xlim(xlim)
+        if ylim == (None, None):
+            xmin, xmax = ax.get_xlim()
+            mask = (xmin < np.asarray(x_sed)) * (np.asarray(x_sed) < xmax)
+            ymin, ymax = np.min((np.asarray(y_sed)-np.asarray(y_sed_err))[mask]), np.max((np.asarray(y_sed)+np.asarray(y_sed_err))[mask])
+            ylim = (ymin if ymin>0 else 0, ymax)
+        ax.set_ylim(ylim)
+        ax.set_xscale(xscale)
+        ax.set_yscale(yscale)
+        
+        #Save
+        if savefile is not None:
+            fig.savefig(savefile)
+        
+        return {"ax":ax, "fig":fig}
+    
+    
+    @staticmethod
+    def lephare_filt_to_filt(dict, value):
+        """
+        Return the filter name of the input lephare filter transmission file name.
+        
+        Parameters
+        ----------
+        dict : [dict]
+            Specific dictionnary containing as keys every filter and as values another
+            dictionnary referencing the lephare filter transmission file names.
+        
+        value : [string]
+            Lephare filter transmission file name you want to know the filter name.
+        
+        
+        Returns
+        -------
+        string
+        """
+        for key1, value1 in dict.items():
+            for key2, value2 in value1.items():
+                if value2 == value:
+                    return key1
+        raise ValueError("{} is an unknown lephare filter syntax.".format(value))
+    
+    
     #-------------------#
     #   Properties      #
     #-------------------#
@@ -671,4 +787,136 @@ class LePhareSEDFitter( BaseObject ):
         """ Path of the result path. """
         return self._side_properties["results_path"]
 
+    @property
+    def filt_list(self):
+        """  """
+        return self._get_filt_list_()
 
+    @property
+    def data_meas(self):
+        """ Input data """
+        return self._get_data_meas_()
+
+    @property
+    def data_sed(self):
+        """ Fitted SED data """
+        return self._get_data_sed_()
+
+
+class LePhareRand( BaseObject ):
+    """
+    
+    """
+    
+    PROPERTIES         = ["data"]
+    SIDE_PROPERTIES    = []
+    DERIVED_PROPERTIES = []
+
+    def __init__(self, data=None, **kwargs):
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
+        if data is not None:
+            self.set_data(data, **kwargs)
+
+    def set_data(self, data=None):
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
+        self._properties["data"] = data
+        
+        return
+
+    def show(self):
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
+        return {"ax":ax, "fig":fig}
+
+
+
+
+
+
+"""
+    
+    
+    def fit_sed_errors(self, nb_fits=100):
+            nb_filt = self._get_nb_filt_()
+            data = self._get_data_()
+            rand_mag = np.random.normal(loc=[data["mag_{}".format(ii)] for ii for np.arange(nb_filt)],
+            scale=[data["mag_{}.err".format(ii)] for ii for np.arange(nb_filt)],
+            size=(nb_filt, nb_fits))
+            for ii in np.arange(nb_fits):
+            for jj in np.arange(nb_filt):
+            data["mag_{}".format(ii)] = rand_mag[jj, ii]
+            data_path = pkg_resources.resource_filename(__name__, "config/")+"/data_buf.csv"
+            data.to_csv(data_path, sep=" ", header=False)
+            self.change_param("CAT_IN", os.path.abspath(data_path), False)
+            results_path = pkg_resources.resource_filename(__name__, "results/")+"/data_buf.out"
+            self.change_param("CAT_OUT", os.path.abspath(results_path))
+            self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1]) + "/")
+            self.run_zphota()
+            
+            sed_filename = "Id000000000.spec"
+            idx_start = 10
+            data_sed =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+            skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
+            while data_sed.shape[1] != 2:
+            idx_start += 1
+            data_buf =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+            skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
+            data_buf =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
+            skiprows=idx_start, names=["lbda", "mag"], sep="  ",
+            engine="python", nrows=nrows)
+            
+            if ii == 0:
+            data_sed = data_buf
+            data_sed.rename(columns={"mag":"mag0"}, inplace=True)
+            else:
+            data_sed["mag{}".format(ii)] = data_buf["mag"]
+            
+            data_sed.set_index("lbda", inplace=True)
+            data_sed["mean"] = np.mean(data_sed, axis=1)
+            data_sed["scale"] = np.std(data_sed, axis=1)
+            return
+"""

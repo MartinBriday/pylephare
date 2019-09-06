@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 plt.rc('text', usetex=True)
 
 from propobject import BaseObject
+from astrobject import photometry
+from astrobject.instruments import sdss
 
 from ..k_correction import basesed
 
@@ -18,8 +20,8 @@ class LePhareSEDFitter( BaseObject ):
     """
 
     PROPERTIES         = ["input_param_file", "output_param_file"]
-    SIDE_PROPERTIES    = ["results_path"]
-    DERIVED_PROPERTIES = []
+    SIDE_PROPERTIES    = ["config_path", "results_path"]
+    DERIVED_PROPERTIES = ["data_sed"]
     
     INPUT_PARAM = ["STAR_SED", "STAR_FSCALE", "STAR_LIB", "QSO_SED", "QSO_FSCALE", "QSO_LIB", "GAL_SED", "GAL_FSCALE", "GAL_LIB",
                    "SEL_AGE", "AGE_RANGE", "FILTER_LIST", "TRANS_TYPE", "FILTER_CALIB", "FILTER_FILE", "STAR_LIB_IN", "STAR_LIB_OUT",
@@ -107,7 +109,7 @@ class LePhareSEDFitter( BaseObject ):
         if data is not None:
             self.set_data(data, **kwargs)
 
-    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, **kwargs):
+    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, flux_unit="Hz", **kwargs):
         """
         Set up the file paths about the data, the config files (input and output) and the results path.
         
@@ -134,10 +136,10 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        self._properties["input_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_input.para" \
+        self._properties["input_param_file"] = self.config_path + "/lephare_zphot_input.para" \
                                                if input_param_file is None else os.path.abspath(input_param_file)
-        self._properties["output_param_file"] = pkg_resources.resource_filename(__name__, "config/") + "/lephare_zphot_output.para" \
-                                               if output_param_file is None else os.path.abspath(output_param_file)
+        self._properties["output_param_file"] = self.config_path + "/lephare_zphot_output.para" \
+                                                if output_param_file is None else os.path.abspath(output_param_file)
         
         if data is not None:
             if type(data) == dict:
@@ -147,17 +149,52 @@ class LePhareSEDFitter( BaseObject ):
                     for k, v in data.items():
                         data[k] = [v]
                     data = pandas.DataFrame(data)
-            if type(data) is pandas.DataFrame:
-                data_path = pkg_resources.resource_filename(__name__, "config/")+"/data.csv"
+            if type(data) == pandas.DataFrame:
+                data_path = self.config_path + "/data.csv"
                 data.to_csv(data_path, sep=" ", header=False)
-            elif type(data) is str:
+            elif type(data) == str:
                 data_path = data
             else:
                 raise TypeError("data must be a DataFrame or a string")
             self.change_param("CAT_IN", os.path.abspath(data_path))
+        self._set_input_type_()
+        self._convert_flux_(flux_unit)
 
         self.change_param("PARA_OUT", self.output_param_file, False)
         self._set_results_path_(results_path)
+            
+    def _set_input_type_(self):
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
+        if self._get_param_details_("INP_TYPE")[1] == "M" and self.data_meas.iloc[0]["mag_g"] < 1:
+            self.change_param("INP_TYPE", "F", False)
+        elif self._get_param_details_("INP_TYPE")[1] == "F" and self.data_meas.iloc[0]["flux_g"] > 1:
+            self.change_param("INP_TYPE", "M", False)
+
+    def _convert_flux_(self, flux_unit):
+        """
+        
+        """
+        data_buf = self.data_meas
+        if self._get_param_details_("INP_TYPE")[1] == "F" and flux_unit != "Hz":
+            for _filt in self.filt_list:
+                data_buf["flux_"+_filt] = basesed.convert_flux_unit(data_buf["flux_"+_filt], basesed.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+                data_buf["flux_"+_filt+".err"] = basesed.convert_flux_unit(data_buf["flux_"+_filt+".err"], basesed.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+        data_buf.to_csv(self._get_param_details_("CAT_IN")[1], sep=" ", header=False)
 
     def _set_results_path_(self, results_path=None):
         """
@@ -175,7 +212,7 @@ class LePhareSEDFitter( BaseObject ):
         Void
         """
         if results_path is None:
-            results_path = pkg_resources.resource_filename(__name__, "results/")+"/data.out"
+            results_path = self.results_path + "/data.out"
         
         self.change_param("CAT_OUT", os.path.abspath(results_path))
         self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1])) + "/"
@@ -393,31 +430,28 @@ class LePhareSEDFitter( BaseObject ):
         
         print(txt_param)
 
-    def describe_params(self, which_config="input", which_param=None):
+    def describe_params(self, which="input"):
         """
         This method prints the details (parameter name, value, comment state) of parameters.
         
         Parameters
         ----------
-        which_config : [string]
-            Either 'input' or 'output'.
-            Only useful if we want to print every parameter details.
-        
-        which_param : [string or list(string) or None]
-            If None, every parameter details are printed.
-            If one or list of parameters, each is automatically found in the input/output file (so that 'which_config' is useless).
+        which : [string]
+            Either 'input' or 'output' or one or a list of parameter names inside configuration files.
+            Either 'input' or 'output' will print every parameter details from the specific file.
+            One or a list of parameters will restrict the print to the/these parameters.
         
         
         Returns
         -------
         Void
         """
-        if which_config == "input" and which_param in [None, "all", "*"]:
+        if which == "input":
             list_param = self.INPUT_PARAM
-        elif which_config == "output" and which_param in [None, "all", "*"]:
+        elif which == "output":
             list_param = self.OUTPUT_PARAM
-        elif which_param not in [None, "all", "*"] and type(which_param) in [str, list]:
-            list_param = which_param if type(which_param) == list else [which_param]
+        elif type(which) in [str, list]:
+            list_param = which if type(which) == list else [which]
         else:
             raise ValueError("'which_config' must be either 'input' or 'output' ; \n",
                              "'which_param' must be in [None, 'all', '*'], or one parameter or a list of parameters (in those two cases, which_config is not needed.")
@@ -574,6 +608,7 @@ class LePhareSEDFitter( BaseObject ):
         os.chdir(self.results_path)
         cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
+        self.set_data_sed()
     
     def _get_filt_list_(self):
         """
@@ -587,7 +622,7 @@ class LePhareSEDFitter( BaseObject ):
         _, filt_list, _ = self._get_param_details_("FILTER_LIST")
         return [self.lephare_filt_to_filt(basesed.FILTER_BANDS, _filt) for _filt in filt_list.split(",")]
     
-    def _get_context_filters_(self):
+    def _get_context_filters_(self, data):
         """
         Return a list of the concerned filter bands relative to the given context.
         Knowing the bands in 'self.filt_list', the context number is : sum(2**[band_nb]).
@@ -603,7 +638,7 @@ class LePhareSEDFitter( BaseObject ):
         -------
         list(string)
         """
-        context = int(self.data_meas["CONTEXT"])
+        context = int(data["CONTEXT"])
         idx_list = []
         for ii in np.arange(len(self.filt_list)-1,-1,-1):
             if (context - 2**ii) >= 0:
@@ -631,7 +666,7 @@ class LePhareSEDFitter( BaseObject ):
         data = pandas.read_csv(self._get_param_details_("CAT_IN")[1], sep=" ", names=names)
         return data
     
-    def _get_data_sed_(self):
+    def _get_data_sed_(self, sed_filename):
         """
         Return a DataFrame of the fitted SED (wavelength, magnitude).
         
@@ -640,20 +675,63 @@ class LePhareSEDFitter( BaseObject ):
         -------
         pandas.DataFrame
         """
-        sed_filename = "Id000000000.spec"
+        #sed_filename = "Id000000000.spec"
         idx_start = 10
-        data_sed =  pandas.read_csv(os.path.expanduser(self.results_path+sed_filename),
+        data_sed =  pandas.read_csv(os.path.expanduser(sed_filename), #self.results_path+sed_filename),
                                     skiprows=idx_start, sep="  ", engine="python", nrows=1050)
         while data_sed.shape[1] != 2:
             idx_start += 1
-            data_sed =  pandas.read_csv(os.path.expanduser(self.results_path+sed_filename),
+            data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
                                         skiprows=idx_start, sep="  ", engine="python", nrows=1050)
-        data_sed =  pandas.read_csv(os.path.expanduser(self.results_path+sed_filename),
+        data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
                                     skiprows=idx_start, names=["lbda", "mag"], sep="  ",
                                     engine="python", nrows=1050)
         return data_sed
+                        
+    def _get_sed_filename_(self, id_sed):
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
+        id_sed = str(id_sed)
+        while len(id_sed)<9:
+            id_sed = "0"+id_sed
+        sed_filename = "Id"+id_sed+".spec"
+        return self.results_path+sed_filename
 
-    def show(self, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
+    def set_data_sed(self):
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
+        for ii in np.arange(len(self.data_meas)):
+            self.data_sed[str(ii)] = self._get_data_sed_(self._get_sed_filename_(ii))
+
+    def show(self, id_sed=0, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
         """
         Plot method.
         Return dict("fig", "ax").
@@ -691,8 +769,10 @@ class LePhareSEDFitter( BaseObject ):
         -------
         dict
         """
-        x_sed = self.data_sed["lbda"]
-        y_sed = self.data_sed["mag"]
+        if len(self.data_meas) == 1:
+            id_sed = 0
+        x_sed = self.data_sed[str(id_sed)]["lbda"]
+        y_sed = self.data_sed[str(id_sed)]["mag"]
         y_sed_err = np.zeros(len(y_sed))
         if y_unit in ["Hz", "AA", "mgy"]:
             y_sed, _ = basesed.mag_to_flux(y_sed, y_sed_err, band=x_sed, flux_unit=y_unit, opt_mAB0=False)
@@ -706,14 +786,16 @@ class LePhareSEDFitter( BaseObject ):
         #Photometry
         if plot_phot:
             prefix = "mag" if self._get_param_details_("INP_TYPE")[1] == "M" else "flux"
-            for _filt in self._get_context_filters_():
+            for _filt in self._get_context_filters_(self.data_meas.iloc[id_sed]):
                 x_phot = basesed.FILTER_BANDS[_filt]["lbda"]
-                y_phot = float(self.data_meas["{}_{}".format(prefix, _filt)])
-                y_phot_err = float(self.data_meas["{}_{}.err".format(prefix, _filt)])
+                y_phot = float(self.data_meas.iloc[id_sed]["{}_{}".format(prefix, _filt)])
+                y_phot_err = float(self.data_meas.iloc[id_sed]["{}_{}.err".format(prefix, _filt)])
                 if y_unit in ["Hz", "AA", "mgy"] and prefix == "mag":
                     y_phot, y_phot_err = basesed.mag_to_flux(y_phot, y_phot_err, band=_filt, flux_unit=y_unit, opt_mAB0=True)
                 elif y_unit == "mag" and prefix == "flux":
                     y_phot, y_phot_err = basesed.flux_to_mag(y_phot, y_phot_err, band=_filt, flux_unit="Hz", opt_mAB0=True)
+                elif y_unit in ["Hz", "AA", "mgy"] and prefix == "flux":
+                    y_phot, y_phot_err = basesed.convert_flux_unit((y_phot, y_phot_err), basesed.FILTER_BANDS[_filt]["lbda"], "Hz", y_unit)
                 ax.errorbar(x_phot, y_phot, yerr=y_phot_err, ls="", marker="o", color=basesed.FILTER_BANDS[_filt]["color"], label=_filt)
         
         #Writings
@@ -783,8 +865,17 @@ class LePhareSEDFitter( BaseObject ):
         return self._properties["output_param_file"]
     
     @property
+    def config_path(self):
+        """  """
+        if self._side_properties["config_path"] is None:
+            self._side_properties["config_path"] = pkg_resources.resource_filename(__name__, "config/") + "/"
+        return self._side_properties["config_path"]
+    
+    @property
     def results_path(self):
         """ Path of the result path. """
+        if self._side_properties["results_path"] is None:
+            self._side_properties["results_path"] = pkg_resources.resource_filename(__name__, "results/") + "/"
         return self._side_properties["results_path"]
 
     @property
@@ -800,15 +891,17 @@ class LePhareSEDFitter( BaseObject ):
     @property
     def data_sed(self):
         """ Fitted SED data """
-        return self._get_data_sed_()
+        if self._derived_properties["data_sed"] is None:
+            self._derived_properties["data_sed"] = {}
+        return self._derived_properties["data_sed"]
 
 
-class LePhareRand( BaseObject ):
+class LePhareRand( LePhareSEDFitter ):
     """
     
     """
     
-    PROPERTIES         = ["data"]
+    PROPERTIES         = ["data_rand"]
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = []
 
@@ -832,7 +925,7 @@ class LePhareRand( BaseObject ):
         if data is not None:
             self.set_data(data, **kwargs)
 
-    def set_data(self, data=None):
+    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, flux_unit="Hz", nb_draw=100, **kwargs):
         """
         
         
@@ -849,11 +942,34 @@ class LePhareRand( BaseObject ):
         -------
         
         """
-        self._properties["data"] = data
         
-        return
+        _ = super(LePhareRand, self).set_data(data, input_param_file, output_param_file, results_path, flux_unit, **kwargs)
+        self.set_rand_data(nb_draw)
+    
+    def set_rand_data(self, nb_draw=100):
+        """
+        
+        """
+        for _filt in self.filt_list:
+            photopoint = photometry.PhotoPoint(flux=self.data_meas["flux_{}".format(_filt)],
+                                               var=self.data_meas["flux_{}.err".format(_filt)]**2,
+                                               lbda=basesed.FILTER_BANDS[_filt]["lbda"])
+            photopoint.draw_photosamplers(nsamplers=100, negative_fluxmag=40)
+            self.data_rand["flux_{}".format(_filt)] = photopoint.photosamplers.samplers
+            self.data_rand["flux_{}.err".format(_filt)] = np.array([self.data_meas["flux_{}.err".format(_filt)][0]]*nb_draw)
+        self.data_rand["CONTEXT"] = np.array([self.data_meas["CONTEXT"][0]]*nb_draw)
+        self.data_rand["Z-SPEC"] = np.array([self.data_meas["Z-SPEC"][0]]*nb_draw)
+        for _col_name in self.data_meas.columns:
+            if "STRING" in _col_name:
+                self.data_rand[_col_name] = np.array([self.data_meas[_col_name][0]]*nb_draw)
+        self._properties["data_rand"] = pandas.DataFrame(self.data_rand)
 
-    def show(self):
+        data_path = self.config_path + "/data_rand.csv"
+        self.data_rand.to_csv(data_path, sep=" ", header=False)
+        self.change_param("CAT_IN", os.path.abspath(data_path))
+        self._set_input_type_()
+
+    def show1(self, id_sed=0, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
         """
         
         
@@ -870,7 +986,23 @@ class LePhareRand( BaseObject ):
         -------
         
         """
-        return {"ax":ax, "fig":fig}
+        #if id_sed is None:
+        dict_fig = super(LePhareRand, self).show(id_sed, y_unit, plot_phot, xlim, ylim, xscale, yscale, savefile)
+        #if id_sed is None:
+        
+        return dict_fig
+
+
+
+    #-------------------#
+    #   Properties      #
+    #-------------------#
+    @property
+    def data_rand(self):
+        """  """
+        if self._properties["data_rand"] is None:
+            self._properties["data_rand"] = {}
+        return self._properties["data_rand"]
 
 
 

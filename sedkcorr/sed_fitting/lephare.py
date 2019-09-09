@@ -87,7 +87,6 @@ class LePhareSEDFitter( BaseObject ):
         -------
         data : [string or pandas.DataFrame or dict]
             Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
-            Only accept the data for one by one object.
         
         input_param_file : [string or None]
             Path of the input parameter file.
@@ -117,19 +116,25 @@ class LePhareSEDFitter( BaseObject ):
         ----------
         data : [string or pandas.DataFrame or dict]
             Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
-            Only accept the data for one by one object.
         
         input_param_file : [string or None]
             Path of the input parameter file.
-            If 'None', the default file is imported from the package ('/config').
+            If 'None', the default file is imported from the package ('/config/lephare_zphot_input.para').
         
         output_param_file : [string or None]
             Path of the output parameter file.
-            If 'None', the default file is imported from the package ('/config').
+            If 'None', the default file is imported from the package ('/config/lephare_zphot_output.para').
         
         results_path : [string or None]
             Path for the results of the SED fitter.
-            If 'None', the default folder is located in the package ('/results').
+            If 'None', the default file is located in the package ('/results/data.out').
+        
+        flux_unit : [string]
+            If 'data' is in flux, you can precise here the unit :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+            As LePhare needs the flux to be in the "Hz" (see above) unit, it will be converted if necessary.
         
         
         Returns
@@ -165,20 +170,12 @@ class LePhareSEDFitter( BaseObject ):
             
     def _set_input_type_(self):
         """
-        
-        
-        Parameters
-        ----------
-        
-        
-        Options
-        -------
-        
+        Automatically changes the input configuration file 'INP_TYPE' parameter either the input data or magnitudes or flux.
         
         
         Returns
         -------
-        
+        Void
         """
         if self._get_param_details_("INP_TYPE")[1] == "M" and self.data_meas.iloc[0]["mag_g"] < 1:
             self.change_param("INP_TYPE", "F", False)
@@ -463,7 +460,40 @@ class LePhareSEDFitter( BaseObject ):
             else:
                 self._print_param_details_(_param)
 
-    def run_filter(self, input_param_file=None, update=False):
+    def _init_changes_(self, input_param_file=None, results_path=None, change_params=None):
+        """
+        LePhare shell commands initialization change options.
+        
+        Parameters
+        ----------
+        input_param_file : [string or None]
+            If you want to set a new input parameter file, give the new path here.
+            Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
+        
+        results_path : [string or None]
+            If you want to set a new results path, give the new path here.
+            Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
+        
+        change_params : [dict or None]
+        If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+        
+        
+        Returns
+        -------
+        Void
+        """
+        if input_param_file is not None:
+            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+        if results_path is not None:
+            self._set_results_path_(results_path)
+        if change_params is not None:
+            try:
+                for k, v in change_params.items():
+                    self.change_param(param=k, new_param_value=v[0], force_comment=v[1])
+            except(AttributeError):
+                raise TypeError("'change_params' must be a dictionary containing the parameters you want to change as keys and for values a list with the new parameter value first and the force comment option second.")
+
+    def run_filter(self, input_param_file=None, update=False, change_params=None):
         """
         Execute "$LEPHAREDIR/source/filter -c [...].para" in the shell.
         Exception : if the "$LEPAHAREWORK/filt/[...].filt" files already exist, the command is not executed, unless 'update' is True.
@@ -477,21 +507,23 @@ class LePhareSEDFitter( BaseObject ):
         update : [bool]
             Set to True if you want to execute the command, even if the "$LEPAHAREWORK/filt/[...].filt" files already exist.
         
+        change_params : [dict or None]
+            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+        
         
         Returns
         -------
         Void
         """
-        if input_param_file is not None:
-            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+        self._init_changes_(input_param_file=input_param_file, results_path=None, change_params=change_params)
                 
         filt_k, filt_v, _ = self._get_param_details_("FILTER_FILE")
         
-        if not os.path.isfile(self.PATH_LEPHAREWORK+"/filt/"+filt_v+".filt") or update:
+        if not os.path.isfile(self.PATH_LEPHAREWORK+"/filt/"+filt_v) or update:
             cmd = "{}/source/filter -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
             subprocess.run(cmd.split())
     
-    def run_sedtolib(self, input_param_file=None, update=False):
+    def run_sedtolib(self, input_param_file=None, update=False, change_params=None):
         """
         Execute "$LEPHAREDIR/source/sedtolib -t [S,Q,G] -c [...].para" in the shell.
         Exception : if the "$LEPAHAREWORK/lib_bin/[...].bin" files already exist, the command is not executed, unless 'update' is True.
@@ -504,14 +536,16 @@ class LePhareSEDFitter( BaseObject ):
         
         update : [bool]
             Set to True if you want to execute the command, even if the "$LEPAHAREWORK/lib_bin/[...].bin" files already exist.
+            
+        change_params : [dict or None]
+            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
         
         
         Returns
         -------
         Void
         """
-        if input_param_file is not None:
-            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+        self._init_changes_(input_param_file=input_param_file, results_path=None, change_params=change_params)
     
         lib_s_k, lib_s_v, _ = self._get_param_details_("STAR_LIB")
         lib_q_k, lib_q_v, _ = self._get_param_details_("QSO_LIB")
@@ -522,7 +556,7 @@ class LePhareSEDFitter( BaseObject ):
                 cmd = "{}/source/sedtolib -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
                 subprocess.run(cmd.split())
     
-    def run_mag_star(self, input_param_file=None, update=False):
+    def run_mag_star(self, input_param_file=None, update=False, change_params=None):
         """
         Execute "$LEPHAREDIR/source/mag_star -c [...].para" in the shell.
         Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists, the command is not executed, unless 'update' is True.
@@ -536,13 +570,15 @@ class LePhareSEDFitter( BaseObject ):
         update : [bool]
             Set to True if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists.
             
+        change_params : [dict or None]
+            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            
             
         Returns
         -------
         Void
         """
-        if input_param_file is not None:
-            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+        self._init_changes_(input_param_file=input_param_file, results_path=None, change_params=change_params)
         
         lib_s_k, lib_s_v, _ = self._get_param_details_("STAR_LIB_OUT")
         
@@ -550,7 +586,7 @@ class LePhareSEDFitter( BaseObject ):
             cmd = "{}/source/mag_star -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
             subprocess.run(cmd.split())
     
-    def run_mag_gal(self, input_param_file=None, update=False):
+    def run_mag_gal(self, input_param_file=None, update=False, change_params=None):
         """
         Execute "$LEPHAREDIR/source/mag_gal -t [Q,G] -c [...].para" in the shell.
         Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist, the command is not executed, unless 'update' is True.
@@ -564,13 +600,15 @@ class LePhareSEDFitter( BaseObject ):
         update : [bool]
             Set to True if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist.
             
+        change_params : [dict or None]
+            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            
             
         Returns
         -------
         Void
         """
-        if input_param_file is not None:
-            self._properties["input_param_file"] = os.path.abspath(input_param_file)
+        self._init_changes_(input_param_file=input_param_file, results_path=None, change_params=change_params)
         
         lib_q_k, lib_q_v, _ = self._get_param_details_("QSO_LIB_OUT")
         lib_g_k, lib_g_v, _ = self._get_param_details_("GAL_LIB_OUT")
@@ -580,7 +618,7 @@ class LePhareSEDFitter( BaseObject ):
                 cmd = "{}/source/mag_gal -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
                 subprocess.run(cmd.split())
     
-    def run_zphota(self, input_param_file=None, results_path=None):
+    def run_zphota(self, input_param_file=None, results_path=None, change_params=None, change_context=None):
         """
         First change current directory to the results path.
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
@@ -595,20 +633,68 @@ class LePhareSEDFitter( BaseObject ):
             If you want to set a new results path, give the new path here.
             Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
             
+        change_params : [dict or None]
+            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+        
+        change_context : [list(string) or dict or None]
+            If a list of filters is given, every context is changed to the corresponding one.
+            If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
+            If None, nothing change from the 'data_meas'.
+            
             
         Returns
         -------
         Void
         """
-        if input_param_file is not None:
-            self._properties["input_param_file"] = os.path.abspath(input_param_file)
-        if results_path is not None:
-            self._set_results_path_(results_path)
+        if change_context is not None:
+            if type(change_context) == list:
+                self.set_context_filters(id=None, filters=change_context)
+            elif type(change_context) == dict:
+                self.set_context_filters(**change_context)
+        self._init_changes_(input_param_file=input_param_file, results_path=results_path, change_params=change_params)
         
         os.chdir(self.results_path)
         cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
         self.set_data_sed()
+
+    def run_fit(self, input_param_file=None, results_path=None, update=False, change_params=None, change_context=None):
+        """
+        Run shell commands to execute LePhare fitting.
+        
+        Options
+        -------
+        input_param_file : [string or None]
+            If you want to set a new input parameter file, give the new path here.
+            Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
+        
+        results_path : [string or None]
+            If you want to set a new results path, give the new path here.
+            Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
+            
+        update : [bool]
+            Set to True if you want to update the initialization on filters, sed libraries, etc.
+            
+        change_params : [dict or None]
+            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+        
+        change_context : [list(string) or dict or None]
+            If a list of filters is given, every context is changed to the corresponding one.
+            If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
+            If None, nothing change from the 'data_meas'.
+        
+        
+        Returns
+        -------
+        Void
+        """
+        self._init_changes_(input_param_file=input_param_file, results_path=results_path, change_params=change_params)
+        
+        self.run_filter(input_param_file=input_param_file, update=update, change_params=change_params)
+        self.run_sedtolib(input_param_file=input_param_file, update=update, change_params=change_params)
+        self.run_mag_star(input_param_file=input_param_file, update=update, change_params=change_params)
+        self.run_mag_gal(input_param_file=input_param_file, update=update, change_params=change_params)
+        self.run_zphota(input_param_file=input_param_file, results_path=results_path, change_params=change_params, change_context=change_context)
     
     def _get_filt_list_(self):
         """
@@ -646,6 +732,33 @@ class LePhareSEDFitter( BaseObject ):
                 idx_list.append(ii)
         return [band for band in self.filt_list if self.filt_list.index(band) in idx_list]
 
+    def set_context_filters(self, id=None, filters=["u", "g", "r", "i", "z"]):
+        """
+        Automatically changes the 'CONTEXT' value in 'data_meas' given the list filters to fit on.
+        
+        Parameters
+        ----------
+        id : [int or list(int) or None]
+            Index(es) of the line(s) you want to change the context by the given filters.
+        
+        filters : [list(string)]
+            List of filters to fit on.
+        
+        
+        Returns
+        -------
+        Void
+        """
+        data_buf = self.data_meas
+        idx_cross = [self.filt_list.index(_filt) for _filt in filters]
+        context = np.sum([2**ii for ii in idx_cross])
+        if id is None:
+            data_buf["CONTEXT"] = np.array([context]*len(self.data_meas))
+        else:
+            for _id in np.atleast_1d(id):
+                data_buf.at[_id, "CONTEXT"] = context
+        data_buf.to_csv(self._get_param_details_("CAT_IN")[1], sep=" ", header=False)
+
     def _get_data_meas_(self):
         """
         Return a DataFrame of the input data.
@@ -675,9 +788,8 @@ class LePhareSEDFitter( BaseObject ):
         -------
         pandas.DataFrame
         """
-        #sed_filename = "Id000000000.spec"
         idx_start = 10
-        data_sed =  pandas.read_csv(os.path.expanduser(sed_filename), #self.results_path+sed_filename),
+        data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
                                     skiprows=idx_start, sep="  ", engine="python", nrows=1050)
         while data_sed.shape[1] != 2:
             idx_start += 1
@@ -690,20 +802,17 @@ class LePhareSEDFitter( BaseObject ):
                         
     def _get_sed_filename_(self, id_sed):
         """
-        
+        Return the SED spectrum file name (full path) given an index.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        id_sed : [int]
+            Index of the SED spectrum you want to get the file name.
         
         
         Returns
         -------
-        
+        string
         """
         id_sed = str(id_sed)
         while len(id_sed)<9:
@@ -713,36 +822,34 @@ class LePhareSEDFitter( BaseObject ):
 
     def set_data_sed(self):
         """
-        
-        
-        Parameters
-        ----------
-        
-        
-        Options
-        -------
-        
+        Set the LePhare fit results in a dictionary containing the fitted spectrum tables.
         
         
         Returns
         -------
-        
+        Void
         """
-        for ii in np.arange(len(self.data_meas)):
-            self.data_sed[str(ii)] = self._get_data_sed_(self._get_sed_filename_(ii))
+        self._derived_properties["data_sed"] = {ii:self._get_data_sed_(self._get_sed_filename_(ii)) for ii in np.arange(len(self.data_meas))}
 
-    def show(self, id_sed=0, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
+    def show(self, ax=None, id_sed=0, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None, **kwargs):
         """
         Plot method.
         Return dict("fig", "ax").
         
         Parameters
         ----------
+        id_sed : [int]
+            Index of the SED you want to plot, corresponding to index in the 'data_meas' table.
+        
         y_unit : [string]
             Choice to plot "mag" or flux with "AA" (Angstrom), "Hz" (Herz) or "mgy" (maggies) unit.
         
         Options
         -------
+        ax : [matplotlib.axes]
+            Already existing axes you want to add stuff in.
+            Else, None.
+        
         plot_phot : [bool]
             If True, plot the photometry points with errors, either in flux or magnitude.
         
@@ -764,32 +871,41 @@ class LePhareSEDFitter( BaseObject ):
             If None, the figure won't be saved.
             To save it, input a path directory + filename.
         
+        **kwargs : [dict]
+            pyplot.plot options to apply on the SED spectrum.
+        
         
         Returns
         -------
         dict
         """
+        if ax is not None:
+            fig = ax.figure
+        else:
+            fig, ax = plt.subplots()
+        
         if len(self.data_meas) == 1:
             id_sed = 0
-        x_sed = self.data_sed[str(id_sed)]["lbda"]
-        y_sed = self.data_sed[str(id_sed)]["mag"]
-        y_sed_err = np.zeros(len(y_sed))
+        elif id_sed is None:
+            id_sed = -1
+        x_sed = self.data_sed[id_sed]["lbda"]
+        y_sed = self.data_sed[id_sed]["mag"]
         if y_unit in ["Hz", "AA", "mgy"]:
-            y_sed, _ = basesed.mag_to_flux(y_sed, y_sed_err, band=x_sed, flux_unit=y_unit, opt_mAB0=False)
-        
-        fig, ax = plt.subplots()
+            y_sed, _ = basesed.mag_to_flux(y_sed, np.zeros(len(y_sed)), band=x_sed, flux_unit=y_unit, opt_mAB0=False)
         
         #SED
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
-        ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
+        ax.plot(x_sed, y_sed, label="_nolegend_", **{**opt_sed, **kwargs})
         
         #Photometry
         if plot_phot:
             prefix = "mag" if self._get_param_details_("INP_TYPE")[1] == "M" else "flux"
-            for _filt in self._get_context_filters_(self.data_meas.iloc[id_sed]):
+            data_meas = self.data_meas if id_sed is not None else self.data_orig
+            id_sed = 0 if id_sed is None else id_sed
+            for _filt in self._get_context_filters_(data_meas.iloc[id_sed]):
                 x_phot = basesed.FILTER_BANDS[_filt]["lbda"]
-                y_phot = float(self.data_meas.iloc[id_sed]["{}_{}".format(prefix, _filt)])
-                y_phot_err = float(self.data_meas.iloc[id_sed]["{}_{}.err".format(prefix, _filt)])
+                y_phot = float(data_meas.iloc[id_sed]["{}_{}".format(prefix, _filt)])
+                y_phot_err = float(data_meas.iloc[id_sed]["{}_{}.err".format(prefix, _filt)])
                 if y_unit in ["Hz", "AA", "mgy"] and prefix == "mag":
                     y_phot, y_phot_err = basesed.mag_to_flux(y_phot, y_phot_err, band=_filt, flux_unit=y_unit, opt_mAB0=True)
                 elif y_unit == "mag" and prefix == "flux":
@@ -812,7 +928,7 @@ class LePhareSEDFitter( BaseObject ):
         if ylim == (None, None):
             xmin, xmax = ax.get_xlim()
             mask = (xmin < np.asarray(x_sed)) * (np.asarray(x_sed) < xmax)
-            ymin, ymax = np.min((np.asarray(y_sed)-np.asarray(y_sed_err))[mask]), np.max((np.asarray(y_sed)+np.asarray(y_sed_err))[mask])
+            ymin, ymax = np.min(np.asarray(y_sed)[mask]), np.max(np.asarray(y_sed)[mask])
             ylim = (ymin if ymin>0 else 0, ymax)
         ax.set_ylim(ylim)
         ax.set_xscale(xscale)
@@ -866,7 +982,7 @@ class LePhareSEDFitter( BaseObject ):
     
     @property
     def config_path(self):
-        """  """
+        """ Path of the configuration files """
         if self._side_properties["config_path"] is None:
             self._side_properties["config_path"] = pkg_resources.resource_filename(__name__, "config/") + "/"
         return self._side_properties["config_path"]
@@ -880,7 +996,7 @@ class LePhareSEDFitter( BaseObject ):
 
     @property
     def filt_list(self):
-        """  """
+        """ List of filters set in the input configuration file. """
         return self._get_filt_list_()
 
     @property
@@ -898,58 +1014,108 @@ class LePhareSEDFitter( BaseObject ):
 
 class LePhareRand( LePhareSEDFitter ):
     """
-    
+    This class is a child of 'LePhareSEDFitter' class. Its goal is to fit SED errors.
     """
     
-    PROPERTIES         = ["data_rand"]
+    PROPERTIES         = ["data_orig", "data_rand"]
     SIDE_PROPERTIES    = []
     DERIVED_PROPERTIES = []
 
     def __init__(self, data=None, **kwargs):
         """
-        
-        
-        Parameters
-        ----------
-        
+        The class constructor can automatically execute the 'set_data' method.
         
         Options
         -------
+        data : [string or pandas.DataFrame or dict]
+            Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
+            Only accept the data for one by one object.
         
+        input_param_file : [string or None]
+            Path of the input parameter file.
+            If 'None', the default file is imported from the package ('/config/lephare_zphot_input.para').
+        
+        output_param_file : [string or None]
+            Path of the output parameter file.
+            If 'None', the default file is imported from the package ('/config/lephare_zphot_output.para').
+        
+        results_path : [string or None]
+            Path for the results of the SED fitter.
+            If 'None', the default file is located in the package ('/results/data.out').
+        
+        flux_unit : [string]
+            If 'data' is in flux, you can precise here the unit :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+            As LePhare needs the flux to be in the "Hz" (see above) unit, it will be converted if necessary.
+        
+        nb_draw : [int]
+            Number of draw for the Monte Carlo fitting errors on the SED.
         
         
         Returns
         -------
-        
+        Void
         """
         if data is not None:
             self.set_data(data, **kwargs)
 
     def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, flux_unit="Hz", nb_draw=100, **kwargs):
         """
-        
+        Set up the file paths about the data, the config files (input and output) and the results path.
         
         Parameters
         ----------
+        data : [string or pandas.DataFrame or dict]
+            Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
+            Only accept the data for one by one object.
         
+        input_param_file : [string or None]
+            Path of the input parameter file.
+            If 'None', the default file is imported from the package ('/config/lephare_zphot_input.para').
         
-        Options
-        -------
+        output_param_file : [string or None]
+            Path of the output parameter file.
+            If 'None', the default file is imported from the package ('/config/lephare_zphot_output.para').
         
+        results_path : [string or None]
+            Path for the results of the SED fitter.
+            If 'None', the default file is located in the package ('/results/data.out').
+        
+        flux_unit : [string]
+            If 'data' is in flux, you can precise here the unit :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+            As LePhare needs the flux to be in the "Hz" (see above) unit, it will be converted if necessary.
+        
+        nb_draw : [int]
+            Number of draw for the Monte Carlo fitting errors on the SED.
         
         
         Returns
         -------
-        
+        Void
         """
-        
         _ = super(LePhareRand, self).set_data(data, input_param_file, output_param_file, results_path, flux_unit, **kwargs)
         self.set_rand_data(nb_draw)
     
     def set_rand_data(self, nb_draw=100):
         """
+        Initialize the Monte Carlo random data to fit through LePhare in order to get SED errors.
         
+        Parameters
+        ----------
+        nb_draw : [int]
+            Number of draw for the Monte Carlo fitting errors on the SED.
+        
+        
+        Returns
+        -------
+        Void
         """
+        self._properties["data_orig"] = self.data_meas
         for _filt in self.filt_list:
             photopoint = photometry.PhotoPoint(flux=self.data_meas["flux_{}".format(_filt)],
                                                var=self.data_meas["flux_{}.err".format(_filt)]**2,
@@ -968,27 +1134,111 @@ class LePhareRand( LePhareSEDFitter ):
         self.data_rand.to_csv(data_path, sep=" ", header=False)
         self.change_param("CAT_IN", os.path.abspath(data_path))
         self._set_input_type_()
-
-    def show1(self, id_sed=0, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
+    
+    def _get_fit_quantiles(self, quants=[0.16, 0.5, 0.84], y_unit="AA"):
         """
-        
+        Return the given quantiles on the Monte Carlo fitted spectra.
         
         Parameters
         ----------
+        quants : [list(float)]
+            Quantiles you want to get on the spectra. Each quantile must be between 0 and 1.
         
-        
-        Options
-        -------
-        
+        y_unit : [string]
+            Unit of the output spectrum quantiles:
+            - "mag" : magnitudes
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
         
         
         Returns
         -------
-        
+        Void
         """
-        #if id_sed is None:
-        dict_fig = super(LePhareRand, self).show(id_sed, y_unit, plot_phot, xlim, ylim, xscale, yscale, savefile)
-        #if id_sed is None:
+        lbda = self.data_sed[0]["lbda"]
+        mags = np.quantile([self.data_sed[ii]["mag"] for ii in np.arange(len(self.data_rand))], quants, axis=0)
+        return {k:m if y_unit=="mag" else basesed.mag_to_flux(m, np.zeros(len(m)), band=lbda, flux_unit=y_unit, opt_mAB0=False)[0] for k, m in zip(quants, mags)}
+    
+    def set_data_sed(self):
+        """
+        Set the LePhare fit results in a dictionary.
+        Add the Monte Carlo results with a dictionary containing the wavelength, the spectra median and one sigma error below and above the median.
+        
+        
+        Returns
+        -------
+        Void
+        """
+        _ = super(LePhareRand, self).set_data_sed()
+        quants = self._get_fit_quantiles(quants=[0.16, 0.5, 0.84], y_unit="mag")
+        pd_none = {"lbda":self.data_sed[0]["lbda"], "mag":quants[0.5], "mag.err_low":quants[0.5]-quants[0.16], "mag.err_up":quants[0.84]-quants[0.5]}
+        self.data_sed[-1] = pandas.DataFrame(pd_none)
+
+    def show(self, ax=None, id_sed=None, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None, show_sigmas=[1, 2], **kwargs):
+        """
+        Plot method.
+        Return dict("fig", "ax").
+        
+        Parameters
+        ----------
+        id_sed : [int or None]
+            Index of the SED you want to plot, corresponding to index in the 'data_meas' table.
+            If None, plot the Monte Carlo fitted median of the spectra, and sigmas if specified (see 'show_sigmas').
+        
+        y_unit : [string]
+            Choice to plot "mag" or flux with "AA" (Angstrom), "Hz" (Herz) or "mgy" (maggies) unit.
+        
+        Options
+        -------
+        ax : [matplotlib.axes]
+            Already existing axes you want to add stuff in.
+            Else, None.
+        
+        plot_phot : [bool]
+            If True, plot the photometry points with errors, either in flux or magnitude.
+        
+        xlim : [tuple[float or None]]
+            Set the limits on the x axis.
+            If (None, None), the figure has free x axis limits.
+        
+        ylim : [tuple[float or None]]
+            Set the limits on the y axis.
+            If (None, None), the figure has free y axis limits.
+        
+        xscale : [string]
+            Scale of the x axis : "linear", "log", ...
+        
+        yscale : [string]
+            Scale of the y axis : "linear", "log", ...
+        
+        savefile : [string or None]
+            If None, the figure won't be saved.
+            To save it, input a path directory + filename.
+        
+        show_sigmas : [int or list(int)]
+        
+        
+        **kwargs : [dict]
+            pyplot.plot options to apply on the SED spectrum.
+        
+        
+        Returns
+        -------
+        dict
+        """
+        kwargs = {**{"zorder":3}, **kwargs}
+        dict_fig = super(LePhareRand, self).show(ax=ax, id_sed=id_sed, y_unit=y_unit, plot_phot=plot_phot, xlim=xlim, ylim=ylim, xscale=xscale, yscale=yscale, savefile=savefile, **kwargs)
+        
+        if id_sed is None:
+            lbda = self.data_sed[0]["lbda"]
+            nsigmas = len(np.atleast_1d(show_sigmas))
+            if 2 in show_sigmas:
+                ff = self._get_fit_quantiles(quants=[0.05, 0.95], y_unit=y_unit)
+                dict_fig["ax"].fill_between(lbda, ff[0.05], ff[0.95], alpha=0.3/nsigmas, color="C0", zorder=1)
+            if 1 in show_sigmas:
+                ff = self._get_fit_quantiles(quants=[0.16, 0.84], y_unit=y_unit)
+                dict_fig["ax"].fill_between(lbda, ff[0.16], ff[0.84], alpha=0.3/nsigmas, color="C0", zorder=2)
         
         return dict_fig
 
@@ -998,57 +1248,14 @@ class LePhareRand( LePhareSEDFitter ):
     #   Properties      #
     #-------------------#
     @property
+    def data_orig(self):
+        """ Origin measurement data """
+        return self._properties["data_orig"]
+    
+    @property
     def data_rand(self):
-        """  """
+        """ Table of the random draws from the given data. """
         if self._properties["data_rand"] is None:
             self._properties["data_rand"] = {}
         return self._properties["data_rand"]
 
-
-
-
-
-
-"""
-    
-    
-    def fit_sed_errors(self, nb_fits=100):
-            nb_filt = self._get_nb_filt_()
-            data = self._get_data_()
-            rand_mag = np.random.normal(loc=[data["mag_{}".format(ii)] for ii for np.arange(nb_filt)],
-            scale=[data["mag_{}.err".format(ii)] for ii for np.arange(nb_filt)],
-            size=(nb_filt, nb_fits))
-            for ii in np.arange(nb_fits):
-            for jj in np.arange(nb_filt):
-            data["mag_{}".format(ii)] = rand_mag[jj, ii]
-            data_path = pkg_resources.resource_filename(__name__, "config/")+"/data_buf.csv"
-            data.to_csv(data_path, sep=" ", header=False)
-            self.change_param("CAT_IN", os.path.abspath(data_path), False)
-            results_path = pkg_resources.resource_filename(__name__, "results/")+"/data_buf.out"
-            self.change_param("CAT_OUT", os.path.abspath(results_path))
-            self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1]) + "/")
-            self.run_zphota()
-            
-            sed_filename = "Id000000000.spec"
-            idx_start = 10
-            data_sed =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
-            skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
-            while data_sed.shape[1] != 2:
-            idx_start += 1
-            data_buf =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
-            skiprows=idx_start, sep="  ", engine="python", nrows=nrows)
-            data_buf =  pandas.read_csv(os.path.expanduser(sed_dir+sed_filename),
-            skiprows=idx_start, names=["lbda", "mag"], sep="  ",
-            engine="python", nrows=nrows)
-            
-            if ii == 0:
-            data_sed = data_buf
-            data_sed.rename(columns={"mag":"mag0"}, inplace=True)
-            else:
-            data_sed["mag{}".format(ii)] = data_buf["mag"]
-            
-            data_sed.set_index("lbda", inplace=True)
-            data_sed["mean"] = np.mean(data_sed, axis=1)
-            data_sed["scale"] = np.std(data_sed, axis=1)
-            return
-"""

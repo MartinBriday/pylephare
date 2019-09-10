@@ -19,9 +19,9 @@ class LePhareSEDFitter( BaseObject ):
     This class is a python "wrapper" (sort of) to run LePhare SED fitting.
     """
 
-    PROPERTIES         = ["input_param_file", "output_param_file"]
-    SIDE_PROPERTIES    = ["config_path", "results_path"]
-    DERIVED_PROPERTIES = ["data_sed"]
+    PROPERTIES         = ["input_param_file", "output_param_file", "data_meas"]
+    SIDE_PROPERTIES    = ["config_path", "results_path", "header_spec_file", "filt_list"]
+    DERIVED_PROPERTIES = ["data_sed", "data_res"]
     
     INPUT_PARAM = ["STAR_SED", "STAR_FSCALE", "STAR_LIB", "QSO_SED", "QSO_FSCALE", "QSO_LIB", "GAL_SED", "GAL_FSCALE", "GAL_LIB",
                    "SEL_AGE", "AGE_RANGE", "FILTER_LIST", "TRANS_TYPE", "FILTER_CALIB", "FILTER_FILE", "STAR_LIB_IN", "STAR_LIB_OUT",
@@ -108,7 +108,7 @@ class LePhareSEDFitter( BaseObject ):
         if data is not None:
             self.set_data(data, **kwargs)
 
-    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, flux_unit="Hz", **kwargs):
+    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, flux_unit="Hz", data_filename="data.csv", **kwargs):
         """
         Set up the file paths about the data, the config files (input and output) and the results path.
         
@@ -155,7 +155,7 @@ class LePhareSEDFitter( BaseObject ):
                         data[k] = [v]
                     data = pandas.DataFrame(data)
             if type(data) == pandas.DataFrame:
-                data_path = self.config_path + "/data.csv"
+                data_path = data_filename if "/" in data_filename else self.config_path+"/"+data_filename
                 data.to_csv(data_path, sep=" ", header=False)
             elif type(data) == str:
                 data_path = data
@@ -657,6 +657,7 @@ class LePhareSEDFitter( BaseObject ):
         cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
         subprocess.run(cmd.split())
         self.set_data_sed()
+        self.set_data_res()
 
     def run_fit(self, input_param_file=None, results_path=None, update=False, change_params=None, change_context=None):
         """
@@ -779,6 +780,20 @@ class LePhareSEDFitter( BaseObject ):
         data = pandas.read_csv(self._get_param_details_("CAT_IN")[1], sep=" ", names=names)
         return data
     
+    def _get_header_spec_file_(self):
+        """
+        
+        """
+        idx_start = 14
+        sed_filename = self._get_sed_filename_(0)
+        data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
+                                    skiprows=idx_start, sep="  ", engine="python", nrows=1)
+        while data_sed.shape[1] != 2:
+            idx_start += 1
+            data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
+                                        skiprows=idx_start, sep="  ", engine="python", nrows=1)
+        return idx_start
+    
     def _get_data_sed_(self, sed_filename):
         """
         Return a DataFrame of the fitted SED (wavelength, magnitude).
@@ -788,15 +803,8 @@ class LePhareSEDFitter( BaseObject ):
         -------
         pandas.DataFrame
         """
-        idx_start = 10
         data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
-                                    skiprows=idx_start, sep="  ", engine="python", nrows=1050)
-        while data_sed.shape[1] != 2:
-            idx_start += 1
-            data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
-                                        skiprows=idx_start, sep="  ", engine="python", nrows=1050)
-        data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
-                                    skiprows=idx_start, names=["lbda", "mag"], sep="  ",
+                                    skiprows=self.header_spec_file, names=["lbda", "mag"], sep="  ",
                                     engine="python", nrows=1050)
         return data_sed
                         
@@ -817,7 +825,7 @@ class LePhareSEDFitter( BaseObject ):
         id_sed = str(id_sed)
         while len(id_sed)<9:
             id_sed = "0"+id_sed
-        sed_filename = "Id"+id_sed+".spec"
+        sed_filename = "/Id"+id_sed+".spec"
         return self.results_path+sed_filename
 
     def set_data_sed(self):
@@ -830,6 +838,17 @@ class LePhareSEDFitter( BaseObject ):
         Void
         """
         self._derived_properties["data_sed"] = {ii:self._get_data_sed_(self._get_sed_filename_(ii)) for ii in np.arange(len(self.data_meas))}
+    
+    def set_data_res(self):
+        """
+        Set the LePhare outfile as a pandas table attribute.
+        
+        
+        Returns
+        -------
+        Void
+        """
+        self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1], filter_list=self.filt_list)
 
     def show(self, ax=None, id_sed=0, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None, **kwargs):
         """
@@ -966,6 +985,46 @@ class LePhareSEDFitter( BaseObject ):
                     return key1
         raise ValueError("{} is an unknown lephare filter syntax.".format(value))
     
+    @staticmethod
+    def lephare_output_file_reader(filename=None, filter_list=None):
+        """
+        Read a LePhare output file, returning a pandas.DataFrame.
+
+        Parameters
+        ----------
+        filename : [string or None]
+            Path of the LePhare file.
+            If None, read the outfile file made at the end of the fit of the corresponding object.
+
+        filter_list : [list(string) or None]
+            List of filters used in LePhare.
+            Necessary to create the good number of names for columns.
+
+
+        Returns
+        -------
+        pandas.DataFrame
+        """
+        with open(filename, "r") as f1:
+            buf_file = f1.readlines()
+        buf_delimiter = buf_file[0]
+
+        #Skiprows
+        skiprows = [ii for ii, line in enumerate(buf_file) if line==buf_delimiter]
+        skiprows = (skiprows[1] - skiprows[0])
+
+        #Column names
+        ii_col_names = [ii for ii, line in enumerate(buf_file) if "Output format" in line][0]
+        col_names = [name for line in buf_file[ii_col_names+1:skiprows] for name in line.split(" ")]
+        for elt in ["", ",", "\n", "#"]+[str(ii) for ii in range(1000)]:
+            while elt in col_names: col_names.remove(elt)
+        for ii, name in enumerate(col_names):
+            if "()" in name:
+                col_names.remove(name)
+                for jj, filt in enumerate(filter_list):
+                    col_names.insert(ii+jj, name.replace("()", "_{}".format(filt)))
+        return pandas.read_csv(filename, sep=" ", skipinitialspace=True, skiprows=skiprows+1, names=col_names)
+    
     
     #-------------------#
     #   Properties      #
@@ -993,16 +1052,27 @@ class LePhareSEDFitter( BaseObject ):
         if self._side_properties["results_path"] is None:
             self._side_properties["results_path"] = pkg_resources.resource_filename(__name__, "results/") + "/"
         return self._side_properties["results_path"]
+    
+    @property
+    def header_spec_file(self):
+        """ Number of lines to skip when reading the spec files. """
+        if self._side_properties["header_spec_file"] is None:
+            self._side_properties["header_spec_file"] = self._get_header_spec_file_()
+        return self._side_properties["header_spec_file"]
 
     @property
     def filt_list(self):
         """ List of filters set in the input configuration file. """
-        return self._get_filt_list_()
+        if self._side_properties["filt_list"] is None:
+            self._get_filt_list_()
+        return self._side_properties["filt_list"]
 
     @property
     def data_meas(self):
         """ Input data """
-        return self._get_data_meas_()
+        if self._properties["data_meas"] is None:
+            self._get_data_meas_()
+        return self._properties["data_meas"]
 
     @property
     def data_sed(self):
@@ -1010,6 +1080,11 @@ class LePhareSEDFitter( BaseObject ):
         if self._derived_properties["data_sed"] is None:
             self._derived_properties["data_sed"] = {}
         return self._derived_properties["data_sed"]
+
+    @property
+    def data_res(self):
+        """ DataFrame of the LePhare results containing the wanted output parameters. """
+        return self._derived_properties["data_res"]
 
 
 class LePhareRand( LePhareSEDFitter ):
@@ -1061,7 +1136,7 @@ class LePhareRand( LePhareSEDFitter ):
         if data is not None:
             self.set_data(data, **kwargs)
 
-    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, flux_unit="Hz", nb_draw=100, **kwargs):
+    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, flux_unit="Hz", data_filename="data_rand.csv", nb_draw=100, **kwargs):
         """
         Set up the file paths about the data, the config files (input and output) and the results path.
         
@@ -1098,10 +1173,11 @@ class LePhareRand( LePhareSEDFitter ):
         -------
         Void
         """
-        _ = super(LePhareRand, self).set_data(data, input_param_file, output_param_file, results_path, flux_unit, **kwargs)
-        self.set_rand_data(nb_draw)
+        _ = super(LePhareRand, self).set_data(data=data, input_param_file=input_param_file, output_param_file=output_param_file,
+                                              results_path=results_path, flux_unit=flux_unit, data_filename=data_filename, **kwargs)
+        self.set_rand_data(nb_draw=nb_draw, data_filename=data_filename)
     
-    def set_rand_data(self, nb_draw=100):
+    def set_rand_data(self, nb_draw=100, data_filename="data_rand.csv"):
         """
         Initialize the Monte Carlo random data to fit through LePhare in order to get SED errors.
         
@@ -1120,7 +1196,7 @@ class LePhareRand( LePhareSEDFitter ):
             photopoint = photometry.PhotoPoint(flux=self.data_meas["flux_{}".format(_filt)],
                                                var=self.data_meas["flux_{}.err".format(_filt)]**2,
                                                lbda=basesed.FILTER_BANDS[_filt]["lbda"])
-            photopoint.draw_photosamplers(nsamplers=100, negative_fluxmag=40)
+            photopoint.draw_photosamplers(nsamplers=nb_draw, negative_fluxmag=40)
             self.data_rand["flux_{}".format(_filt)] = photopoint.photosamplers.samplers
             self.data_rand["flux_{}.err".format(_filt)] = np.array([self.data_meas["flux_{}.err".format(_filt)][0]]*nb_draw)
         self.data_rand["CONTEXT"] = np.array([self.data_meas["CONTEXT"][0]]*nb_draw)
@@ -1130,7 +1206,7 @@ class LePhareRand( LePhareSEDFitter ):
                 self.data_rand[_col_name] = np.array([self.data_meas[_col_name][0]]*nb_draw)
         self._properties["data_rand"] = pandas.DataFrame(self.data_rand)
 
-        data_path = self.config_path + "/data_rand.csv"
+        data_path = data_filename if "/" in data_filename else self.config_path+"/"+data_filename
         self.data_rand.to_csv(data_path, sep=" ", header=False)
         self.change_param("CAT_IN", os.path.abspath(data_path))
         self._set_input_type_()
@@ -1235,10 +1311,10 @@ class LePhareRand( LePhareSEDFitter ):
             nsigmas = len(np.atleast_1d(show_sigmas))
             if 2 in show_sigmas:
                 ff = self._get_fit_quantiles(quants=[0.05, 0.95], y_unit=y_unit)
-                dict_fig["ax"].fill_between(lbda, ff[0.05], ff[0.95], alpha=0.3/nsigmas, color="C0", zorder=1)
+                dict_fig["ax"].fill_between(lbda, ff[0.05], ff[0.95], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
             if 1 in show_sigmas:
                 ff = self._get_fit_quantiles(quants=[0.16, 0.84], y_unit=y_unit)
-                dict_fig["ax"].fill_between(lbda, ff[0.16], ff[0.84], alpha=0.3/nsigmas, color="C0", zorder=2)
+                dict_fig["ax"].fill_between(lbda, ff[0.16], ff[0.84], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
         
         return dict_fig
 

@@ -861,7 +861,10 @@ class LePhareSEDFitter( BaseObject ):
             Index of the SED you want to plot, corresponding to index in the 'data_meas' table.
         
         y_unit : [string]
-            Choice to plot "mag" or flux with "AA" (Angstrom), "Hz" (Herz) or "mgy" (maggies) unit.
+            Choice to plot "mag" or flux with :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
         
         Options
         -------
@@ -1265,7 +1268,10 @@ class LePhareRand( LePhareSEDFitter ):
             If None, plot the Monte Carlo fitted median of the spectra, and sigmas if specified (see 'show_sigmas').
         
         y_unit : [string]
-            Choice to plot "mag" or flux with "AA" (Angstrom), "Hz" (Herz) or "mgy" (maggies) unit.
+            Choice to plot "mag" or flux with :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
         
         Options
         -------

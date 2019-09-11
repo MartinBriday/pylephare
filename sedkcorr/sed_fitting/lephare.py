@@ -1063,16 +1063,18 @@ class LePhareSEDFitter( BaseObject ):
     @property
     def filt_list(self):
         """ List of filters set in the input configuration file. """
-        if self._side_properties["filt_list"] is None:
-            self._get_filt_list_()
-        return self._side_properties["filt_list"]
+#        if self._side_properties["filt_list"] is None:
+#            self._get_filt_list_()
+#        return self._side_properties["filt_list"]
+        return self._get_filt_list_()
 
     @property
     def data_meas(self):
         """ Input data """
-        if self._properties["data_meas"] is None:
-            self._get_data_meas_()
-        return self._properties["data_meas"]
+#        if self._properties["data_meas"] is None:
+#            self._get_data_meas_()
+#        return self._properties["data_meas"]
+        return self._get_data_meas_()
 
     @property
     def data_sed(self):
@@ -1233,7 +1235,7 @@ class LePhareRand( LePhareSEDFitter ):
         Void
         """
         lbda = self.data_sed[0]["lbda"]
-        mags = np.quantile([self.data_sed[ii]["mag"] for ii in np.arange(len(self.data_rand))], quants, axis=0)
+        mags = np.quantile([v["mag"] for k, v in self.data_sed.items() if (k != -1 and len(v) != 0)], quants, axis=0)
         return {k:m if y_unit=="mag" else basesed.mag_to_flux(m, np.zeros(len(m)), band=lbda, flux_unit=y_unit, opt_mAB0=False)[0] for k, m in zip(quants, mags)}
     
     def set_data_sed(self):

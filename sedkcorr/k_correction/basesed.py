@@ -64,9 +64,9 @@ class KCorrection( BaseObject ):
     This class redshifts an SED spectrum and recover the k-corrected photometry.
     """
     
-    PROPERTIES         = ["data_sed", "data_meas"]
+    PROPERTIES         = ["data_sed", "z", "data_phot"]
     SIDE_PROPERTIES    = ["list_bands", "filter_bandpass"]
-    DERIVED_PROPERTIES = ["data_sed_shifted", "data_kcorr"]
+    DERIVED_PROPERTIES = ["data_sed_kcorr", "data_phot_kcorr"]
     
     def __init__(self, **kwargs):
         """
@@ -74,16 +74,23 @@ class KCorrection( BaseObject ):
         
         Options
         -------
-        ### set_data_sed ###
-        data_sed : [pandas.DataFrame or dict]
-            Data table of the SED.
+        data : [dict or pandas.DataFrame]
+            SED data, containing a Monte Carlo set of spectra.
+            You can also give only one SED spectrum, but no error will be calculated on k-corrections.
         
-        ### set_data_meas ###
-        data_meas : [pandas.DataFrame or table]
-            Data table of the measurements.
+        unit : [string]
+            Define 'data' input unit :
+            - "mag" : magnitudes
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
         
-        z : [list(float) or table]
-            Redshift table.
+        z : [float]
+            Redshift.
+        
+        filters : [list(string) or None]
+            List of band filters you want to get k-corrected photometry.
+            If None, you must execute yourself 'set_list_bands'.
         
         
         Returns
@@ -93,114 +100,54 @@ class KCorrection( BaseObject ):
         if kwargs != {}:
             self.set_data(**kwargs)
     
-    def set_data(self, **kwargs):
+    def set_data(self, data=None, unit="mag", z=0, filters=None, **kwargs):
         """
-        Execute 'set_data_sed' and 'set_data_meas'.
-        Basically set up data attributes.
+        Set up SED data and redshift attributes.
         
         Parameters
         ----------
-        ### set_data_sed ###
-        data_sed : [pandas.DataFrame or dict]
-            Data table of the SED.
-        
-        ### set_data_meas ###
-        data_meas : [pandas.DataFrame or table]
-            Data table of the measurements.
-        
-        z : [list(float) or table]
-            Redshift table.
-        
-        
-        Returns
-        -------
-        Void
-        """
-        self.set_data_sed(**kwargs)
-        self.set_data_meas(**kwargs)
+        data : [dict or pandas.DataFrame]
+            SED data, containing a Monte Carlo set of spectra.
+            You can also give only one SED spectrum, but no error will be calculated on k-corrections.
             
-    def set_data_sed(self, data_sed=None, flux_unit="Hz", **extras):
-        """
-        Turn the input SED data into DataFrame, unless already in pandas.DataFrame type.
-        Automatically add either flux or magnitudes columns if one is missing.
-        
-        Parameters
-        ----------
-        data_sed : [pandas.DataFrame or dict or table like]
-            Data table of the SED.
-        
-        flux_unit : [string]
-            If 'data_sed' given in flux, define here the flux unit :
+        unit : [string]
+            Define 'data' input unit :
+            - "mag" : magnitudes
             - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
             - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
             - "mgy" : mgy (mgy = maggies)
+        
+        z : [float]
+            Redshift.
+        
+        Options
+        -------
+        filters : [list(string) or None]
+            List of band filters you want to get k-corrected photometry.
+            If None, you must execute yourself 'set_list_bands'.
         
         
         Returns
         -------
         Void
         """
-        self._properties["data_sed"] = self._get_dataframe_(data_sed)
-        input_type = "mag" if "mag" in self.data_sed.keys() else "flux"
-        conv_type = "flux" if input_type=="mag" else "mag"
-        f_conv = self.mag_to_flux if input_type=="mag" else self.flux_to_mag
+        self._properties["z"] = z
+        self.set_list_bands(filters=filters)
         
-        if input_type+".err_low" not in self.data_sed.keys() and input_type+".err" in self.data_sed.keys():
-            self.data_sed[input_type+".err_low"] = self.data_sed[input_type+".err"]
-            self.data_sed[input_type+".err_up"] = self.data_sed[input_type+".err"]
-            self.data_sed.drop(columns=[input_type+".err"], inplace=True)
-        elif input_type+".err_low" not in self.data_sed.keys() and input_type+".err" not in self.data_sed.keys():
-            raise ValueError("'data_sed' needs either '{0}.err' or '{0}.err_low' and '{0}.err_up' columns.")
-        
-        if input_type == "flux":
-            self.data_sed["flux"] = self.convert_flux_unit(self.data_sed["flux"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
-            self.data_sed["flux.err_low"] = self.convert_flux_unit(self.data_sed["flux.err_low"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
-            self.data_sed["flux.err_up"] = self.convert_flux_unit(self.data_sed["flux.err_up"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
-        
-        self.data_sed[conv_type] = f_conv(self.data_sed[input_type], np.zeros(len(data_sed)), band=self.data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
-        self.data_sed[conv_type+".err_low"] = self.data_sed[conv_type] - f_conv(self.data_sed[input_type]-self.data_sed[input_type+".err_low"],
-                                                                                np.zeros(len(data_sed)), band=self.data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
-        self.data_sed[conv_type+".err_up"] = - self.data_sed[conv_type] + f_conv(self.data_sed[input_type]+self.data_sed[input_type+".err_up"],
-                                                                                 np.zeros(len(data_sed)), band=self.data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
+        input_type = "mag" if unit == "mag" else "flux"
+        self._properties["data_sed"] = self._get_dataframe_(data)
+        self.data_sed.rename(columns={k:input_type+"_id_{}".format(ii) for ii, k in enumerate(self.data_sed.keys()) if k!="lbda"}, inplace=True)
+        if unit == "mag":
+            for k in self.data_sed.keys():
+                if k == "lbda":
+                    continue
+                self.data_sed[k], _ = self.mag_to_flux(mag=self.data_sed[k], mag_err=0., band=self.data_sed["lbda"], flux_unit=unit, opt_mAB0=False)
+        elif unit in ["AA", "mgy"]:
+            for k in self.data_sed.keys():
+                if k == "lbda":
+                    continue
+                self.data_sed[k] = self.convert_flux_unit(flux=self.data_sed[k], lbda=self.data_sed["lbda"], unit_in=unit, unit_out="Hz")
 
-    def set_data_meas(self, data_meas=None, z=None, flux_unit="Hz", **extras):
-        """
-        Set up measurements attributes.
-        
-        Parameters
-        ----------
-        data_meas : [pandas.DataFrame or dict or table like]
-            Data table of the measurements.
-        
-        z : [list(float) or table]
-            Redshift data. Only used if no 'z' column name in 'data_meas'.
-        
-        flux_unit : [string]
-            If 'data_sed' given in flux, define here the flux unit :
-            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
-            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
-            - "mgy" : mgy (mgy = maggies)
-        
-        
-        Returns
-        -------
-        Void
-        """
-        self._properties["data_meas"] = self._get_dataframe_(data_meas)
-        if "z" not in self.data_meas.keys() and z is not None:
-            self.data_meas["z"] = z
-        elif "z" not in self.data_meas.keys() and z is None:
-            raise AttributeError("You have to input redshift data, either in 'data_meas' (with 'z' column name) or in 'z').")
-        
-        ######### Option to set : mag or flux ############## !!!!!!!!!!!!!!! To be changed !!!!!!!!!!!!!!!!!
-        for band in self.list_bands:
-            if "mag" in self.data_meas[band].keys() and "flux" not in self.data_meas[band].keys():
-                self.data_meas[band]["flux"], self.data_meas[band]["flux.err"] = mag_to_flux(self.data_meas[band]["mag"], self.data_meas[band]["mag.err"],
-                                                                                             band=band, flux_unit="Hz", opt_mAB0=True)
-            elif "flux" in self.data_meas[band].keys() and "mag" not in self.data_meas[band].keys():
-                self.data_meas[band]["mag"], self.data_meas[band]["mag.err"] = flux_to_mag(self.data_meas[band]["flux"], self.data_meas[band]["flux.err"],
-                                                                                           band=band, flux_unit=flux_unit, opt_mAB0=True)
-    
     def _get_dataframe_(self, data):
         """
         Return a pandas.DataFrame of the data.
@@ -224,48 +171,23 @@ class KCorrection( BaseObject ):
                 raise TypeError("'data' must be transformable into a pandas.DataFrame (eg: pandas.DataFrame, dict, etc.)")
         return data
     
-    def _get_full_data_(self, data):
+    def set_list_bands(self, filters=["u", "g", "r", "i", "z"]):
         """
-        Return the data containing magnitudes and flux within the unit treated in the class code, and the errors in a good shape considering asymetric errors if there are any.
+        Set as an attribute the given list of the band.
         
         Parameters
         ----------
-        data : [pandas.DataFrame]
-            Input data.
-        
-        
-        Returns
-        -------
-        pandas.DataFrame
-        """
-        if ("mag" in self.data_sed.keys() and "flux" not in self.data_sed.keys()):
-            input_type = "mag"
-        elif ("mag" not in self.data_sed.keys() and "flux" in self.data_sed.keys()):
-            input_type = "flux"
-        elif ("mag" in self.data_sed.keys() and "flux" in self.data_sed.keys()):
-            input_type = None
-        else:
-            raise ValueError("'data' neither contain flux data nor magnitude data.")
-        
-        if input_type in ["mag", "flux"]:
-            conv_type = "flux" if input_type=="mag" else "mag"
-            f_conv = self.mag_to_flux if input_type=="mag" else self.flux_to_mag
-        return
-    
-    def _set_list_bands_(self):
-        """
-        Set as an attribute the list of the bands contained in the 'data_meas' photometry.
+        filters : [list(string)]
+            List of the filters to get k-correction.
         
         
         Returns
         -------
         Void
         """
-        list_bands
-        self._side_properties["list_bands"]
-        return
+        self._side_properties["list_bands"] = filters
     
-    def get_filter_bandpass_path(self):
+    def _get_filter_bandpass_path_(self):
         """
         Set the path to filter bandpasses data, included in the package.
         
@@ -287,12 +209,12 @@ class KCorrection( BaseObject ):
         Options
         -------
         opt_bands : [list[string] or None]
-        Optionnal list of bands to load filter bandpass data.
+            Optionnal list of bands to load filter bandpass data.
         
         from_sncosmo : [bool]
-        If True, filter bandpass data will be loaded from sncosmo package.
-        Else, loaded from tables included in the packages, downloaded from "http://svo2.cab.inta-csic.es/svo/theory/fps3/"
-        Default is False.
+            If True, filter bandpass data will be loaded from sncosmo package.
+            Else, loaded from tables included in the packages, downloaded from "http://svo2.cab.inta-csic.es/svo/theory/fps3/"
+            Default is False.
         
         
         Returns
@@ -306,12 +228,12 @@ class KCorrection( BaseObject ):
                                                                                "trans":bandpasses.get_bandpass("sdss"+band).trans})
                                                         for band in opt_bands if band in list_sdss_bands}
         else:
-            self._side_properties["filter_bandpass"] = {band:pandas.read_table(self.filter_bandpass_path[band], sep=' ', names=["lbda", "trans"])
+            self._side_properties["filter_bandpass"] = {band:pandas.read_table(self.filter_bandpass_path[band], sep=" ", names=["lbda", "trans"])
                                                         for band in opt_bands if band in list_sdss_bands}
         if "FUV" in opt_bands:
-            self.filter_bandpass["FUV"] = pandas.read_table(self.filter_bandpass_path["FUV"], sep=' ', names=["lbda", "trans"])
+            self.filter_bandpass["FUV"] = pandas.read_table(self.filter_bandpass_path["FUV"], sep=" ", names=["lbda", "trans"])
         if "NUV" in opt_bands:
-            self.filter_bandpass["NUV"] = pandas.read_table(self.filter_bandpass_path["NUV"], sep=' ', names=["lbda", "trans"])
+            self.filter_bandpass["NUV"] = pandas.read_table(self.filter_bandpass_path["NUV"], sep=" ", names=["lbda", "trans"])
 
     def shift_sed(self):
         """
@@ -322,35 +244,89 @@ class KCorrection( BaseObject ):
         -------
         Void
         """
-        self._derived_properties["data_sed_shifted"] = pandas.DataFrame({"lbda":lbda_z0(self.data_sed["lbda"], self.data_meas["z"]),
-                                                                         "flux":flux_z0(self.data_sed["flux"], self.data_meas["z"]),
-                                                                         "flux.err":flux_z0(self.data_sed["flux.err"], self.data_meas["z"])})
-        self.data_sed_shifted["mag"], self.data_sed_shifted["mag.err"] = flux_to_mag(self.data_sed_shifted["flux"], self.data_sed_shifted["flux.err"], band=None, flux_unit="Hz")
+        data = self.data_sed.copy()
+        for k, v in data.items():
+            if k == "lbda":
+                data[k] = self.lbda_z0(v, self.z)
+            else:
+                data[k] = self.flux_z0(v, self.z)
+        self._derived_properties["data_sed_kcorr"] = data
     
-    def k_correction(self, kcorr_flux_error=None):
+    def _get_data_phot_(self, data_sed):
         """
-        Recover the integrated flux from every filter bands from the shifted SED.
-        Then convert them into magnitudes.
+        Return the integrated flux from every filter bands from a given SED.
         
-        Options
+        Parameters
+        ----------
+        data_sed : [pandas.DataFrame]
+            SED data to get the photometry.
+        
+        
+        Returns
         -------
-        kcorr_flux_error : [dict or table or None]
-            Error on k-corrected flux.
+        dict
+        """
+        data_kcorr = {}
+        phot = {}
+        for _band in self.list_bands:
+            phot["flux"] = [self.get_phot(data_sed=pandas.DataFrame({"lbda":data_sed["lbda"], "flux":v}), bands=_band)
+                            for k, v in data_sed.items() if k != "lbda"]
+            phot["mag"] = self.flux_to_mag(flux=phot["flux"], flux_err=0., band=data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
+            for k in ["flux", "mag"]:
+                quants = np.quantile(phot[k], [0.16, 0.5, 0.84]) if len(phot[k])>1 else phot[k]*3
+                data_kcorr["{}_{}".format(k, _band)] = quants[1]
+                data_kcorr["{}_{}.err_low".format(k, _band)] = quants[1] - quants[0]
+                data_kcorr["{}_{}.err_up".format(k, _band)] = quants[2] - quants[1]
+    
+        self._derived_properties["data_kcorr"] = data_kcorr
+
+    def k_correction(self):
+        """
+        Apply k-correction on the input SED.
+        Firstly, measure the photometry from the input SED.
+        Then shift the SED to redshift zero and measure the new (k-corrected) photometry.
         
         
         Returns
         -------
         Void
         """
-        data_kcorr = self.get_phot(data_sed=self.data_sed_shifted, bands=None)
-        data_kcorr = {k:{"flux":v} for k, v in data_kcorr.items()}
-        self._derived_properties["data_kcorr"] = data_kcorr
-        for band in LIST_BANDS:
-            self.data_kcorr[band]["flux.err"] = 0. if kcorr_flux_error is None else kcorr_flux_error[band]
-            self.data_kcorr[band]["mag"], self.data_kcorr[band]["mag.err"] = flux_to_mag(self.data_kcorr[band]["flux"], self.data_kcorr[band]["flux.err"], band=band, flux_unit="Hz")
+        self._properties["data_phot"] = self._get_data_phot_(data_sed=self.data_sed)
+        self.shift_sed()
+        self._properties["data_phot_kcorr"] = self._get_data_phot_(data_sed=self.data_sed_kcorr)
+
+    def _get_fit_quantiles_(self, data_sed, quants=[0.16, 0.5, 0.84], y_unit="AA"):
+        """
+        Return the given quantiles on the Monte Carlo fitted spectra.
+        
+        Parameters
+        ----------
+        data_sed : [pandas.DataFrame]
+            SED data to get the quantiles
+        
+        quants : [list(float)]
+            Quantiles you want to get on the spectra. Each quantile must be between 0 and 1.
+        
+        y_unit : [string]
+            Unit of the output spectrum quantiles:
+            - "mag" : magnitudes
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+        
+        
+        Returns
+        -------
+        Void
+        """
+        data_sed = data_sed.copy()
+        lbda = data_sed["lbda"]
+        data_sed.set_index("lbda", inplace=True)
+        mags = np.quantile(data_sed, quants, axis=1)
+        return {k:m if y_unit=="mag" else self.mag_to_flux(m, 0., band=lbda, flux_unit=y_unit, opt_mAB0=False)[0] for k, m in zip(quants, mags)}
     
     def show(self, ax=None, y_unit="Hz", sed_shifted=True, plot_bandpasses=False, plot_photo_points=True,
-             xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None):
+             xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", show_sigmas=[1, 2], savefile=None):
         """
         Plot method.
         
@@ -391,6 +367,9 @@ class KCorrection( BaseObject ):
             
         yscale : [string]
             Scale of the y axis : "linear", "log", ...
+            
+        show_sigmas : [int or list(int) or None]
+            Show 1 and/or 2 (or None) sigmas error of the SED.
         
         savefile : [string or None]
             If None, the figure won't be saved.
@@ -405,30 +384,35 @@ class KCorrection( BaseObject ):
         else:
             fig, ax = plt.subplots()
         
-        data_sed = self.data_sed_shifted if sed_shifted else self.data_sed
-        data_phot = self.data_kcorr if sed_shifted else self.data_meas
-        y_plot = "flux" if y_plot in ["Hz", "AA", "mgy"] else "mag"
+        data_sed = self.data_sed_kcorr if sed_shifted else self.data_sed
+        data_phot = self.data_phot_kcorr if sed_shifted else self.data_phot
+        y_plot = "flux" if y_unit in ["Hz", "AA", "mgy"] else "mag"
         
         #SED
         x_sed = data_sed["lbda"]
-        y_sed = data_sed[y_plot]
-        y_sed_err_low = data_sed[y_plot+".err_low"] if y_plot+".err_low" in data_sed.keys() else data_sed[y_plot+".err"]
-        y_sed_err_up = data_sed[y_plot+".err_up"] if y_plot+".err_up" in data_sed.keys() else data_sed[y_plot+".err"]
-        if y_plot in ["Hz", "AA", "mgy"]:
-            y_sed, y_sed_err_low, y_sed_err_up = self.convert_flux_unit((y_sed, y_sed_err_low, y_sed_err_up),
-                                                                        lbda=x_sed, unit_in="Hz", unit_out=flux_unit)
-        
+        y_sed = data_sed["flux"]
+        if y_unit == "mag":
+            y_sed, _ = self.flux_to_mag(y_sed, flux_err=0., band=x_sed, flux_unit="Hz", opt_mAB0=False)
+        elif y_unit in ["AA", "mgy"]:
+            y_sed = self.convert_flux_unit(y_sed, lbda=x_sed, unit_in="Hz", unit_out=flux_unit)
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
         ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
-        ax.fill_between(x_sed, y_sed - y_sed_err_low, y_sed + y_sed_err_up, alpha=0.5, color="0.7")
+
+        nsigmas = len(np.atleast_1d(show_sigmas))
+        if 2 in show_sigmas:
+            ff = self._get_fit_quantiles_(quants=[0.05, 0.95], y_unit=y_unit)
+            ax.fill_between(lbda, ff[0.05], ff[0.95], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
+        if 1 in show_sigmas:
+            ff = self._get_fit_quantiles_(quants=[0.16, 0.84], y_unit=y_unit)
+            ax.fill_between(lbda, ff[0.16], ff[0.84], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
         
         #Photopoints
         if plot_photo_points:
-            for band in (LIST_BANDS if sed_shifted else self.list_bands):
-                x_point = FILTER_BANDS[band]["lbda"]
-                y_point = data_phot[band][y_plot]
-                y_point_err_low = data_phot[y_plot+".err_low"] if y_plot+".err_low" in data_phot.keys() else data_phot[y_plot+".err"]
-                y_point_err_up = data_phot[y_plot+".err_up"] if y_plot+".err_up" in data_phot.keys() else data_phot[y_plot+".err"]
+            for _band in self.list_bands:
+                x_point = FILTER_BANDS[_band]["lbda"]
+                y_point = data_phot[_band]["flux"]
+                y_point_err_low = data_phot[y_plot+".err_low"]
+                y_point_err_up = data_phot[y_plot+".err_up"]
                 if y_plot == "flux":
                     y_point, y_point_err_low, y_point_err_up = self.convert_flux_unit((y_point, y_point_err_low, y_point_err_up),
                                                                                       lbda=FILTER_BANDS[band]["lbda"], unit_in="Hz", unit_out=flux_unit)
@@ -451,10 +435,10 @@ class KCorrection( BaseObject ):
             ylim = (ymin if ymin>0 else 0, ymax)
         ax.set_ylim(ylim)
         ax_ylim = ax.get_ylim()
-        if y_plot=="flux" and ylim[0] is None:
+        if y_plot == "flux" and ylim[0] is None:
             ax_ylim = (0., ax_ylim[1])
 
-        ax.axhline(ax_ylim[0], color="black", zorder=5)
+        ax.axhline(ax_ylim[0], color="black", lw=0.5, zorder=5)
         
         #Photometry
         if plot_bandpasses:
@@ -463,8 +447,7 @@ class KCorrection( BaseObject ):
                         ls="-", marker="", color=FILTER_BANDS[band]["color"], label="_nolegend_")
 
         ax.set_xscale(xscale)
-        if y_plot=="flux":
-            ax.set_yscale(yscale)
+        ax.set_yscale(yscale)
                 
         if savefile is not None:
             fig.savefig(savefile)
@@ -520,7 +503,7 @@ class KCorrection( BaseObject ):
         return flux / ( ( 1 + z )**3 )
     
     @staticmethod
-    def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz", opt_mAB0=True):
+    def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz", opt_mAB0=False):
         """
         Convert magnitude to flux.
         Return the flux and its error.
@@ -533,8 +516,9 @@ class KCorrection( BaseObject ):
         mag_err : [float or np.array]
             Magnitude error.
         
-        band : [string or None]
+        band : [string or np.array]
             The output flux is converted in the input unit with the wavelength based on this given 'band' filter.
+            You can also directly give the wavelength.
         
         flux_unit : [string]
             Define the output flux unit :
@@ -552,6 +536,8 @@ class KCorrection( BaseObject ):
         -------
         float or np.array, float or np.array
         """
+        if mag_err == 0. and len(np.atleast_1d(mag)) > 1:
+            mag_err = np.zeros(len(mag))
         if opt_mAB0:
             flux_out = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
             flux_err_out = (0.4 * np.log(10) * flux_out) * mag_err**2
@@ -570,7 +556,7 @@ class KCorrection( BaseObject ):
         return flux_out, flux_err_out
     
     @staticmethod
-    def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz", opt_mAB0=True):
+    def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz", opt_mAB0=False):
         """
         Convert flux to magnitude.
         Return the magnitude and its error.
@@ -583,8 +569,9 @@ class KCorrection( BaseObject ):
         flux_err : [float or np.array]
             Flux error.
         
-        band : [string or None]
+        band : [string or np.array]
             The input flux is converted in a conversion convenient unit from the input unit with the wavelength based on this given 'band' filter.
+            You can also directly give the wavelength.
         
         flux_unit : [string]
             Define the input flux unit :
@@ -602,6 +589,8 @@ class KCorrection( BaseObject ):
         -------
         float or np.array, float or np.array
         """
+        if flux_err == 0. and len(np.atleast_1d(flux)) > 1:
+            flux_err = np.zeros(len(flux))
         if opt_mAB0:
             unit_out = "AA"
         else:
@@ -680,9 +669,9 @@ class KCorrection( BaseObject ):
             raise ValueError("-- ERROR 404 -- : There is a big problem in the conversion process.")
     
     @staticmethod
-    def get_phot(self, data_sed=None, bands=None):
+    def get_photopoint(self, data_sed=None, bands=None):
         """
-        
+        Return the integrated photometry given a spectrum in the given bands.
         
         Parameters
         ----------
@@ -691,8 +680,9 @@ class KCorrection( BaseObject ):
         
         Options
         -------
-        bands : [list(string) or None]
+        bands : [string or list(string) or None]
             List of bands you want to get photometric data.
+            If one band is given, the function return the value, instead of a dictionary with one key.
         
         
         Returns
@@ -702,7 +692,7 @@ class KCorrection( BaseObject ):
         list_bands = LIST_BANDS if bands is None else bands if type(bands)==list else [bands]
         data_kcorr = {band:spectroscopy.synthesize_photometry(data_sed["lbda"], data_sed["flux"], self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])
                       for band in list_bands}
-        return data_kcorr
+        return data_kcorr if type(bands)!=str else data_kcorr[bands]
     
     
     
@@ -724,32 +714,28 @@ class KCorrection( BaseObject ):
         return self._side_properties["filter_bandpass"]
     
     @property
-    def data_meas(self):
-        """ Table like of the measurements """
-        if self._properties["data_meas"] is None:
-            self._properties["data_meas"] = {}
-        return self._properties["data_meas"]
+    def data_phot(self):
+        """ Table of photopoints of the input SED """
+        return self._properties["data_phot"]
     
     @property
     def filter_bandpass_path(self):
         """ Dictionnary of paths for every filter badpass data """
-        return self.get_filter_bandpass_path()
+        return self._get_filter_bandpass_path_()
     
     @property
     def list_bands(self):
         """ List of the filter bands used in SED fitting """
+        if self._side_properties["list_bands"] is None:
+            raise AttributeError("'list_bands' is None, you must execute 'set_list_bands' or give a value to 'filters' parameter in 'set_dat' method.")
         return self._side_properties["list_bands"]
     
     @property
-    def data_sed_shifted(self):
+    def data_sed_kcorr(self):
         """ Dataframe of the shifted to redshift zero SED """
-        if self._derived_properties["data_sed_shifted"] is None:
-            self.shift_sed()
-        return self._derived_properties["data_sed_shifted"]
+        return self._derived_properties["data_sed_kcorr"]
     
     @property
-    def data_kcorr(self):
-        """ Table of k corrected data """
-        if self._derived_properties["data_kcorr"] is None:
-            self.k_correction()
-        return self._derived_properties["data_kcorr"]
+    def data_phot_kcorr(self):
+        """ Table of k corrected photopoints """
+        return self._derived_properties["data_phot_kcorr"]

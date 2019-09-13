@@ -1263,7 +1263,7 @@ class LePhareRand( LePhareSEDFitter ):
         self.change_param("CAT_IN", os.path.abspath(data_path))
         self._set_input_type_()
     
-    def _get_fit_quantiles(self, quants=[0.16, 0.5, 0.84], y_unit="AA"):
+    def _get_fit_quantiles_(self, quants=[0.16, 0.5, 0.84], y_unit="AA"):
         """
         Return the given quantiles on the Monte Carlo fitted spectra.
         
@@ -1299,7 +1299,7 @@ class LePhareRand( LePhareSEDFitter ):
         Void
         """
         _ = super(LePhareRand, self).set_data_sed()
-        quants = self._get_fit_quantiles(quants=[0.16, 0.5, 0.84], y_unit="mag")
+        quants = self._get_fit_quantiles_(quants=[0.16, 0.5, 0.84], y_unit="mag")
         pd_none = {"lbda":self.data_sed[0]["lbda"], "mag":quants[0.5], "mag.err_low":quants[0.5]-quants[0.16], "mag.err_up":quants[0.84]-quants[0.5]}
         self.data_sed[-1] = pandas.DataFrame(pd_none)
 
@@ -1347,8 +1347,8 @@ class LePhareRand( LePhareSEDFitter ):
             If None, the figure won't be saved.
             To save it, input a path directory + filename.
         
-        show_sigmas : [int or list(int)]
-        
+        show_sigmas : [int or list(int) or None]
+            Show 1 and/or 2 (or None) sigmas error of the SED.
         
         **kwargs : [dict]
             pyplot.plot options to apply on the SED spectrum.
@@ -1365,10 +1365,10 @@ class LePhareRand( LePhareSEDFitter ):
             lbda = self.data_sed[0]["lbda"]
             nsigmas = len(np.atleast_1d(show_sigmas))
             if 2 in show_sigmas:
-                ff = self._get_fit_quantiles(quants=[0.05, 0.95], y_unit=y_unit)
+                ff = self._get_fit_quantiles_(quants=[0.05, 0.95], y_unit=y_unit)
                 dict_fig["ax"].fill_between(lbda, ff[0.05], ff[0.95], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
             if 1 in show_sigmas:
-                ff = self._get_fit_quantiles(quants=[0.16, 0.84], y_unit=y_unit)
+                ff = self._get_fit_quantiles_(quants=[0.16, 0.84], y_unit=y_unit)
                 dict_fig["ax"].fill_between(lbda, ff[0.16], ff[0.84], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
         
         return dict_fig

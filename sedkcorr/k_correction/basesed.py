@@ -141,7 +141,7 @@ class KCorrection( BaseObject ):
         Void
         """
         self._properties["data_sed"] = self._get_dataframe_(data_sed)
-        input_type = "mag" in self.data_sed.keys() else "flux"
+        input_type = "mag" if "mag" in self.data_sed.keys() else "flux"
         conv_type = "flux" if input_type=="mag" else "mag"
         f_conv = self.mag_to_flux if input_type=="mag" else self.flux_to_mag
         
@@ -153,9 +153,9 @@ class KCorrection( BaseObject ):
             raise ValueError("'data_sed' needs either '{0}.err' or '{0}.err_low' and '{0}.err_up' columns.")
         
         if input_type == "flux":
-            self.data_sed["flux"] = convert_flux_unit(self.data_sed["flux"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
-            self.data_sed["flux.err_low"] = convert_flux_unit(self.data_sed["flux.err_low"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
-            self.data_sed["flux.err_up"] = convert_flux_unit(self.data_sed["flux.err_up"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
+            self.data_sed["flux"] = self.convert_flux_unit(self.data_sed["flux"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
+            self.data_sed["flux.err_low"] = self.convert_flux_unit(self.data_sed["flux.err_low"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
+            self.data_sed["flux.err_up"] = self.convert_flux_unit(self.data_sed["flux.err_up"], lbda=self.data_sed["lbda"], unit_in=flux_unit, unit_out="Hz")
         
         self.data_sed[conv_type] = f_conv(self.data_sed[input_type], np.zeros(len(data_sed)), band=self.data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
         self.data_sed[conv_type+".err_low"] = self.data_sed[conv_type] - f_conv(self.data_sed[input_type]-self.data_sed[input_type+".err_low"],
@@ -415,8 +415,8 @@ class KCorrection( BaseObject ):
         y_sed_err_low = data_sed[y_plot+".err_low"] if y_plot+".err_low" in data_sed.keys() else data_sed[y_plot+".err"]
         y_sed_err_up = data_sed[y_plot+".err_up"] if y_plot+".err_up" in data_sed.keys() else data_sed[y_plot+".err"]
         if y_plot in ["Hz", "AA", "mgy"]:
-            y_sed, y_sed_err_low, y_sed_err_up = convert_flux_unit((y_sed, y_sed_err_low, y_sed_err_up),
-                                                                   lbda=x_sed, unit_in="Hz", unit_out=flux_unit)
+            y_sed, y_sed_err_low, y_sed_err_up = self.convert_flux_unit((y_sed, y_sed_err_low, y_sed_err_up),
+                                                                        lbda=x_sed, unit_in="Hz", unit_out=flux_unit)
         
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
         ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
@@ -430,8 +430,8 @@ class KCorrection( BaseObject ):
                 y_point_err_low = data_phot[y_plot+".err_low"] if y_plot+".err_low" in data_phot.keys() else data_phot[y_plot+".err"]
                 y_point_err_up = data_phot[y_plot+".err_up"] if y_plot+".err_up" in data_phot.keys() else data_phot[y_plot+".err"]
                 if y_plot == "flux":
-                    y_point, y_point_err_low, y_point_err_up = convert_flux_unit((y_point, y_point_err_low, y_point_err_up),
-                                                                                 lbda=FILTER_BANDS[band]["lbda"], unit_in="Hz", unit_out=flux_unit)
+                    y_point, y_point_err_low, y_point_err_up = self.convert_flux_unit((y_point, y_point_err_low, y_point_err_up),
+                                                                                      lbda=FILTER_BANDS[band]["lbda"], unit_in="Hz", unit_out=flux_unit)
                 ax.errorbar(x_point, y_point, yerr=[[y_point_err_low], [y_point_err_up]],
                             ls="", marker="o", color=FILTER_BANDS[band]["color"], label=band)
         
@@ -562,7 +562,8 @@ class KCorrection( BaseObject ):
             unit_in = "Hz"
         
         if flux_unit in ("AA", "Hz", "mgy"):
-            flux_out, flux_err_out = convert_flux_unit((flux_out, flux_err_out), FILTER_BANDS[band]["lbda"] if type(band)==str else band, unit_in=unit_in, unit_out=flux_unit)
+            flux_out, flux_err_out = KCorrection.convert_flux_unit((flux_out, flux_err_out), FILTER_BANDS[band]["lbda"] if type(band)==str else band,
+                                                                   unit_in=unit_in, unit_out=flux_unit)
         else:
             raise ValueError("{} is not a valid flux unit.".format(flux_unit))
         
@@ -606,7 +607,8 @@ class KCorrection( BaseObject ):
         else:
             unit_out = "Hz"
         if flux_unit in ("AA", "Hz", "mgy"):
-            flux, flux_err = convert_flux_unit((flux, flux_err), FILTER_BANDS[band]["lbda"] if type(band)==str else band, unit_in=flux_unit, unit_out=unit_out)
+            flux, flux_err = KCorrection.convert_flux_unit((flux, flux_err), FILTER_BANDS[band]["lbda"] if type(band)==str else band,
+                                                           unit_in=flux_unit, unit_out=unit_out)
         else:
             raise ValueError("{} is not a valid flux unit.".format(flux_unit))
 
@@ -701,7 +703,6 @@ class KCorrection( BaseObject ):
         data_kcorr = {band:spectroscopy.synthesize_photometry(data_sed["lbda"], data_sed["flux"], self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])
                       for band in list_bands}
         return data_kcorr
-
     
     
     

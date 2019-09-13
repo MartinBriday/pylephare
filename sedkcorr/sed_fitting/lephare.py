@@ -189,8 +189,8 @@ class LePhareSEDFitter( BaseObject ):
         data_buf = self.data_meas
         if self._get_param_details_("INP_TYPE")[1] == "F" and flux_unit != "Hz":
             for _filt in self.filt_list:
-                data_buf["flux_"+_filt] = basesed.convert_flux_unit(data_buf["flux_"+_filt], basesed.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
-                data_buf["flux_"+_filt+".err"] = basesed.convert_flux_unit(data_buf["flux_"+_filt+".err"], basesed.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+                data_buf["flux_"+_filt] = basesed.KCorrection.convert_flux_unit(data_buf["flux_"+_filt], basesed.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+                data_buf["flux_"+_filt+".err"] = basesed.KCorrection.convert_flux_unit(data_buf["flux_"+_filt+".err"], basesed.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
         data_buf.to_csv(self._get_param_details_("CAT_IN")[1], sep=" ", header=False)
 
     def _set_results_path_(self, results_path=None):
@@ -618,7 +618,7 @@ class LePhareSEDFitter( BaseObject ):
                 cmd = "{}/source/mag_gal -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
                 subprocess.run(cmd.split())
     
-    def run_zphota(self, input_param_file=None, results_path=None, change_params=None, change_context=None):
+    def run_zphota(self, input_param_file=None, results_path=None, change_params=None, change_context=None, savefile=None):
         """
         First change current directory to the results path.
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
@@ -640,6 +640,9 @@ class LePhareSEDFitter( BaseObject ):
             If a list of filters is given, every context is changed to the corresponding one.
             If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
             If None, nothing change from the 'data_meas'.
+        
+        savefile : [string or None]
+            If not None, the 'data_sed' will be saved in the given file path.
             
             
         Returns
@@ -658,8 +661,10 @@ class LePhareSEDFitter( BaseObject ):
         subprocess.run(cmd.split())
         self.set_data_sed()
         self.set_data_res()
+        if savefile is not None:
+            self.write(savefile, None)
 
-    def run_fit(self, input_param_file=None, results_path=None, update=False, change_params=None, change_context=None):
+    def run_fit(self, input_param_file=None, results_path=None, update=False, change_params=None, change_context=None, savefile=None):
         """
         Run shell commands to execute LePhare fitting.
         
@@ -684,6 +689,9 @@ class LePhareSEDFitter( BaseObject ):
             If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
             If None, nothing change from the 'data_meas'.
         
+        savefile : [string or None]
+            If not None, the 'data_sed' will be saved in the given file path.
+        
         
         Returns
         -------
@@ -695,7 +703,7 @@ class LePhareSEDFitter( BaseObject ):
         self.run_sedtolib(input_param_file=input_param_file, update=update, change_params=change_params)
         self.run_mag_star(input_param_file=input_param_file, update=update, change_params=change_params)
         self.run_mag_gal(input_param_file=input_param_file, update=update, change_params=change_params)
-        self.run_zphota(input_param_file=input_param_file, results_path=results_path, change_params=change_params, change_context=change_context)
+        self.run_zphota(input_param_file=input_param_file, results_path=results_path, change_params=change_params, change_context=change_context, savefile=savefile)
     
     def _get_filt_list_(self):
         """
@@ -913,7 +921,7 @@ class LePhareSEDFitter( BaseObject ):
         x_sed = self.data_sed[id_sed]["lbda"]
         y_sed = self.data_sed[id_sed]["mag"]
         if y_unit in ["Hz", "AA", "mgy"]:
-            y_sed, _ = basesed.mag_to_flux(y_sed, np.zeros(len(y_sed)), band=x_sed, flux_unit=y_unit, opt_mAB0=False)
+            y_sed, _ = basesed.KCorrection.mag_to_flux(y_sed, np.zeros(len(y_sed)), band=x_sed, flux_unit=y_unit, opt_mAB0=False)
         
         #SED
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
@@ -929,11 +937,11 @@ class LePhareSEDFitter( BaseObject ):
                 y_phot = float(data_meas.iloc[id_sed]["{}_{}".format(prefix, _filt)])
                 y_phot_err = float(data_meas.iloc[id_sed]["{}_{}.err".format(prefix, _filt)])
                 if y_unit in ["Hz", "AA", "mgy"] and prefix == "mag":
-                    y_phot, y_phot_err = basesed.mag_to_flux(y_phot, y_phot_err, band=_filt, flux_unit=y_unit, opt_mAB0=True)
+                    y_phot, y_phot_err = basesed.KCorrection.mag_to_flux(y_phot, y_phot_err, band=_filt, flux_unit=y_unit, opt_mAB0=True)
                 elif y_unit == "mag" and prefix == "flux":
-                    y_phot, y_phot_err = basesed.flux_to_mag(y_phot, y_phot_err, band=_filt, flux_unit="Hz", opt_mAB0=True)
+                    y_phot, y_phot_err = basesed.KCorrection.flux_to_mag(y_phot, y_phot_err, band=_filt, flux_unit="Hz", opt_mAB0=True)
                 elif y_unit in ["Hz", "AA", "mgy"] and prefix == "flux":
-                    y_phot, y_phot_err = basesed.convert_flux_unit((y_phot, y_phot_err), basesed.FILTER_BANDS[_filt]["lbda"], "Hz", y_unit)
+                    y_phot, y_phot_err = basesed.KCorrection.convert_flux_unit((y_phot, y_phot_err), basesed.FILTER_BANDS[_filt]["lbda"], "Hz", y_unit)
                 ax.errorbar(x_phot, y_phot, yerr=y_phot_err, ls="", marker="o", color=basesed.FILTER_BANDS[_filt]["color"], label=_filt)
         
         #Writings
@@ -961,6 +969,45 @@ class LePhareSEDFitter( BaseObject ):
             fig.savefig(savefile)
         
         return {"ax":ax, "fig":fig}
+
+    def write(self, savefile=None, id_sed=0):
+        """
+        Write 'data_sed' into a file.
+        
+        Parameters
+        ----------
+        savefile : [string]
+            File path to save the data.
+        
+        id_sed : [int or None]
+            Index of the 'data_sed' dictionary you want to save in a file.
+            If None, the whole dictionary will be saved, each column name containing the id of the income.
+        
+        
+        Returns
+        -------
+        Void
+        """
+        if type(id_sed) == int:
+            self.data_sed[id_sed].to_csv(savefile, sep=" ", index=False)
+        elif id_sed is None:
+            data_out = self.data_sed[0].copy()
+            data_out.set_index("lbda", inplace=True)
+            data_out.rename(columns={k:k+"_id_0" for k in data_out.keys()}, inplace=True)
+            for k1, v1 in self.data_sed.items():
+                if k1 == 0:
+                    continue
+                pd_buf = v1.set_index("lbda").copy()
+                for k2, v2 in pd_buf.items():
+                    data_out[k2+"_id_{}".format(k1)] = v2
+            data_out.reset_index(inplace=True)
+            data_out.to_csv(savefile, sep=" ", index=False)
+        else:
+            raise ValueError("'id_sed' must be either an integer index contained in the 'data_sed' dictionary, or None if you want to save everything.")
+
+
+
+
     
     
     @staticmethod
@@ -1239,7 +1286,7 @@ class LePhareRand( LePhareSEDFitter ):
         """
         lbda = self.data_sed[0]["lbda"]
         mags = np.quantile([v["mag"] for k, v in self.data_sed.items() if (k != -1 and len(v) != 0)], quants, axis=0)
-        return {k:m if y_unit=="mag" else basesed.mag_to_flux(m, np.zeros(len(m)), band=lbda, flux_unit=y_unit, opt_mAB0=False)[0] for k, m in zip(quants, mags)}
+        return {k:m if y_unit=="mag" else basesed.KCorrection.mag_to_flux(m, np.zeros(len(m)), band=lbda, flux_unit=y_unit, opt_mAB0=False)[0] for k, m in zip(quants, mags)}
     
     def set_data_sed(self):
         """

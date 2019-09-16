@@ -178,9 +178,9 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        if self._get_param_details_("INP_TYPE")[1] == "M" and self.data_meas.iloc[0]["mag_g"] < 1:
+        if self._get_param_details_("INP_TYPE")[1] == "M" and self.data_meas.iloc[0]["mag_r"] < 1:
             self.change_param("INP_TYPE", "F", False)
-        elif self._get_param_details_("INP_TYPE")[1] == "F" and self.data_meas.iloc[0]["flux_g"] > 1:
+        elif self._get_param_details_("INP_TYPE")[1] == "F" and self.data_meas.iloc[0]["flux_r"] > 1:
             self.change_param("INP_TYPE", "M", False)
 
     def _convert_flux_(self, flux_unit):

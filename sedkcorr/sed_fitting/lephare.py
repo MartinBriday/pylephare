@@ -919,8 +919,13 @@ class LePhareSEDFitter( BaseObject ):
             id_sed = 0
         elif id_sed is None:
             id_sed = -1
-        x_sed = self.data_sed[id_sed]["lbda"]
-        y_sed = self.data_sed[id_sed]["mag"]
+        mask = np.array([True] * len(self.data_sed[id_sed]))
+        if xlim != (None, None):
+            mask = (xlim[0] < np.asarray(self.data_sed[id_sed]["lbda"])) if xlim[0] is not None else 1
+            mask *= (np.asarray(self.data_sed[id_sed]["lbda"]) < xlim[1]) if xlim[1] is not None else 1
+        
+        x_sed = np.asarray(self.data_sed[id_sed]["lbda"])[mask]
+        y_sed = np.asarray(self.data_sed[id_sed]["mag"])[mask]
         if y_unit in ["Hz", "AA", "mgy"]:
             y_sed, _ = KCorrection.mag_to_flux(y_sed, np.zeros(len(y_sed)), band=x_sed, flux_unit=y_unit, opt_mAB0=False)
         
@@ -957,11 +962,10 @@ class LePhareSEDFitter( BaseObject ):
         #Fig view
         ax.set_xlim(xlim)
         if ylim == (None, None):
-            xmin, xmax = ax.get_xlim()
-            mask = (xmin < np.asarray(x_sed)) * (np.asarray(x_sed) < xmax)
-            ymin, ymax = np.min(np.asarray(y_sed)[mask]), np.max(np.asarray(y_sed)[mask])
-            ylim = (ymin if ymin>0 else 0, ymax)
+            if ax.get_ylim()[0] <= 0:
+                ylim = (np.min(y_sed), ylim[1])
         ax.set_ylim(ylim)
+
         ax.set_xscale(xscale)
         ax.set_yscale(yscale)
         
@@ -969,7 +973,7 @@ class LePhareSEDFitter( BaseObject ):
         if savefile is not None:
             fig.savefig(savefile)
         
-        return {"ax":ax, "fig":fig}
+        return {"ax":ax, "fig":fig} if id_sed != -1 else ({"ax":ax, "fig":fig}, y_sed)
 
     def write(self, savefile=None, id_sed=0):
         """
@@ -996,7 +1000,7 @@ class LePhareSEDFitter( BaseObject ):
             data_out.set_index("lbda", inplace=True)
             data_out.rename(columns={k:k+"_id_0" for k in data_out.keys()}, inplace=True)
             for k1, v1 in self.data_sed.items():
-                if k1 == 0:
+                if k1 == 0 or k1 == -1:
                     continue
                 pd_buf = v1.set_index("lbda").copy()
                 for k2, v2 in pd_buf.items():
@@ -1360,17 +1364,34 @@ class LePhareRand( LePhareSEDFitter ):
         dict
         """
         kwargs = {**{"zorder":3}, **kwargs}
-        dict_fig = super(LePhareRand, self).show(ax=ax, id_sed=id_sed, y_unit=y_unit, plot_phot=plot_phot, xlim=xlim, ylim=ylim, xscale=xscale, yscale=yscale, savefile=savefile, **kwargs)
+        dict_fig, y_sed = super(LePhareRand, self).show(ax=ax, id_sed=id_sed, y_unit=y_unit, plot_phot=plot_phot,
+                                                        xlim=xlim, ylim=ylim, xscale="linear", yscale="linear", savefile=None, **kwargs)
         
         if id_sed is None:
             lbda = self.data_sed[0]["lbda"]
+            mask = np.array([True] * len(lbda))
+            if xlim != (None, None):
+                mask = (xlim[0] < np.asarray(lbda)) if xlim[0] is not None else 1
+                mask *= (np.asarray(lbda) < xlim[1]) if xlim[1] is not None else 1
             nsigmas = len(np.atleast_1d(show_sigmas))
             if 2 in show_sigmas:
                 ff = self._get_fit_quantiles_(quants=[0.05, 0.95], y_unit=y_unit)
-                dict_fig["ax"].fill_between(lbda, ff[0.05], ff[0.95], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
+                dict_fig["ax"].fill_between(lbda[mask], np.asarray(ff[0.05])[mask], np.asarray(ff[0.95])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
             if 1 in show_sigmas:
                 ff = self._get_fit_quantiles_(quants=[0.16, 0.84], y_unit=y_unit)
-                dict_fig["ax"].fill_between(lbda, ff[0.16], ff[0.84], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
+                dict_fig["ax"].fill_between(lbda[mask], np.asarray(ff[0.16])[mask], np.asarray(ff[0.84])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
+    
+        dict_fig["ax"].set_xlim(xlim)
+        if ylim == (None, None):
+            if dict_fig["ax"].get_ylim()[0] <= 0:
+                ylim = (np.min(y_sed), ylim[1])
+        dict_fig["ax"].set_ylim(ylim)
+
+        dict_fig["ax"].set_xscale(xscale)
+        dict_fig["ax"].set_yscale(yscale)
+        
+        if savefile is not None:
+            dict_fig["fig"].savefig(savefile)
         
         return dict_fig
 

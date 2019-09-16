@@ -141,7 +141,8 @@ class KCorrection( BaseObject ):
             for k in self.data_sed.keys():
                 if k == "lbda":
                     continue
-                self.data_sed[k], _ = self.mag_to_flux(mag=self.data_sed[k], mag_err=0., band=self.data_sed["lbda"], flux_unit=unit, opt_mAB0=False)
+                self.data_sed[k], _ = self.mag_to_flux(mag=self.data_sed[k], mag_err=0., band=self.data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
+            self.data_sed.rename(columns={k:k.replace("mag", "flux") for k in self.data_sed.keys() if k != "lbda"}, inplace=True)
         elif unit in ["AA", "mgy"]:
             for k in self.data_sed.keys():
                 if k == "lbda":
@@ -228,12 +229,12 @@ class KCorrection( BaseObject ):
                                                                                "trans":bandpasses.get_bandpass("sdss"+band).trans})
                                                         for band in opt_bands if band in list_sdss_bands}
         else:
-            self._side_properties["filter_bandpass"] = {band:pandas.read_table(self.filter_bandpass_path[band], sep=" ", names=["lbda", "trans"])
+            self._side_properties["filter_bandpass"] = {band:pandas.read_csv(self.filter_bandpass_path[band], sep=" ", names=["lbda", "trans"])
                                                         for band in opt_bands if band in list_sdss_bands}
         if "FUV" in opt_bands:
-            self.filter_bandpass["FUV"] = pandas.read_table(self.filter_bandpass_path["FUV"], sep=" ", names=["lbda", "trans"])
+            self.filter_bandpass["FUV"] = pandas.read_csv(self.filter_bandpass_path["FUV"], sep=" ", names=["lbda", "trans"])
         if "NUV" in opt_bands:
-            self.filter_bandpass["NUV"] = pandas.read_table(self.filter_bandpass_path["NUV"], sep=" ", names=["lbda", "trans"])
+            self.filter_bandpass["NUV"] = pandas.read_csv(self.filter_bandpass_path["NUV"], sep=" ", names=["lbda", "trans"])
 
     def shift_sed(self):
         """
@@ -251,6 +252,31 @@ class KCorrection( BaseObject ):
             else:
                 data[k] = self.flux_z0(v, self.z)
         self._derived_properties["data_sed_kcorr"] = data
+            
+    def _get_photopoint_(self, data_sed=None, bands=None):
+        """
+        Return the integrated photometry given a spectrum in the given bands.
+        
+        Parameters
+        ----------
+        data_sed : [pandas.DataFrame]
+            Data table of the SED.
+        
+        Options
+        -------
+        bands : [string or list(string) or None]
+            List of bands you want to get photometric data.
+            If one band is given, the function return the value, instead of a dictionary with one key.
+        
+        
+        Returns
+        -------
+        dict
+        """
+        list_bands = LIST_BANDS if bands is None else bands if type(bands)==list else [bands]
+        data_kcorr = {band:spectroscopy.synthesize_photometry(data_sed["lbda"], data_sed["flux"], self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])
+                      for band in list_bands}
+        return data_kcorr if type(bands)!=str else data_kcorr[bands]
     
     def _get_data_phot_(self, data_sed):
         """
@@ -266,19 +292,19 @@ class KCorrection( BaseObject ):
         -------
         dict
         """
-        data_kcorr = {}
+        data_phot = {}
         phot = {}
         for _band in self.list_bands:
-            phot["flux"] = [self.get_phot(data_sed=pandas.DataFrame({"lbda":data_sed["lbda"], "flux":v}), bands=_band)
+            phot["flux"] = [self._get_photopoint_(data_sed=pandas.DataFrame({"lbda":data_sed["lbda"], "flux":v}), bands=_band)
                             for k, v in data_sed.items() if k != "lbda"]
-            phot["mag"] = self.flux_to_mag(flux=phot["flux"], flux_err=0., band=data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
+            phot["mag"], _ = self.flux_to_mag(flux=phot["flux"], flux_err=0., band=data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
             for k in ["flux", "mag"]:
                 quants = np.quantile(phot[k], [0.16, 0.5, 0.84]) if len(phot[k])>1 else phot[k]*3
-                data_kcorr["{}_{}".format(k, _band)] = quants[1]
-                data_kcorr["{}_{}.err_low".format(k, _band)] = quants[1] - quants[0]
-                data_kcorr["{}_{}.err_up".format(k, _band)] = quants[2] - quants[1]
+                data_phot["{}_{}".format(k, _band)] = quants[1]
+                data_phot["{}_{}.err_low".format(k, _band)] = quants[1] - quants[0]
+                data_phot["{}_{}.err_up".format(k, _band)] = quants[2] - quants[1]
     
-        self._derived_properties["data_kcorr"] = data_kcorr
+        return data_phot
 
     def k_correction(self):
         """
@@ -293,7 +319,7 @@ class KCorrection( BaseObject ):
         """
         self._properties["data_phot"] = self._get_data_phot_(data_sed=self.data_sed)
         self.shift_sed()
-        self._properties["data_phot_kcorr"] = self._get_data_phot_(data_sed=self.data_sed_kcorr)
+        self._derived_properties["data_phot_kcorr"] = self._get_data_phot_(data_sed=self.data_sed_kcorr)
 
     def _get_fit_quantiles_(self, data_sed, quants=[0.16, 0.5, 0.84], y_unit="AA"):
         """
@@ -322,8 +348,10 @@ class KCorrection( BaseObject ):
         data_sed = data_sed.copy()
         lbda = data_sed["lbda"]
         data_sed.set_index("lbda", inplace=True)
-        mags = np.quantile(data_sed, quants, axis=1)
-        return {k:m if y_unit=="mag" else self.mag_to_flux(m, 0., band=lbda, flux_unit=y_unit, opt_mAB0=False)[0] for k, m in zip(quants, mags)}
+        flux = np.quantile(data_sed, quants, axis=1)
+        return {k:self.convert_flux_unit(_f, lbda=lbda, unit_in="Hz", unit_out=y_unit) if y_unit in ["Hz", "AA", "mgy"] else
+                  self.flux_to_mag(_f, 0., band=lbda, flux_unit="Hz", opt_mAB0=False)[0]
+                for k, _f in zip(quants, flux)}
     
     def show(self, ax=None, y_unit="Hz", sed_shifted=True, plot_bandpasses=False, plot_photo_points=True,
              xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", show_sigmas=[1, 2], savefile=None):
@@ -387,63 +415,62 @@ class KCorrection( BaseObject ):
         data_sed = self.data_sed_kcorr if sed_shifted else self.data_sed
         data_phot = self.data_phot_kcorr if sed_shifted else self.data_phot
         y_plot = "flux" if y_unit in ["Hz", "AA", "mgy"] else "mag"
+        mask = np.array([True] * len(data_sed))
+        if xlim != (None, None):
+            mask = (xlim[0] < np.asarray(data_sed["lbda"])) if xlim[0] is not None else 1
+            mask *= (np.asarray(data_sed["lbda"]) < xlim[1]) if xlim[1] is not None else 1
         
         #SED
-        x_sed = data_sed["lbda"]
-        y_sed = data_sed["flux"]
-        if y_unit == "mag":
-            y_sed, _ = self.flux_to_mag(y_sed, flux_err=0., band=x_sed, flux_unit="Hz", opt_mAB0=False)
-        elif y_unit in ["AA", "mgy"]:
-            y_sed = self.convert_flux_unit(y_sed, lbda=x_sed, unit_in="Hz", unit_out=flux_unit)
+        x_sed = np.asarray(data_sed["lbda"])[mask]
+        y_sed = np.asarray(self._get_fit_quantiles_(data_sed, quants=[0.5], y_unit=y_unit)[0.5])[mask]
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
         ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
 
         nsigmas = len(np.atleast_1d(show_sigmas))
         if 2 in show_sigmas:
-            ff = self._get_fit_quantiles_(quants=[0.05, 0.95], y_unit=y_unit)
-            ax.fill_between(lbda, ff[0.05], ff[0.95], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
+            ff = self._get_fit_quantiles_(data_sed, quants=[0.05, 0.95], y_unit=y_unit)
+            ax.fill_between(x_sed, np.asarray(ff[0.05])[mask], np.asarray(ff[0.95])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
         if 1 in show_sigmas:
-            ff = self._get_fit_quantiles_(quants=[0.16, 0.84], y_unit=y_unit)
-            ax.fill_between(lbda, ff[0.16], ff[0.84], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
+            ff = self._get_fit_quantiles_(data_sed, quants=[0.16, 0.84], y_unit=y_unit)
+            ax.fill_between(x_sed, np.asarray(ff[0.16])[mask], np.asarray(ff[0.84])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
         
         #Photopoints
         if plot_photo_points:
             for _band in self.list_bands:
                 x_point = FILTER_BANDS[_band]["lbda"]
-                y_point = data_phot[_band]["flux"]
-                y_point_err_low = data_phot[y_plot+".err_low"]
-                y_point_err_up = data_phot[y_plot+".err_up"]
+                y_point = data_phot["{}_{}".format(y_plot, _band)]
+                y_point_err_low = data_phot["{}_{}.err_low".format(y_plot, _band)]
+                y_point_err_up = data_phot["{}_{}.err_up".format(y_plot, _band)]
                 if y_plot == "flux":
                     y_point, y_point_err_low, y_point_err_up = self.convert_flux_unit((y_point, y_point_err_low, y_point_err_up),
-                                                                                      lbda=FILTER_BANDS[band]["lbda"], unit_in="Hz", unit_out=flux_unit)
+                                                                                      lbda=FILTER_BANDS[_band]["lbda"], unit_in="Hz", unit_out=y_unit)
                 ax.errorbar(x_point, y_point, yerr=[[y_point_err_low], [y_point_err_up]],
-                            ls="", marker="o", color=FILTER_BANDS[band]["color"], label=band)
+                            ls="", marker="o", color=FILTER_BANDS[_band]["color"], label=_band)
         
         ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
+        ylabel = "mag"
         if y_plot == "flux":
-            ylabel = "mgy" if flux_unit == "mgy" else \
-                     r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{Hz}^{{-1}}]$" if flux_unit == "Hz" else \
+            ylabel = "mgy" if y_unit == "mgy" else \
+                     r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{Hz}^{{-1}}]$" if y_unit == "Hz" else \
                      r"${{f}}_{{\lambda}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$"
         ax.set_ylabel(ylabel, fontsize="large")
         ax.legend(loc="upper right", ncol=1)
                 
         ax.set_xlim(xlim)
         if ylim == (None, None):
-            xmin, xmax = ax.get_xlim()
-            mask = (xmin < np.asarray(x_sed)) * (np.asarray(x_sed) < xmax)
-            ymin, ymax = np.min((np.asarray(y_sed)-np.asarray(y_sed_err))[mask]), np.max((np.asarray(y_sed)+np.asarray(y_sed_err))[mask])
-            ylim = (ymin if ymin>0 else 0, ymax)
+            if ax.get_ylim()[0] <= 0:
+                ylim = (np.min(y_sed), ylim[1])
         ax.set_ylim(ylim)
-        ax_ylim = ax.get_ylim()
-        if y_plot == "flux" and ylim[0] is None:
-            ax_ylim = (0., ax_ylim[1])
+#        ax_ylim = ax.get_ylim()
+#        if y_plot == "flux" and ylim[0] is None:
+#            ax_ylim = (0., ax_ylim[1])
 
-        ax.axhline(ax_ylim[0], color="black", lw=0.5, zorder=5)
-        
+#        ax.axhline(ax_ylim[0], color="black", lw=0.5, zorder=5)
+
         #Photometry
         if plot_bandpasses:
-            for band in LIST_BANDS:
-                ax.plot(self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]*(ax_ylim[1]-ax_ylim[0]) + ax_ylim[0],
+            for band in self.list_bands:
+                ax.plot(self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]*(ax.get_ylim()[1]-ax.get_ylim()[0]) + ax.get_ylim()[0],
                         ls="-", marker="", color=FILTER_BANDS[band]["color"], label="_nolegend_")
 
         ax.set_xscale(xscale)
@@ -536,7 +563,7 @@ class KCorrection( BaseObject ):
         -------
         float or np.array, float or np.array
         """
-        if mag_err == 0. and len(np.atleast_1d(mag)) > 1:
+        if type(mag_err) == float and mag_err == 0. and len(np.atleast_1d(mag)) > 1:
             mag_err = np.zeros(len(mag))
         if opt_mAB0:
             flux_out = 10**(FILTER_BANDS[band]["mAB0"] - 0.4*mag)
@@ -589,7 +616,7 @@ class KCorrection( BaseObject ):
         -------
         float or np.array, float or np.array
         """
-        if flux_err == 0. and len(np.atleast_1d(flux)) > 1:
+        if type(flux_err) == float and flux_err == 0. and len(np.atleast_1d(flux)) > 1:
             flux_err = np.zeros(len(flux))
         if opt_mAB0:
             unit_out = "AA"
@@ -668,32 +695,6 @@ class KCorrection( BaseObject ):
         else:
             raise ValueError("-- ERROR 404 -- : There is a big problem in the conversion process.")
     
-    @staticmethod
-    def get_photopoint(self, data_sed=None, bands=None):
-        """
-        Return the integrated photometry given a spectrum in the given bands.
-        
-        Parameters
-        ----------
-        data_sed : [pandas.DataFrame]
-            Data table of the SED.
-        
-        Options
-        -------
-        bands : [string or list(string) or None]
-            List of bands you want to get photometric data.
-            If one band is given, the function return the value, instead of a dictionary with one key.
-        
-        
-        Returns
-        -------
-        dict
-        """
-        list_bands = LIST_BANDS if bands is None else bands if type(bands)==list else [bands]
-        data_kcorr = {band:spectroscopy.synthesize_photometry(data_sed["lbda"], data_sed["flux"], self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"])
-                      for band in list_bands}
-        return data_kcorr if type(bands)!=str else data_kcorr[bands]
-    
     
     
 
@@ -705,6 +706,11 @@ class KCorrection( BaseObject ):
     def data_sed(self):
         """ DataFrame of the the SED fit data """
         return self._properties["data_sed"]
+    
+    @property
+    def z(self):
+        """ Host redshift """
+        return self._properties["z"]
     
     @property
     def filter_bandpass(self):

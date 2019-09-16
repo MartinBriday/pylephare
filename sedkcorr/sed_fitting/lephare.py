@@ -101,6 +101,18 @@ class LePhareSEDFitter( BaseObject ):
             Path for the results of the SED fitter.
             If 'None', the default folder is located in the package ('/results').
         
+        flux_unit : [string]
+            If 'data' is in flux, you can precise here the unit :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+            As LePhare needs the flux to be in the "Hz" (see above) unit, it will be converted if necessary.
+        
+        data_filename : [string]
+            If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
+            You can either enter a full path, or a simple file name without any "/".
+            The latter will create the file directly in the package (less easy to find).
+        
         
         Returns
         -------
@@ -136,6 +148,13 @@ class LePhareSEDFitter( BaseObject ):
             - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
             - "mgy" : mgy (mgy = maggies)
             As LePhare needs the flux to be in the "Hz" (see above) unit, it will be converted if necessary.
+        
+        Options
+        -------
+        data_filename : [string]
+            If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
+            You can either enter a full path, or a simple file name without any "/".
+            The latter will create the file directly in the package (less easy to find).
         
         
         Returns
@@ -214,6 +233,17 @@ class LePhareSEDFitter( BaseObject ):
         
         self.change_param("CAT_OUT", os.path.abspath(results_path))
         self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1])) + "/"
+
+    def _get_results_path_(self):
+        """
+        Return the full path of the LePhare results file.
+        
+        
+        Returns
+        -------
+        string
+        """
+        return self._get_param_details_("CAT_OUT")[1]
 
     def _get_idx_line_(self, file, line):
         """
@@ -1141,6 +1171,8 @@ class LePhareSEDFitter( BaseObject ):
     @property
     def data_res(self):
         """ DataFrame of the LePhare results containing the wanted output parameters. """
+        if self._derived_properties["data_res"] is None:
+            self.set_data_res()
         return self._derived_properties["data_res"]
 
 
@@ -1185,6 +1217,11 @@ class LePhareRand( LePhareSEDFitter ):
         nb_draw : [int]
             Number of draw for the Monte Carlo fitting errors on the SED.
         
+        data_filename : [string]
+            If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
+            You can either enter a full path, or a simple file name without any "/".
+            The latter will create the file directly in the package (less easy to find).
+        
         
         Returns
         -------
@@ -1224,6 +1261,13 @@ class LePhareRand( LePhareSEDFitter ):
         
         nb_draw : [int]
             Number of draw for the Monte Carlo fitting errors on the SED.
+        
+        Options
+        -------
+        data_filename : [string]
+            If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
+            You can either enter a full path, or a simple file name without any "/".
+            The latter will create the file directly in the package (less easy to find).
         
         
         Returns

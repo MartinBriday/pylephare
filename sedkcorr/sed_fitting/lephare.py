@@ -2,6 +2,7 @@
 import numpy as np
 import pandas
 import os
+import glob
 import subprocess
 import pkg_resources
 import matplotlib.pyplot as plt
@@ -755,6 +756,8 @@ class LePhareSEDFitter( BaseObject ):
         subprocess.run(cmd.split())
         self.set_data_sed()
         self.set_data_res()
+        for _spec in glob.glob(self.results_path+"*.spec"):
+            os.remove(_spec)
         if savefile is not None:
             self.write(savefile, None)
 

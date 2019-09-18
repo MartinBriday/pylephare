@@ -441,7 +441,7 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        if param == "FILTER_LIST" and new_param_value[0] in kcorrection.FILTER_LIST.keys():
+        if param == "FILTER_LIST" and new_param_value[0] in kcorrection.FILTER_BANDS.keys():
             self._set_filt_list_(new_param_value)
             return
         config = self._get_config_(param)
@@ -462,6 +462,8 @@ class LePhareSEDFitter( BaseObject ):
         
         if param in ["{}_LIB".format(elt) for elt in ["STAR", "QSO", "GAL"]]:
             self.change_param(param+"_IN", new_param_value, False)
+        elif param in ["{}_LIB_OUT".format(elt) for elt in ["STAR", "QSO", "GAL"]]:
+            self.change_param("ZPHOTLIB", [self._get_param_details_("{}_LIB_OUT".format(elt))[1] for elt in ["STAR", "QSO", "GAL"]], False)
         elif param == "CAT_OUT":
             self._side_properties["results_path"] = os.path.abspath("/".join(new_param_value.split("/")[:-1]) + "/")
 
@@ -605,7 +607,10 @@ class LePhareSEDFitter( BaseObject ):
         
         if not os.path.isfile(self.PATH_LEPHAREWORK+"/filt/"+filt_v) or update:
             cmd = "{}/source/filter -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
-            subprocess.run(cmd.split())
+            try:
+                subprocess.run(cmd.split())
+            except:
+                raise ValueError("LePhareError : unable to run 'filter'.")
     
     def run_sedtolib(self, input_param_file=None, update=False, change_params=None):
         """
@@ -638,7 +643,10 @@ class LePhareSEDFitter( BaseObject ):
         if not np.prod([os.path.isfile(self.PATH_LEPHAREWORK+"/lib_bin/"+elt+".bin") for elt in [lib_s_v, lib_q_v, lib_g_v]]) or update:
             for elt in ["S", "Q", "G"]:
                 cmd = "{}/source/sedtolib -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
-                subprocess.run(cmd.split())
+                try:
+                    subprocess.run(cmd.split())
+                except:
+                    raise ValueError("LePhareError : unable to run 'sedtolib' for '{}'.".format(elt))
     
     def run_mag_star(self, input_param_file=None, update=False, change_params=None):
         """
@@ -668,7 +676,10 @@ class LePhareSEDFitter( BaseObject ):
         
         if not os.path.isfile(self.PATH_LEPHAREWORK+"/lib_mag/"+lib_s_v+".bin") or update:
             cmd = "{}/source/mag_star -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
-            subprocess.run(cmd.split())
+            try:
+                subprocess.run(cmd.split())
+            except:
+                raise ValueError("LePhareError : unable to run 'mag_star'.")
     
     def run_mag_gal(self, input_param_file=None, update=False, change_params=None):
         """
@@ -700,10 +711,12 @@ class LePhareSEDFitter( BaseObject ):
         if not np.prod([os.path.isfile(self.PATH_LEPHAREWORK+"/lib_mag/"+elt+".bin") for elt in [lib_q_v, lib_g_v]]) or update:
             for elt in ["Q", "G"]:
                 cmd = "{}/source/mag_gal -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
-                subprocess.run(cmd.split())
+                try:
+                    subprocess.run(cmd.split())
+                except:
+                    raise ValueError("LePhareError : unable to run 'mag_gal' for '{}'.".format(elt))
     
-    def run_zphota(self, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"], input_param_file=None,
-                   output_param_file=None, results_path=None, change_params=None, savefile=None):
+    def run_zphota(self, filters=None, input_param_file=None, output_param_file=None, results_path=None, change_params=None, savefile=None):
         """
         First change current directory to the results path.
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
@@ -753,7 +766,11 @@ class LePhareSEDFitter( BaseObject ):
         
         os.chdir(self.results_path)
         cmd = "{}/source/zphota -c {}".format(self.PATH_LEPHAREDIR, self.input_param_file)
-        subprocess.run(cmd.split())
+        try:
+            subprocess.run(cmd.split())
+        except:
+            raise ValueError("LePhareError : unable to run 'zphota'.")
+        
         self.set_data_sed()
         self.set_data_res()
         for _spec in glob.glob(self.results_path+"*.spec"):
@@ -789,8 +806,7 @@ class LePhareSEDFitter( BaseObject ):
         self.run_mag_star(input_param_file=None, update=update, change_params=None)
         self.run_mag_gal(input_param_file=None, update=update, change_params=None)
 
-    def run_fit(self, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"], input_param_file=None,
-                output_param_file=None, results_path=None, update=False, change_params=None, savefile=None):
+    def run_fit(self, filters=None, input_param_file=None, output_param_file=None, results_path=None, update=False, change_params=None, savefile=None):
         """
         Run shell commands to execute LePhare fitting.
         

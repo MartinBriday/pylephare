@@ -17,62 +17,62 @@ LIST_BANDS = ["FUV", "NUV", "u", "g", "r", "i", "z", "y"]
 # Filled thanks to http://svo2.cab.inta-csic.es/svo/theory/fps3/
 FILTER_BANDS = {"galex.FUV":{"lbda":1539,
                              "color":"xkcd:purple",
-                             "mAB0":3619.9, #np.log10(1.40e-15) + 0.4 * 18.82,
+                             "ZP":3619.9, #np.log10(1.40e-15) + 0.4 * 18.82,
                              "prospector_name":"galex_FUV",
                              "lephare_name":"galex/FUV.pb"},
                 "galex.NUV":{"lbda":2316,
                              "color":"xkcd:violet",
-                             "mAB0":3801.4, #np.log10(2.06e-16) + 0.4 * 20.08,
+                             "ZP":3801.4, #np.log10(2.06e-16) + 0.4 * 20.08,
                              "prospector_name":"galex_NUV",
                              "lephare_name":"galex/NUV.pb"},
                 "sdss.u":{"lbda":3562,
                           "color":"xkcd:blue",
-                          "mAB0":3767.2, #-8.056,
+                          "ZP":3767.2, #-8.056,
                           "prospector_name":"sdss_u0",
                           "lephare_name":"sdss/up.pb"},
                 "sdss.g":{"lbda":4719,
                           "color":"xkcd:green",
-                          "mAB0":3631, #-8.326,
+                          "ZP":3631, #-8.326,
                           "prospector_name":"sdss_g0",
                           "lephare_name":"sdss/gp.pb"},
                 "sdss.r":{"lbda":6185,
                           "color":"xkcd:red",
-                          "mAB0":3631, #-8.555,
+                          "ZP":3631, #-8.555,
                           "prospector_name":"sdss_r0",
                           "lephare_name":"sdss/rp.pb"},
                 "sdss.i":{"lbda":7500,
                           "color":"xkcd:cyan",
-                          "mAB0":3631, #-8.732,
+                          "ZP":3631, #-8.732,
                           "prospector_name":"sdss_i0",
                           "lephare_name":"sdss/ip.pb"},
                 "sdss.z":{"lbda":8961,
                           "color":"xkcd:magenta",
-                          "mAB0":3564.7, #-8.882,
+                          "ZP":3564.7, #-8.882,
                           "prospector_name":"sdss_z0",
                           "lephare_name":"sdss/zp.pb"},
                 "ps1.g":{"lbda":4867,
                          "color":"xkcd:green",
-                         "mAB0":3631,
+                         "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/g_ps.pb"},
                 "ps1.r":{"lbda":6215,
                          "color":"xkcd:red",
-                         "mAB0":3631,
+                         "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/r_ps.pb"},
                 "ps1.i":{"lbda":7545,
                          "color":"xkcd:cyan",
-                         "mAB0":3631,
+                         "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/i_ps.pb"},
                 "ps1.z":{"lbda":8680,
                          "color":"xkcd:magenta",
-                         "mAB0":3631,
+                         "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/z_ps.pb"},
                 "ps1.y":{"lbda":9633,
                          "color":"xkcd:pink",
-                         "mAB0":3631,
+                         "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/y_ps.pb"}
                 }
@@ -549,7 +549,7 @@ class KCorrection( BaseObject ):
         """
         return flux / ( ( 1 + z )**3 )
     
-    @property
+    @staticmethod
     def mag_ab_zeropoint(flux, lbda):
         """
         Return the AB magnitude zero point.
@@ -567,6 +567,7 @@ class KCorrection( BaseObject ):
         -------
         float
         """
+        flux *= 10**-23
         zp = KCorrection.convert_flux_unit(flux, lbda, "Hz", "AA")
         return np.log10(zp)
     

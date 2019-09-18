@@ -218,7 +218,20 @@ class LePhareSEDFitter( BaseObject ):
 
     def _convert_flux_(self, flux_unit):
         """
+        This method automatically converts the input flux in erg.cm**-2.s**-1.Hz**-1, which necessary for LePhare.
         
+        Parameters
+        ----------
+        flux_unit : [string]
+            Input flux unit :
+            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "mgy" : mgy (mgy = maggies)
+        
+        
+        Returns
+        -------
+        Void
         """
         data_buf = self.data_meas
         if self._get_param_details_("INP_TYPE")[1] == "F" and flux_unit != "Hz":
@@ -229,7 +242,18 @@ class LePhareSEDFitter( BaseObject ):
 
     def _set_filt_list_(self, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"]):
         """
+        This method changes the 'FILTER_LIST' parameter in the configuration file to correspond with the input 'filters' list.
         
+        Parameters
+        ----------
+        filters : [list(string)]
+            List of filters of the given measurements.
+            The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
+        
+        
+        Returns
+        -------
+        Void
         """
         try:
             lp_filt_list = [kcorrection.FILTER_BANDS[_filt]["lephare_name"] for _filt in filters]
@@ -678,7 +702,7 @@ class LePhareSEDFitter( BaseObject ):
                 subprocess.run(cmd.split())
     
     def run_zphota(self, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"], input_param_file=None,
-                   output_param_file=None, results_path=None, change_params=None, update=False, savefile=None):
+                   output_param_file=None, results_path=None, change_params=None, savefile=None):
         """
         First change current directory to the results path.
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
@@ -686,14 +710,9 @@ class LePhareSEDFitter( BaseObject ):
         Options
         -------
         filters : [list(string) or dict or None]
-            If a list of filters is given, the 'FILTER_LIST' parameter in the configuration file will be changed to the corresponding list of LePhare file names.
-            Every context is changed to the maximum.
-            Warning : you should set 'update' to True, to be sure that the LePhare initialization files are the good ones.
-            
+            If a list of filters is given, the context will be changed for every line to the corresponding one.
             If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
-            
             If None, nothing changes from the 'data_meas'.
-            
             The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
         
         input_param_file : [string or None]
@@ -710,10 +729,6 @@ class LePhareSEDFitter( BaseObject ):
             
         change_params : [dict or None]
             If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
-            
-        update : [bool]
-            Set to True if you want to update the initialization on filters, sed libraries, etc.
-            Only used if 'filters' is not None.
         
         savefile : [string or None]
             If not None, the 'data_sed' will be saved in the given file path.
@@ -726,12 +741,12 @@ class LePhareSEDFitter( BaseObject ):
         if output_param_file is not None:
             self._properties["output_param_file"] = os.path.abspath(output_param_file)
             self.change_param("PARA_OUT", self.output_param_file, False)
+        
         self._init_changes_(input_param_file=input_param_file, results_path=results_path, change_params=change_params)
         
         if filters is not None:
             if type(filters) == list:
                 self.set_filters_context(id=None, filters=filters)
-                self.run_init(filters=filters, input_param_file=None, update=update, change_params=None)
             elif type(filters) == dict:
                 self.set_filters_context(**filters)
         
@@ -743,24 +758,12 @@ class LePhareSEDFitter( BaseObject ):
         if savefile is not None:
             self.write(savefile, None)
 
-    def run_init(self, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"], input_param_file=None,
-                 update=False, change_params=None):
+    def run_init(self, input_param_file=None, update=False, change_params=None):
         """
         Run shell commands to initialize LePhare fitting.
         
         Options
         -------
-        filters : [list(string) or dict or None]
-            If a list of filters is given, the 'FILTER_LIST' parameter in the configuration file will be changed to the corresponding list of LePhare file names.
-            Every context is changed to the maximum.
-            Warning : you should set 'update' to True, to be sure that the LePhare initialization files are the good ones.
-            
-            If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
-            
-            If None, nothing changes from the 'data_meas'.
-            
-            The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
-        
         input_param_file : [string or None]
             If you want to set a new input parameter file, give the new path here.
             Default is 'None', which is the file set during the class construction or an execution of 'set_data'.
@@ -777,12 +780,6 @@ class LePhareSEDFitter( BaseObject ):
         Void
         """
         self._init_changes_(input_param_file=input_param_file, change_params=change_params)
-        
-        if filters is not None:
-            if type(filters) == list:
-                self.set_filters_context(id=None, filters=filters)
-            elif type(filters) == dict:
-                self.set_filters_context(**filters)
     
         self.run_filter(input_param_file=None, update=update, change_params=None)
         self.run_sedtolib(input_param_file=None, update=update, change_params=None)
@@ -797,14 +794,9 @@ class LePhareSEDFitter( BaseObject ):
         Options
         -------
         filters : [list(string) or dict or None]
-            If a list of filters is given, the 'FILTER_LIST' parameter in the configuration file will be changed to the corresponding list of LePhare file names.
-            Every context is changed to the maximum.
-            Warning : you should set 'update' to True, to be sure that the LePhare initialization files are the good ones.
-            
+            If a list of filters is given, the context will be changed for every line to the corresponding one.
             If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
-            
             If None, nothing changes from the 'data_meas'.
-            
             The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
         
         input_param_file : [string or None]
@@ -835,9 +827,8 @@ class LePhareSEDFitter( BaseObject ):
         """
         self._init_changes_(input_param_file=input_param_file, results_path=results_path, change_params=change_params)
         
-        self.run_init(filters=filters, input_param_file=None, update=update, change_params=None)
-        self.run_zphota(filters=None, input_param_file=None, output_param_file=output_param_file,
-                        results_path=None, change_params=None, savefile=savefile)
+        self.run_init(input_param_file=None, update=update, change_params=None)
+        self.run_zphota(filters=filters, input_param_file=None, output_param_file=output_param_file, results_path=None, change_params=None, savefile=savefile)
     
     def _get_filt_list_(self):
         """
@@ -870,6 +861,11 @@ class LePhareSEDFitter( BaseObject ):
         - context = 15 --> ["u", "g", "r", "i"]
         - context = 25 --> ["u", "i", "z"]
         - etc.
+        
+        Parameters
+        ----------
+        data : [pandas.DataFrame]
+            Input data in a LePhare format.
         
         
         Returns
@@ -939,7 +935,12 @@ class LePhareSEDFitter( BaseObject ):
     
     def _get_header_spec_file_(self):
         """
+        Return the line index to start reading the specrtrum data in LePhare .spec files.
         
+        
+        Returns
+        -------
+        int
         """
         idx_start = 14
         sed_filename = self._get_sed_filename_(0)
@@ -954,6 +955,11 @@ class LePhareSEDFitter( BaseObject ):
     def _get_data_sed_(self, sed_filename):
         """
         Return a DataFrame of the fitted SED (wavelength, magnitude).
+        
+        Parameters
+        ----------
+        sed_filename : [string]
+            File path of the LePhare spectrum file.
         
         
         Returns
@@ -1312,6 +1318,11 @@ class LePhareRand( LePhareSEDFitter ):
         data : [string or pandas.DataFrame or dict]
             Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
             Only accept the data for one by one object.
+            
+        filters : [list(string) or None]
+            List of filters of the given measurements, the 'FILTER_LIST' parameter in the configuration file will be changed to the corresponding list of LePhare file names.
+            The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
+            If None, the filter list will be based on the configuration file.
         
         input_param_file : [string or None]
             Path of the input parameter file.
@@ -1336,7 +1347,7 @@ class LePhareRand( LePhareSEDFitter ):
             Number of draw for the Monte Carlo fitting errors on the SED.
         
         data_filename : [string]
-            If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
+            This option is used to change the file name created to save the Monte Carlo data for LePhare use.
             You can either enter a full path, or a simple file name without any "/".
             The latter will create the file directly in the package (less easy to find).
         
@@ -1348,7 +1359,8 @@ class LePhareRand( LePhareSEDFitter ):
         if data is not None:
             self.set_data(data, **kwargs)
 
-    def set_data(self, data=None, input_param_file=None, output_param_file=None, results_path=None, flux_unit="Hz", data_filename="data_rand.csv", nb_draw=100, **kwargs):
+    def set_data(self, data=None, filters=None, input_param_file=None, output_param_file=None, results_path=None,
+                 flux_unit="Hz", data_filename="data_rand.csv", nb_draw=100, **kwargs):
         """
         Set up the file paths about the data, the config files (input and output) and the results path.
         
@@ -1357,6 +1369,11 @@ class LePhareRand( LePhareSEDFitter ):
         data : [string or pandas.DataFrame or dict]
             Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
             Only accept the data for one by one object.
+        
+        filters : [list(string) or None]
+            List of filters of the given measurements, the 'FILTER_LIST' parameter in the configuration file will be changed to the corresponding list of LePhare file names.
+            The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
+            If None, the filter list will be based on the configuration file.
         
         input_param_file : [string or None]
             Path of the input parameter file.
@@ -1383,7 +1400,7 @@ class LePhareRand( LePhareSEDFitter ):
         Options
         -------
         data_filename : [string]
-            If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
+            This option is used to change the file name created to save the Monte Carlo data for LePhare use.
             You can either enter a full path, or a simple file name without any "/".
             The latter will create the file directly in the package (less easy to find).
         
@@ -1392,7 +1409,7 @@ class LePhareRand( LePhareSEDFitter ):
         -------
         Void
         """
-        _ = super(LePhareRand, self).set_data(data=data, input_param_file=input_param_file, output_param_file=output_param_file,
+        _ = super(LePhareRand, self).set_data(data=data, filters=filters, input_param_file=input_param_file, output_param_file=output_param_file,
                                               results_path=results_path, flux_unit=flux_unit, data_filename=data_filename, **kwargs)
         self.set_rand_data(nb_draw=nb_draw, data_filename=data_filename)
     
@@ -1404,6 +1421,13 @@ class LePhareRand( LePhareSEDFitter ):
         ----------
         nb_draw : [int]
             Number of draw for the Monte Carlo fitting errors on the SED.
+        
+        Options
+        -------
+        data_filename : [string]
+            This option is used to change the file name created to save the Monte Carlo data for LePhare use.
+            You can either enter a full path, or a simple file name without any "/".
+            The latter will create the file directly in the package (less easy to find).
         
         
         Returns

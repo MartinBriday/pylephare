@@ -806,7 +806,7 @@ class LePhareSEDFitter( BaseObject ):
         self.run_mag_star(input_param_file=None, update=update, change_params=None)
         self.run_mag_gal(input_param_file=None, update=update, change_params=None)
 
-    def run_fit(self, filters=None, input_param_file=None, output_param_file=None, results_path=None, update=False, change_params=None, savefile=None):
+    def run_fit(self, filters=None, input_param_file=None, output_param_file=None, results_path=None, update=False, change_params=None, savefile=None, **kwargs):
         """
         Run shell commands to execute LePhare fitting.
         
@@ -971,7 +971,7 @@ class LePhareSEDFitter( BaseObject ):
                                         skiprows=idx_start, sep="  ", engine="python", nrows=1)
         return idx_start
     
-    def _get_data_sed_(self, sed_filename):
+    def _read_spec_(self, spec_filename):
         """
         Return a DataFrame of the fitted SED (wavelength, magnitude).
         
@@ -985,7 +985,7 @@ class LePhareSEDFitter( BaseObject ):
         -------
         pandas.DataFrame
         """
-        data_sed =  pandas.read_csv(os.path.expanduser(sed_filename),
+        data_sed =  pandas.read_csv(os.path.expanduser(spec_filename),
                                     skiprows=self.header_spec_file, names=["lbda", "mag"], sep="  ",
                                     engine="python", nrows=1050)
         return data_sed
@@ -1019,7 +1019,7 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        self._derived_properties["data_sed"] = {ii:self._get_data_sed_(self._get_sed_filename_(ii)) for ii in np.arange(len(self.data_meas))}
+        self._derived_properties["data_sed"] = {ii:self._read_spec_(self._get_sed_filename_(ii)) for ii in np.arange(len(self.data_meas))}
     
     def set_data_res(self):
         """
@@ -1147,6 +1147,37 @@ class LePhareSEDFitter( BaseObject ):
             fig.savefig(savefile)
         
         return {"ax":ax, "fig":fig} if id_sed != -1 else ({"ax":ax, "fig":fig}, y_sed)
+    
+    def get_data_sed(self, id_sed=0):
+        """
+        Return a dataframe of SED spectr.um.a.
+        
+        Parameters
+        ----------
+        id_sed : [int or None]
+            Index of the 'data_sed' dictionary you want to save in a file.
+            If None, the whole dictionary will be saved, each column name containing the id of the income.
+        
+        
+        Returns
+        -------
+        pandas.DataFrame
+        """
+        if type(id_sed) == int:
+            return self.data_sed[id_sed]
+        elif id_sed is None:
+            data_out = self.data_sed[0].copy()
+            data_out.set_index("lbda", inplace=True)
+            data_out.rename(columns={k:k+"_id_0" for k in data_out.keys()}, inplace=True)
+            for k1, v1 in self.data_sed.items():
+                if k1 == 0 or k1 == -1:
+                    continue
+                pd_buf = v1.set_index("lbda").copy()
+                for k2, v2 in pd_buf.items():
+                    data_out[k2+"_id_{}".format(k1)] = v2
+            data_out.reset_index(inplace=True)
+            return data_out
+        raise ValueError("'id_sed' must be either an integer index contained in the 'data_sed' dictionary, or None if you want to save everything.")
 
     def write(self, savefile=None, id_sed=0):
         """
@@ -1166,22 +1197,8 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        if type(id_sed) == int:
-            self.data_sed[id_sed].to_csv(savefile, sep=" ", index=False)
-        elif id_sed is None:
-            data_out = self.data_sed[0].copy()
-            data_out.set_index("lbda", inplace=True)
-            data_out.rename(columns={k:k+"_id_0" for k in data_out.keys()}, inplace=True)
-            for k1, v1 in self.data_sed.items():
-                if k1 == 0 or k1 == -1:
-                    continue
-                pd_buf = v1.set_index("lbda").copy()
-                for k2, v2 in pd_buf.items():
-                    data_out[k2+"_id_{}".format(k1)] = v2
-            data_out.reset_index(inplace=True)
-            data_out.to_csv(savefile, sep=" ", index=False)
-        else:
-            raise ValueError("'id_sed' must be either an integer index contained in the 'data_sed' dictionary, or None if you want to save everything.")
+        data_out = self.get_data_sed(id_sed=id_sed)
+        data_out.to_csv(savefile, sep=" ", index=False)
 
 
 

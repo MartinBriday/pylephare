@@ -15,62 +15,62 @@ from propobject import BaseObject
 LIST_BANDS = ["FUV", "NUV", "u", "g", "r", "i", "z", "y"]
 
 # Filled thanks to http://svo2.cab.inta-csic.es/svo/theory/fps3/
-FILTER_BANDS = {"galex.FUV":{"lbda":1539,
+FILTER_BANDS = {"galex.FUV":{"lbda":1545.8,
                              "color":"xkcd:purple",
                              "ZP":3619.9, #np.log10(1.40e-15) + 0.4 * 18.82,
                              "prospector_name":"galex_FUV",
                              "lephare_name":"galex/FUV.pb"},
-                "galex.NUV":{"lbda":2316,
+                "galex.NUV":{"lbda":2344.9,
                              "color":"xkcd:violet",
                              "ZP":3801.4, #np.log10(2.06e-16) + 0.4 * 20.08,
                              "prospector_name":"galex_NUV",
                              "lephare_name":"galex/NUV.pb"},
-                "sdss.u":{"lbda":3562,
+                "sdss.u":{"lbda":3561.8,
                           "color":"xkcd:blue",
                           "ZP":3767.2, #-8.056,
                           "prospector_name":"sdss_u0",
                           "lephare_name":"sdss/up.pb"},
-                "sdss.g":{"lbda":4719,
+                "sdss.g":{"lbda":4718.9,
                           "color":"xkcd:green",
                           "ZP":3631, #-8.326,
                           "prospector_name":"sdss_g0",
                           "lephare_name":"sdss/gp.pb"},
-                "sdss.r":{"lbda":6185,
+                "sdss.r":{"lbda":6185.2,
                           "color":"xkcd:red",
                           "ZP":3631, #-8.555,
                           "prospector_name":"sdss_r0",
                           "lephare_name":"sdss/rp.pb"},
-                "sdss.i":{"lbda":7500,
+                "sdss.i":{"lbda":7499.7,
                           "color":"xkcd:cyan",
                           "ZP":3631, #-8.732,
                           "prospector_name":"sdss_i0",
                           "lephare_name":"sdss/ip.pb"},
-                "sdss.z":{"lbda":8961,
+                "sdss.z":{"lbda":8961.5,
                           "color":"xkcd:magenta",
                           "ZP":3564.7, #-8.882,
                           "prospector_name":"sdss_z0",
                           "lephare_name":"sdss/zp.pb"},
-                "ps1.g":{"lbda":4867,
+                "ps1.g":{"lbda":4866.5,
                          "color":"xkcd:green",
                          "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/g_ps.pb"},
-                "ps1.r":{"lbda":6215,
+                "ps1.r":{"lbda":6214.6,
                          "color":"xkcd:red",
                          "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/r_ps.pb"},
-                "ps1.i":{"lbda":7545,
+                "ps1.i":{"lbda":7544.6,
                          "color":"xkcd:cyan",
                          "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/i_ps.pb"},
-                "ps1.z":{"lbda":8680,
+                "ps1.z":{"lbda":8679.5,
                          "color":"xkcd:magenta",
                          "ZP":3631,
                          "prospector_name":"",
                          "lephare_name":"ps1/z_ps.pb"},
-                "ps1.y":{"lbda":9633,
+                "ps1.y":{"lbda":9633.3,
                          "color":"xkcd:pink",
                          "ZP":3631,
                          "prospector_name":"",
@@ -192,7 +192,7 @@ class KCorrection( BaseObject ):
                 raise TypeError("'data' must be transformable into a pandas.DataFrame (eg: pandas.DataFrame, dict, etc.)")
         return data
     
-    def set_list_bands(self, filters=["u", "g", "r", "i", "z"]):
+    def set_list_bands(self, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"]):
         """
         Set as an attribute the given list of the band.
         
@@ -218,9 +218,9 @@ class KCorrection( BaseObject ):
         dict
         """
         dict_path = {band:pkg_resources.resource_filename(__name__, "filter_bandpass/SLOAN_SDSS."+band+".dat")
-                     for band in ["u", "g", "r", "i", "z"]}
-        dict_path["FUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.FUV.dat")
-        dict_path["NUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.NUV.dat")
+                     for band in ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"]}
+        dict_path["galex.FUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.FUV.dat")
+        dict_path["galex.NUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.NUV.dat")
         return dict_path
     
     def set_filter_bandpass(self, opt_bands=None, from_sncosmo=False):
@@ -243,7 +243,7 @@ class KCorrection( BaseObject ):
         Void
         """
         opt_bands = [b for b in LIST_BANDS] if opt_bands is None else opt_bands if type(opt_bands)==list else [opt_bands]
-        list_sdss_bands = ["u", "g", "r", "i", "z"]
+        list_sdss_bands = ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"]
         if from_sncosmo:
             self._side_properties["filter_bandpass"] = {band:pandas.DataFrame({"lbda":bandpasses.get_bandpass("sdss"+band).wave,
                                                                                "trans":bandpasses.get_bandpass("sdss"+band).trans})
@@ -251,9 +251,9 @@ class KCorrection( BaseObject ):
         else:
             self._side_properties["filter_bandpass"] = {band:pandas.read_csv(self.filter_bandpass_path[band], sep=" ", names=["lbda", "trans"])
                                                         for band in opt_bands if band in list_sdss_bands}
-        if "FUV" in opt_bands:
+        if "galex.FUV" in opt_bands:
             self.filter_bandpass["FUV"] = pandas.read_csv(self.filter_bandpass_path["FUV"], sep=" ", names=["lbda", "trans"])
-        if "NUV" in opt_bands:
+        if "galex.NUV" in opt_bands:
             self.filter_bandpass["NUV"] = pandas.read_csv(self.filter_bandpass_path["NUV"], sep=" ", names=["lbda", "trans"])
 
     def shift_sed(self):
@@ -318,12 +318,12 @@ class KCorrection( BaseObject ):
             phot["flux"] = [self._get_photopoint_(data_sed=pandas.DataFrame({"lbda":data_sed["lbda"], "flux":v}), bands=_band)
                             for k, v in data_sed.items() if k != "lbda"]
             phot["mag"], _ = self.flux_to_mag(flux=phot["flux"], flux_err=0., band=data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
+            data_phot[_band] = {}
             for k in ["flux", "mag"]:
                 quants = np.quantile(phot[k], [0.16, 0.5, 0.84]) if len(phot[k])>1 else phot[k]*3
-                data_phot["{}_{}".format(k, _band)] = quants[1]
-                data_phot["{}_{}.err_low".format(k, _band)] = quants[1] - quants[0]
-                data_phot["{}_{}.err_up".format(k, _band)] = quants[2] - quants[1]
-    
+                data_phot[_band][k] = quants[1]
+                data_phot[_band][k+".err_low"] = quants[1] - quants[0]
+                data_phot[_band][k+".err_up"] = quants[2] - quants[1]
         return data_phot
 
     def k_correction(self):
@@ -458,9 +458,9 @@ class KCorrection( BaseObject ):
         if plot_photo_points:
             for _band in self.list_bands:
                 x_point = FILTER_BANDS[_band]["lbda"]
-                y_point = data_phot["{}_{}".format(y_plot, _band)]
-                y_point_err_low = data_phot["{}_{}.err_low".format(y_plot, _band)]
-                y_point_err_up = data_phot["{}_{}.err_up".format(y_plot, _band)]
+                y_point = data_phot["{}_{}".format(_band, y_plot)]
+                y_point_err_low = data_phot["{}_{}.err_low".format(_band, y_plot)]
+                y_point_err_up = data_phot["{}_{}.err_up".format(_band, y_plot)]
                 if y_plot == "flux":
                     y_point, y_point_err_low, y_point_err_up = self.convert_flux_unit((y_point, y_point_err_low, y_point_err_up),
                                                                                       lbda=FILTER_BANDS[_band]["lbda"], unit_in="Hz", unit_out=y_unit)

@@ -194,8 +194,8 @@ class LePhareSEDFitter( BaseObject ):
             else:
                 raise TypeError("data must be a DataFrame or a string")
             self.change_param("CAT_IN", os.path.abspath(data_path))
-        self._set_input_type_()
-        self._convert_flux_(flux_unit)
+            self._set_input_type_()
+            self._convert_flux_(flux_unit)
 
         if filters is not None:
             self._set_filt_list_(filters)
@@ -262,6 +262,30 @@ class LePhareSEDFitter( BaseObject ):
             raise KeyError("'filters' must be a list containing the filters with the syntax 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).")
         if lp_filt_list != self._get_filt_list_():
             self.change_param("FILTER_LIST", lp_filt_list, False)
+
+        project_list = self._get_dict_project_(filters=filters).keys()
+        change_params={"FILTER_FILE":"{}.filt".format("_".join(project_list)),
+                       "STAR_LIB":"LIB_STAR_{}".format("_".join(project_list)),
+                       "QSO_LIB":"LIB_QSO_{}".format("_".join(project_list)),
+                       "GAL_LIB":"LIB_BC03_{}".format("_".join(project_list)),
+                       "STAR_LIB_OUT":"STAR_{}".format("_".join(project_list)),
+                       "QSO_LIB_OUT":"QSO_{}".format("_".join(project_list)),
+                       "GAL_LIB_OUT":"BC03_{}".format("_".join(project_list))}
+        for k, v in change_params.items():
+            self.change_param(k, v, False)
+
+    def _get_dict_project_(self, filters=None):
+        """
+        
+        """
+        dict_project = {}
+        for _filt in filters if type(filters)==list else [filters]:
+            _project, _band = _filt.split(".")
+        try:
+            dict_project[_project].append(_band)
+        except(KeyError):
+            dict_project[_project] = [_band]
+        return dict_project
 
     def _set_results_path_(self, results_path=None):
         """
@@ -987,7 +1011,7 @@ class LePhareSEDFitter( BaseObject ):
         """
         data_sed =  pandas.read_csv(os.path.expanduser(spec_filename),
                                     skiprows=self.header_spec_file, names=["lbda", "mag"], sep="  ",
-                                    engine="python", nrows=1050)
+                                    engine="python", nrows=1000)
         return data_sed
                         
     def _get_sed_filename_(self, id_sed):
@@ -1130,7 +1154,9 @@ class LePhareSEDFitter( BaseObject ):
                  r"${{f}}_{{\lambda}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$" if y_unit == "AA" else \
                  "mag"
         ax.set_ylabel(ylabel, fontsize="large")
-        ax.legend(loc="upper right", ncol=1)
+        
+        if plot_phot:
+            ax.legend(loc="upper right", ncol=1)
 
         #Fig view
         ax.set_xlim(xlim)

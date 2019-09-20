@@ -18,61 +18,73 @@ LIST_BANDS = ["FUV", "NUV", "u", "g", "r", "i", "z", "y"]
 FILTER_BANDS = {"galex.FUV":{"lbda":1545.8,
                              "color":"xkcd:purple",
                              "ZP":3619.9, #np.log10(1.40e-15) + 0.4 * 18.82,
+                             "bandpass_file":"filter_bandpass/GALEX_GALEX.FUV.dat",
                              "prospector_name":"galex_FUV",
                              "lephare_name":"galex/FUV.pb"},
                 "galex.NUV":{"lbda":2344.9,
                              "color":"xkcd:violet",
                              "ZP":3801.4, #np.log10(2.06e-16) + 0.4 * 20.08,
+                             "bandpass_file":"filter_bandpass/GALEX_GALEX.NUV.dat",
                              "prospector_name":"galex_NUV",
                              "lephare_name":"galex/NUV.pb"},
                 "sdss.u":{"lbda":3561.8,
                           "color":"xkcd:blue",
                           "ZP":3767.2, #-8.056,
+                          "bandpass_file":"filter_bandpass/SLOAN_SDSS.u.dat",
                           "prospector_name":"sdss_u0",
                           "lephare_name":"sdss/up.pb"},
                 "sdss.g":{"lbda":4718.9,
                           "color":"xkcd:green",
                           "ZP":3631, #-8.326,
+                          "bandpass_file":"filter_bandpass/SLOAN_SDSS.g.dat",
                           "prospector_name":"sdss_g0",
                           "lephare_name":"sdss/gp.pb"},
                 "sdss.r":{"lbda":6185.2,
                           "color":"xkcd:red",
                           "ZP":3631, #-8.555,
+                          "bandpass_file":"filter_bandpass/SLOAN_SDSS.r.dat",
                           "prospector_name":"sdss_r0",
                           "lephare_name":"sdss/rp.pb"},
                 "sdss.i":{"lbda":7499.7,
                           "color":"xkcd:cyan",
                           "ZP":3631, #-8.732,
+                          "bandpass_file":"filter_bandpass/SLOAN_SDSS.i.dat",
                           "prospector_name":"sdss_i0",
                           "lephare_name":"sdss/ip.pb"},
                 "sdss.z":{"lbda":8961.5,
                           "color":"xkcd:magenta",
                           "ZP":3564.7, #-8.882,
+                          "bandpass_file":"filter_bandpass/SLOAN_SDSS.z.dat",
                           "prospector_name":"sdss_z0",
                           "lephare_name":"sdss/zp.pb"},
                 "ps1.g":{"lbda":4866.5,
                          "color":"xkcd:green",
                          "ZP":3631,
+                         "bandpass_file":"filter_bandpass/PAN-STARRS_PS1.g.dat",
                          "prospector_name":"",
                          "lephare_name":"ps1/g_ps.pb"},
                 "ps1.r":{"lbda":6214.6,
                          "color":"xkcd:red",
                          "ZP":3631,
+                         "bandpass_file":"filter_bandpass/PAN-STARRS_PS1.r.dat",
                          "prospector_name":"",
                          "lephare_name":"ps1/r_ps.pb"},
                 "ps1.i":{"lbda":7544.6,
                          "color":"xkcd:cyan",
                          "ZP":3631,
+                         "bandpass_file":"filter_bandpass/PAN-STARRS_PS1.i.dat",
                          "prospector_name":"",
                          "lephare_name":"ps1/i_ps.pb"},
                 "ps1.z":{"lbda":8679.5,
                          "color":"xkcd:magenta",
                          "ZP":3631,
+                         "bandpass_file":"filter_bandpass/PAN-STARRS_PS1.z.dat",
                          "prospector_name":"",
                          "lephare_name":"ps1/z_ps.pb"},
                 "ps1.y":{"lbda":9633.3,
                          "color":"xkcd:pink",
                          "ZP":3631,
+                         "bandpass_file":"filter_bandpass/PAN-STARRS_PS1.y.dat",
                          "prospector_name":"",
                          "lephare_name":"ps1/y_ps.pb"}
                 }
@@ -208,28 +220,13 @@ class KCorrection( BaseObject ):
         """
         self._side_properties["list_bands"] = filters
     
-    def _get_filter_bandpass_path_(self):
-        """
-        Set the path to filter bandpasses data, included in the package.
-        
-        
-        Returns
-        -------
-        dict
-        """
-        dict_path = {band:pkg_resources.resource_filename(__name__, "filter_bandpass/SLOAN_SDSS."+band+".dat")
-                     for band in ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"]}
-        dict_path["galex.FUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.FUV.dat")
-        dict_path["galex.NUV"] = pkg_resources.resource_filename(__name__, "filter_bandpass/GALEX_GALEX.NUV.dat")
-        return dict_path
-    
-    def set_filter_bandpass(self, opt_bands=None, from_sncosmo=False):
+    def set_filter_bandpass(self, filters=None, from_sncosmo=False):
         """
         Load filter bandpasses data.
         
         Options
         -------
-        opt_bands : [list[string] or None]
+        filters : [list[string] or None]
             Optionnal list of bands to load filter bandpass data.
         
         from_sncosmo : [bool]
@@ -242,19 +239,18 @@ class KCorrection( BaseObject ):
         -------
         Void
         """
-        opt_bands = [b for b in LIST_BANDS] if opt_bands is None else opt_bands if type(opt_bands)==list else [opt_bands]
+        filters = FILTER_BANDS.keys() if filters is None else filters if type(filters)==list else [filters]
         list_sdss_bands = ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"]
         if from_sncosmo:
-            self._side_properties["filter_bandpass"] = {band:pandas.DataFrame({"lbda":bandpasses.get_bandpass("sdss"+band).wave,
-                                                                               "trans":bandpasses.get_bandpass("sdss"+band).trans})
-                                                        for band in opt_bands if band in list_sdss_bands}
+            self._side_properties["filter_bandpass"] = {_filt:pandas.DataFrame({"lbda":bandpasses.get_bandpass("".join(_filt.split("."))).wave,
+                                                                                "trans":bandpasses.get_bandpass("".join(_filt.split("."))).trans})
+                                                        for _filt in filters if _filt in list_sdss_bands}
+            for _filt in filters:
+                if _filt not in list_sdss_bands:
+                    self.filter_bandpass[_filt] = pandas.read_csv(self.bandpass_files[_filt], sep=" ", names=["lbda", "trans"])
         else:
-            self._side_properties["filter_bandpass"] = {band:pandas.read_csv(self.filter_bandpass_path[band], sep=" ", names=["lbda", "trans"])
-                                                        for band in opt_bands if band in list_sdss_bands}
-        if "galex.FUV" in opt_bands:
-            self.filter_bandpass["FUV"] = pandas.read_csv(self.filter_bandpass_path["FUV"], sep=" ", names=["lbda", "trans"])
-        if "galex.NUV" in opt_bands:
-            self.filter_bandpass["NUV"] = pandas.read_csv(self.filter_bandpass_path["NUV"], sep=" ", names=["lbda", "trans"])
+            self._side_properties["filter_bandpass"] = {_filt:pandas.read_csv(self.bandpass_files[_filt], sep=" ", names=["lbda", "trans"])
+                                                        for _filt in filters}
 
     def shift_sed(self):
         """
@@ -458,9 +454,9 @@ class KCorrection( BaseObject ):
         if plot_photo_points:
             for _band in self.list_bands:
                 x_point = FILTER_BANDS[_band]["lbda"]
-                y_point = data_phot["{}_{}".format(_band, y_plot)]
-                y_point_err_low = data_phot["{}_{}.err_low".format(_band, y_plot)]
-                y_point_err_up = data_phot["{}_{}.err_up".format(_band, y_plot)]
+                y_point = data_phot[_band][y_plot]
+                y_point_err_low = data_phot[_band][y_plot+".err_low"]
+                y_point_err_up = data_phot[_band][y_plot+".err_up"]
                 if y_plot == "flux":
                     y_point, y_point_err_low, y_point_err_up = self.convert_flux_unit((y_point, y_point_err_low, y_point_err_up),
                                                                                       lbda=FILTER_BANDS[_band]["lbda"], unit_in="Hz", unit_out=y_unit)
@@ -474,7 +470,6 @@ class KCorrection( BaseObject ):
                      r"${{f}}_{{\nu}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{Hz}^{{-1}}]$" if y_unit == "Hz" else \
                      r"${{f}}_{{\lambda}}$ $[erg.{{s}}^{{-1}}.{{cm}}^{{-2}}.{\AA}^{{-1}}]$"
         ax.set_ylabel(ylabel, fontsize="large")
-        ax.legend(loc="upper right", ncol=1)
                 
         ax.set_xlim(xlim)
         if ylim == (None, None):
@@ -491,7 +486,10 @@ class KCorrection( BaseObject ):
         if plot_bandpasses:
             for band in self.list_bands:
                 ax.plot(self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]*(ax.get_ylim()[1]-ax.get_ylim()[0]) + ax.get_ylim()[0],
-                        ls="-", marker="", color=FILTER_BANDS[band]["color"], label="_nolegend_")
+                        ls="-", marker="", color=FILTER_BANDS[band]["color"], label=("_nolegend_" if plot_photo_points else band))
+
+        if plot_bandpasses or plot_photo_points:
+            ax.legend(loc="upper right", ncol=1)
 
         ax.set_xscale(xscale)
         ax.set_yscale(yscale)
@@ -767,9 +765,9 @@ class KCorrection( BaseObject ):
         return self._properties["data_phot"]
     
     @property
-    def filter_bandpass_path(self):
+    def bandpass_files(self):
         """ Dictionnary of paths for every filter badpass data """
-        return self._get_filter_bandpass_path_()
+        return {_filt:pkg_resources.resource_filename(__name__, _dict["bandpass_file"]) for _filt, _dict in FILTER_BANDS.items()}
     
     @property
     def list_bands(self):

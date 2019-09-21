@@ -260,9 +260,9 @@ class LePhareSEDFitter( BaseObject ):
             lp_filt_list = [kcorrection.FILTER_BANDS[_filt]["lephare_name"] for _filt in filters]
         except(KeyError):
             raise KeyError("'filters' must be a list containing the filters with the syntax 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).")
-        if lp_filt_list != self._get_filt_list_():
+        if lp_filt_list != self._get_param_details_("FILTER_LIST")[1]:
             self.change_param("FILTER_LIST", lp_filt_list, False)
-
+        
         project_list = self._get_dict_project_(filters=filters).keys()
         change_params={"FILTER_FILE":"{}.filt".format("_".join(project_list)),
                        "STAR_LIB":"LIB_STAR_{}".format("_".join(project_list)),
@@ -281,10 +281,10 @@ class LePhareSEDFitter( BaseObject ):
         dict_project = {}
         for _filt in filters if type(filters)==list else [filters]:
             _project, _band = _filt.split(".")
-        try:
-            dict_project[_project].append(_band)
-        except(KeyError):
-            dict_project[_project] = [_band]
+            try:
+                dict_project[_project].append(_band)
+            except(KeyError):
+                dict_project[_project] = [_band]
         return dict_project
 
     def _set_results_path_(self, results_path=None):
@@ -1054,7 +1054,7 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1], filter_list=self.filt_list)
+        self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1])
 
     def show(self, ax=None, id_sed=0, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None, **kwargs):
         """
@@ -1257,7 +1257,7 @@ class LePhareSEDFitter( BaseObject ):
         raise ValueError("{} is an unknown lephare filter syntax.".format(value))
     
     @staticmethod
-    def lephare_output_file_reader(filename=None, filter_list=None):
+    def lephare_output_file_reader(filename=None):
         """
         Read a LePhare output file, returning a pandas.DataFrame.
 
@@ -1279,6 +1279,13 @@ class LePhareSEDFitter( BaseObject ):
         with open(filename, "r") as f1:
             buf_file = f1.readlines()
         buf_delimiter = buf_file[0]
+        
+        #Filters
+        for ii, line in enumerate(buf_file):
+            if "FILTER_FILE" in line:
+                ii_filters = ii + 1
+                break
+        filter_list = buf_file[ii_filters].split()[2:]
 
         #Skiprows
         skiprows = [ii for ii, line in enumerate(buf_file) if line==buf_delimiter]

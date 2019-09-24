@@ -1133,9 +1133,9 @@ class LePhareSEDFitter( BaseObject ):
         #Photometry
         if plot_phot:
             prefix = "mag" if self._get_param_details_("INP_TYPE")[1] == "M" else "flux"
-            data_meas = self.data_meas if id_sed is not None else self.data_orig
+            data_meas = self.data_meas if id_sed != -1 else self.data_orig
             id_sed = 0 if id_sed is None else id_sed
-            for _filt in self._get_context_filters_(data_meas.iloc[id_sed]):
+            for _filt in self._get_context_filters_(self.data_meas.iloc[id_sed]):
                 x_phot = kcorrection.FILTER_BANDS[_filt]["lbda"]
                 y_phot = float(data_meas.iloc[id_sed]["{}_{}".format(prefix, _filt)])
                 y_phot_err = float(data_meas.iloc[id_sed]["{}_{}.err".format(prefix, _filt)])

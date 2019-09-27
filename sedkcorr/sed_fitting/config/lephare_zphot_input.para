@@ -31,11 +31,11 @@ AGE_RANGE  0.,13.55e9                                     # Age Min-Max in yr
 #  help: $LEPHAREDIR/source/filter  -h (or -help)                           #
 #############################################################################
 #  Filter number and context 
-#   fuv nuv u g r i z  
-#   1 2 3 4 5 6 7
-#   1 2 4 8 16 32 64 = 127
+#   u g r i z
+#   1 2 3 4 5
+#   1 2 4 8 16 = 31
 #
-FILTER_LIST galex/FUV.pb,galex/NUV.pb,sdss/up.pb,sdss/gp.pb,sdss/rp.pb,sdss/ip.pb,sdss/zp.pb
+FILTER_LIST sdss/up.pb,sdss/gp.pb,sdss/rp.pb,sdss/ip.pb,sdss/zp.pb
 					# (in $LEPHAREDIR/filt/*)
 TRANS_TYPE	0			# TRANSMISSION TYPE
                                         # 0[-def]: Energy, 1: Nb of photons
@@ -70,11 +70,11 @@ GAL_LIB_OUT	 BC03      # Output GAL LIBRARY  -> $LEPHAREWORK/lib_mag/
 #
 #-------   MAG + Z_STEP + EXTINCTION + COSMOLOGY 
 MAGTYPE         AB		     # Magnitude type (AB or VEGA)
-Z_STEP 		0.004,0.20,0.1 	     # dz, zmax, dzsup(if zmax>6) 
+Z_STEP 		0.004,0.1,0.1 	     # dz, zmax, dzsup(if zmax>6)
 COSMOLOGY	70,0.3,0.7	     # H0,om0,lbd0    (if lb0>0->om0+lbd0=1)
 MOD_EXTINC 	1,27	     # model range for extinction 
 EXTINC_LAW	LMC_Fitzpatrick.dat  # ext. law (in  $LEPHAREDIR/ext/*)
-EB_V            0.0,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.6,0.7,0.8  # E(B-V) (<50 values)
+EB_V            0.0,0.02,0.04,0.06,0.08,0.10,0.12,0.14,0.16,0.18,0.20  # E(B-V) (<50 values)
 EM_LINES        YES  
 # Z_FORM 	8,7,6,5,4,3 	     # Zformation for each SED in GAL_LIB_IN
 #
@@ -92,7 +92,7 @@ LIB_ASCII       YES		     # Writes output in ASCII
 #
 #-------    Input Catalog Informations   
 CAT_IN       $LEPHAREDIR/data/data.csv  # Input catalog  (full path)
-INP_TYPE     M		          # Input type      (F:Flux or M:MAG)
+INP_TYPE     F		          # Input type      (F:Flux or M:MAG)
 CAT_MAG      AB                   # Input Magnitude (AB or VEGA)
 CAT_FMT      MEME  		  # MEME: (Mag,Err)i  
   		                  # MMEE: (Mag)i,(Err)i  
@@ -107,7 +107,7 @@ GLB_CONTEXT  -1		          # Overwrite Context (Sum 2^n; n=0->nbd-1,
                                   # 0       : all bands used,
                                   # -1[-def]: used context per object 
 # FORB_CONTEXT -1                   # context for forbitten bands 
-ERR_SCALE  0.052,0.026,0.05,0.02,0.02,0.02,0.03  # errors per band added in quadrature
+ERR_SCALE  0.05,0.02,0.02,0.02,0.03  # errors per band added in quadrature
 ERR_FACTOR  1.0                    # error scaling factor 1.0 [-def] 
 #
 #-------    Theoretical libraries  

@@ -139,7 +139,7 @@ class LePhareSEDFitter( BaseObject ):
             
         filters : [list(string) or None]
             List of filters of the given measurements, the 'FILTER_LIST' parameter in the configuration file will be changed to the corresponding list of LePhare file names.
-            The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
+            The filter syntax must be like "project.band" (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
             If None, the filter list will be based on the configuration file.
         
         input_param_file : [string or None]
@@ -247,36 +247,69 @@ class LePhareSEDFitter( BaseObject ):
         
         Parameters
         ----------
-        filters : [list(string)]
+        filters : [string or list(string)]
             List of filters of the given measurements.
-            The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
+            The filter syntax must be like "project.band" (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
         
         
         Returns
         -------
         Void
         """
+        filters = filters if type(filters)==list else [filters]
         try:
             lp_filt_list = [kcorrection.FILTER_BANDS[_filt]["lephare_name"] for _filt in filters]
         except(KeyError):
             raise KeyError("'filters' must be a list containing the filters with the syntax 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).")
         if lp_filt_list != self._get_param_details_("FILTER_LIST")[1]:
             self.change_param("FILTER_LIST", lp_filt_list, False)
+        self._rename_libs_(filters=filters)
         
-        project_list = self._get_dict_project_(filters=filters).keys()
-        change_params={"FILTER_FILE":"{}.filt".format("_".join(project_list)),
-                       "STAR_LIB":"LIB_STAR_{}".format("_".join(project_list)),
-                       "QSO_LIB":"LIB_QSO_{}".format("_".join(project_list)),
-                       "GAL_LIB":"LIB_BC03_{}".format("_".join(project_list)),
-                       "STAR_LIB_OUT":"STAR_{}".format("_".join(project_list)),
-                       "QSO_LIB_OUT":"QSO_{}".format("_".join(project_list)),
-                       "GAL_LIB_OUT":"BC03_{}".format("_".join(project_list))}
-        for k, v in change_params.items():
-            self.change_param(k, v, False)
+    def _rename_libs_(self, filters=None):
+        """
+        Rename the "LIB" file names in the configuration file, based on the given filters.
+        
+        Parameters
+        ----------
+        filters : [string or list(string)]
+            Filter(s) used to fit the SED.
+            The syntax must be "project.band" (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
+            
+        
+        Returns
+        -------
+        Void
+        """
+        if filters is not None:
+            project_list = self._get_dict_project_(filters=filters).keys()
+            gal_lib = self._get_param_details_("GAL_SED")[1].split("/")[-1].split("_")[0]
+            proj_name = "_".join(project_list)
+            change_params={"FILTER_FILE":"{}.filt".format(proj_name),
+                           "STAR_LIB":"LIB_STAR_{}".format(proj_name),
+                           "QSO_LIB":"LIB_QSO_{}".format(proj_name),
+                           "GAL_LIB":"LIB_{}_{}".format(gal_lib, proj_name),
+                           "STAR_LIB_OUT":"STAR_{}".format(proj_name),
+                           "QSO_LIB_OUT":"QSO_{}".format(proj_name),
+                           "GAL_LIB_OUT":"{}_{}".format(gal_lib, proj_name)}
+            for k, v in change_params.items():
+                self.change_param(k, v, False)
+        else:
+            raise ValueError("'filters' is None.")
 
     def _get_dict_project_(self, filters=None):
         """
+        Return a dictionary containing, for each project, the list of corresponding bands.
         
+        Parameters
+        ----------
+        filters : [string or list(string)]
+            Filter(s) to sort in a dictionary.
+            The syntax must be "project.band".
+        
+        
+        Returns
+        -------
+        dict
         """
         dict_project = {}
         for _filt in filters if type(filters)==list else [filters]:
@@ -490,6 +523,8 @@ class LePhareSEDFitter( BaseObject ):
             self.change_param("ZPHOTLIB", [self._get_param_details_("{}_LIB_OUT".format(elt))[1] for elt in ["GAL", "QSO", "STAR"]], False)
         elif param == "CAT_OUT":
             self._side_properties["results_path"] = os.path.abspath("/".join(new_param_value.split("/")[:-1]) + "/")
+        elif param == "GAL_SED":
+            self._rename_libs_(filters=self.filt_list)
 
     def _get_param_details_(self, param):
         """

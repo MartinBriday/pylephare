@@ -484,10 +484,10 @@ class LePhareSEDFitter( BaseObject ):
             for line in file_buf:
                 file.write(line)
         
-        if param in ["{}_LIB".format(elt) for elt in ["STAR", "QSO", "GAL"]]:
+        if param in ["{}_LIB".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
             self.change_param(param+"_IN", new_param_value, False)
-        elif param in ["{}_LIB_OUT".format(elt) for elt in ["STAR", "QSO", "GAL"]]:
-            self.change_param("ZPHOTLIB", [self._get_param_details_("{}_LIB_OUT".format(elt))[1] for elt in ["STAR", "QSO", "GAL"]], False)
+        elif param in ["{}_LIB_OUT".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
+            self.change_param("ZPHOTLIB", [self._get_param_details_("{}_LIB_OUT".format(elt))[1] for elt in ["GAL", "QSO", "STAR"]], False)
         elif param == "CAT_OUT":
             self._side_properties["results_path"] = os.path.abspath("/".join(new_param_value.split("/")[:-1]) + "/")
 

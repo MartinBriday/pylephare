@@ -97,10 +97,12 @@ class LePhareSEDFitter( BaseObject ):
         
         input_param_file : [string or None]
             Path of the input parameter file.
+            If the given file doesn't exist yet, it will copied from the package one to the given file name.
             If 'None', the default file is imported from the package ('/config').
         
         output_param_file : [string or None]
             Path of the output parameter file.
+            If the given file doesn't exist yet, it will copied from the package one to the given file name.
             If 'None', the default file is imported from the package ('/config').
         
         results_path : [string or None]
@@ -142,18 +144,6 @@ class LePhareSEDFitter( BaseObject ):
             The filter syntax must be like "project.band" (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
             If None, the filter list will be based on the configuration file.
         
-        input_param_file : [string or None]
-            Path of the input parameter file.
-            If 'None', the default file is imported from the package ('/config/lephare_zphot_input.para').
-        
-        output_param_file : [string or None]
-            Path of the output parameter file.
-            If 'None', the default file is imported from the package ('/config/lephare_zphot_output.para').
-        
-        results_path : [string or None]
-            Path for the results of the SED fitter.
-            If 'None', the default file is located in the package ('/results/data.out').
-        
         flux_unit : [string]
             If 'data' is in flux, you can precise here the unit :
             - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
@@ -163,6 +153,20 @@ class LePhareSEDFitter( BaseObject ):
         
         Options
         -------
+        input_param_file : [string or None]
+            Path of the input parameter file.
+            If the given file doesn't exist yet, it will copied from the package one to the given file name.
+            If 'None', the default file is imported from the package ('/config/lephare_zphot_input.para').
+        
+        output_param_file : [string or None]
+            Path of the output parameter file.
+            If the given file doesn't exist yet, it will copied from the package one to the given file name.
+            If 'None', the default file is imported from the package ('/config/lephare_zphot_output.para').
+        
+        results_path : [string or None]
+            Path for the results of the SED fitter.
+            If 'None', the default file is located in the package ('/results/data.out').
+        
         data_filename : [string]
             If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
             You can either enter a full path, or a simple file name without any "/".
@@ -173,10 +177,21 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        self._properties["input_param_file"] = self.config_path + "/lephare_zphot_input.para" \
-                                               if input_param_file is None else os.path.abspath(input_param_file)
-        self._properties["output_param_file"] = self.config_path + "/lephare_zphot_output.para" \
-                                                if output_param_file is None else os.path.abspath(output_param_file)
+        if input_param_file is not None:
+            input_param_file = os.path.abspath(input_param_file)
+            if not os.path.isfile(input_param_file):
+                subprocess.run("cp {} {}".format(self.config_path+"/lephare_zphot_input.para", input_param_file), shell=True)
+        else:
+            input_param_file = self.config_path+"/lephare_zphot_input.para"
+        
+        if output_param_file is not None:
+            output_param_file = os.path.abspath(output_param_file)
+            if not os.path.isfile(output_param_file):
+                subprocess.run("cp {} {}".format(self.config_path+"/lephare_zphot_ouput.para", output_param_file), shell=True)
+        else:
+            output_param_file = self.config_path+"/lephare_zphot_output.para"
+        self._properties["input_param_file"] = input_param_file
+        self._properties["output_param_file"] = output_param_file
         
         if data is not None:
             if type(data) == dict:
@@ -198,6 +213,8 @@ class LePhareSEDFitter( BaseObject ):
             self._convert_flux_(flux_unit)
 
         if filters is not None:
+            print("""WARNING!!! Don't forget to check the "ERR_SCALE" parameter from the configuration file.\n""",
+                  """You can check it with '.describe_params("ERR_SCALE")'. It must has the same size than the given 'filters'.""")
             self._set_filt_list_(filters)
 
         self.change_param("PARA_OUT", self.output_param_file, False)

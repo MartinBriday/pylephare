@@ -28,6 +28,11 @@ def check_dependencies():
         install_requires.append('propobject')
 
     try:
+        import astrobject
+    except ImportError:
+        install_requires.append('astrobject')
+
+    try:
         import pyifu
     except ImportError:
         install_requires.append('pyifu')

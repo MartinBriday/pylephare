@@ -398,7 +398,6 @@ class KCorrection( BaseObject ):
         
         sed_shifted : [bool]
             If True, the SED is shifted to redshift zero.
-            Else, the LePhare fitted SED is plotted.
         
         Options
         -------

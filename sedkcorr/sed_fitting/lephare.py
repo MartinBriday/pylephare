@@ -1108,7 +1108,8 @@ class LePhareSEDFitter( BaseObject ):
         """
         self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1])
 
-    def show(self, ax=None, id_sed=0, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None, **kwargs):
+    def show(self, ax=None, id_sed=0, y_unit="AA", plot_sed=True, plot_phot=True, xlim=(None, None), ylim=(None, None),
+             xscale="linear", yscale="linear", savefile=None, **kwargs):
         """
         Plot method.
         Return dict("fig", "ax").
@@ -1129,6 +1130,10 @@ class LePhareSEDFitter( BaseObject ):
         ax : [matplotlib.axes]
             Already existing axes you want to add stuff in.
             Else, None.
+        
+        plot_sed : [bool]
+            If True, plot the fitted SED.
+            Default is True.
         
         plot_phot : [bool]
             If True, plot the photometry points with errors, either in flux or magnitude.
@@ -1180,7 +1185,8 @@ class LePhareSEDFitter( BaseObject ):
         
         #SED
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
-        ax.plot(x_sed, y_sed, label="_nolegend_", **{**opt_sed, **kwargs})
+        if plot_sed:
+            ax.plot(x_sed, y_sed, label="_nolegend_", **{**opt_sed, **kwargs})
         
         #Photometry
         if plot_phot:
@@ -1615,7 +1621,8 @@ class LePhareRand( LePhareSEDFitter ):
         pd_none = {"lbda":self.data_sed[0]["lbda"], "mag":quants[0.5], "mag.err_low":quants[0.5]-quants[0.16], "mag.err_up":quants[0.84]-quants[0.5]}
         self.data_sed[-1] = pandas.DataFrame(pd_none)
 
-    def show(self, ax=None, id_sed=None, y_unit="AA", plot_phot=True, xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", savefile=None, show_sigmas=[1, 2], **kwargs):
+    def show(self, ax=None, id_sed=None, y_unit="AA", plot_sed=True, plot_phot=True, xlim=(None, None), ylim=(None, None),
+             xscale="linear", yscale="linear", savefile=None, show_sigmas=[1, 2], **kwargs):
         """
         Plot method.
         Return dict("fig", "ax").
@@ -1637,6 +1644,10 @@ class LePhareRand( LePhareSEDFitter ):
         ax : [matplotlib.axes]
             Already existing axes you want to add stuff in.
             Else, None.
+        
+        plot_sed : [bool]
+            If True, plot the fitted SED.
+            Default is True.
         
         plot_phot : [bool]
             If True, plot the photometry points with errors, either in flux or magnitude.
@@ -1671,7 +1682,7 @@ class LePhareRand( LePhareSEDFitter ):
         dict
         """
         kwargs = {**{"zorder":3}, **kwargs}
-        dict_fig, y_sed = super(LePhareRand, self).show(ax=ax, id_sed=id_sed, y_unit=y_unit, plot_phot=plot_phot,
+        dict_fig, y_sed = super(LePhareRand, self).show(ax=ax, id_sed=id_sed, y_unit=y_unit, plot_sed=plot_sed, plot_phot=plot_phot,
                                                         xlim=xlim, ylim=ylim, xscale="linear", yscale="linear", savefile=None, **kwargs)
         
         if id_sed is None:

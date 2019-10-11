@@ -383,7 +383,7 @@ class KCorrection( BaseObject ):
                   self.flux_to_mag(_f, 0., band=lbda, flux_unit="Hz", opt_mAB0=False)[0]
                 for k, _f in zip(quants, flux)}
     
-    def show(self, ax=None, y_unit="Hz", sed_shifted=True, plot_bandpasses=False, plot_photo_points=True,
+    def show(self, ax=None, y_unit="Hz", sed_shifted=True, plot_sed=True, plot_phot=True, plot_bandpasses=False,
              xlim=(None, None), ylim=(None, None), xscale="linear", yscale="linear", show_sigmas=[1, 2], savefile=None):
         """
         Plot method.
@@ -405,11 +405,16 @@ class KCorrection( BaseObject ):
             Already existing axes you want to add stuff in.
             Else, None.
         
+        plot_sed : [bool]
+            If True, plot the fitted SED.
+            Default is True.
+        
+        plot_phot : [bool]
+            If True, plot the photometry points with errors, either in flux or magnitude.
+            Default is True.
+        
         plot_bandpasses : [bool]
             If True, plot the filter bandpass transmitions.
-        
-        plot_photo_points : [bool]
-            If True, plot the filter points with errors, either in flux or in magnitude.
         
         xlim : [tuple[float or None]]
             Set the limits on the x axis.
@@ -453,18 +458,19 @@ class KCorrection( BaseObject ):
         x_sed = np.asarray(data_sed["lbda"])[mask]
         y_sed = np.asarray(self._get_fit_quantiles_(data_sed, quants=[0.5], y_unit=y_unit)[0.5])[mask]
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
-        ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
+        if plot_sed:
+            ax.plot(x_sed, y_sed, label="_nolegend_", **opt_sed)
 
-        nsigmas = len(np.atleast_1d(show_sigmas))
-        if 2 in show_sigmas:
-            ff = self._get_fit_quantiles_(data_sed, quants=[0.05, 0.95], y_unit=y_unit)
-            ax.fill_between(x_sed, np.asarray(ff[0.05])[mask], np.asarray(ff[0.95])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
-        if 1 in show_sigmas:
-            ff = self._get_fit_quantiles_(data_sed, quants=[0.16, 0.84], y_unit=y_unit)
-            ax.fill_between(x_sed, np.asarray(ff[0.16])[mask], np.asarray(ff[0.84])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
+            nsigmas = len(np.atleast_1d(show_sigmas))
+            if 2 in show_sigmas:
+                ff = self._get_fit_quantiles_(data_sed, quants=[0.05, 0.95], y_unit=y_unit)
+                ax.fill_between(x_sed, np.asarray(ff[0.05])[mask], np.asarray(ff[0.95])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
+            if 1 in show_sigmas:
+                ff = self._get_fit_quantiles_(data_sed, quants=[0.16, 0.84], y_unit=y_unit)
+                ax.fill_between(x_sed, np.asarray(ff[0.16])[mask], np.asarray(ff[0.84])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
         
         #Photopoints
-        if plot_photo_points:
+        if plot_phot:
             for _band in self.list_bands:
                 x_point = FILTER_BANDS[_band]["lbda"]
                 y_point = data_phot[_band][y_plot]
@@ -501,7 +507,7 @@ class KCorrection( BaseObject ):
                 ax.plot(self.filter_bandpass[band]["lbda"], self.filter_bandpass[band]["trans"]*(ax.get_ylim()[1]-ax.get_ylim()[0]) + ax.get_ylim()[0],
                         ls="-", marker="", color=FILTER_BANDS[band]["color"], label=("_nolegend_" if plot_photo_points else band))
 
-        if plot_bandpasses or plot_photo_points:
+        if plot_bandpasses or plot_phot:
             ax.legend(loc="upper right", ncol=1)
 
         ax.set_xscale(xscale)

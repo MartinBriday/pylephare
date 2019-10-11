@@ -1433,6 +1433,13 @@ class LePhareSEDFitter( BaseObject ):
         return self._derived_properties["data_res"]
 
 
+
+
+
+
+
+
+
 class LePhareRand( LePhareSEDFitter ):
     """
     This class is a child of 'LePhareSEDFitter' class. Its goal is to fit SED errors.
@@ -1638,12 +1645,14 @@ class LePhareRand( LePhareSEDFitter ):
         id_sed : [int or None]
             Index of the SED you want to plot, corresponding to index in the 'data_meas' table.
             If None, plot the Monte Carlo fitted median of the spectra, and sigmas if specified (see 'show_sigmas').
+            Default is None.
         
         y_unit : [string]
             Choice to plot "mag" or flux with :
             - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
             - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
             - "mgy" : mgy (mgy = maggies)
+            Default is "AA".
         
         Options
         -------
@@ -1657,20 +1666,25 @@ class LePhareRand( LePhareSEDFitter ):
         
         plot_phot : [bool]
             If True, plot the photometry points with errors, either in flux or magnitude.
+            Default is True.
         
         xlim : [tuple[float or None]]
             Set the limits on the x axis.
             If (None, None), the figure has free x axis limits.
+            Default is (None, None).
         
         ylim : [tuple[float or None]]
             Set the limits on the y axis.
             If (None, None), the figure has free y axis limits.
+            Default is (None, None).
         
         xscale : [string]
             Scale of the x axis : "linear", "log", ...
+            Default is "linear".
         
         yscale : [string]
             Scale of the y axis : "linear", "log", ...
+            Default is "linear".
         
         savefile : [string or None]
             If None, the figure won't be saved.
@@ -1678,6 +1692,7 @@ class LePhareRand( LePhareSEDFitter ):
         
         show_sigmas : [int or list(int) or None]
             Show 1 and/or 2 (or None) sigmas error of the SED.
+            Default is [1, 2]
         
         **kwargs : [dict]
             pyplot.plot options to apply on the SED spectrum.
@@ -1698,12 +1713,13 @@ class LePhareRand( LePhareSEDFitter ):
                 mask = (xlim[0] < np.asarray(lbda)) if xlim[0] is not None else 1
                 mask *= (np.asarray(lbda) < xlim[1]) if xlim[1] is not None else 1
             nsigmas = len(np.atleast_1d(show_sigmas))
-            if 2 in show_sigmas:
-                ff = self._get_fit_quantiles_(quants=[0.05, 0.95], y_unit=y_unit)
-                dict_fig["ax"].fill_between(lbda[mask], np.asarray(ff[0.05])[mask], np.asarray(ff[0.95])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
-            if 1 in show_sigmas:
-                ff = self._get_fit_quantiles_(quants=[0.16, 0.84], y_unit=y_unit)
-                dict_fig["ax"].fill_between(lbda[mask], np.asarray(ff[0.16])[mask], np.asarray(ff[0.84])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
+            if plot_Sed:
+                if 2 in show_sigmas:
+                    ff = self._get_fit_quantiles_(quants=[0.05, 0.95], y_unit=y_unit)
+                    dict_fig["ax"].fill_between(lbda[mask], np.asarray(ff[0.05])[mask], np.asarray(ff[0.95])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)
+                if 1 in show_sigmas:
+                    ff = self._get_fit_quantiles_(quants=[0.16, 0.84], y_unit=y_unit)
+                    dict_fig["ax"].fill_between(lbda[mask], np.asarray(ff[0.16])[mask], np.asarray(ff[0.84])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=2)
     
         dict_fig["ax"].set_xlim(xlim)
         if ylim == (None, None):

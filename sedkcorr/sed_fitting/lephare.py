@@ -1106,7 +1106,7 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1])
+        self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1], filters=self.filt_list)
 
     def show(self, ax=None, id_sed=0, y_unit="AA", plot_sed=True, plot_phot=True, xlim=(None, None), ylim=(None, None),
              xscale="linear", yscale="linear", savefile=None, **kwargs):
@@ -1315,19 +1315,20 @@ class LePhareSEDFitter( BaseObject ):
         raise ValueError("{} is an unknown lephare filter syntax.".format(value))
     
     @staticmethod
-    def lephare_output_file_reader(filename=None):
+    def lephare_output_file_reader(filename, filters=None):
         """
         Read a LePhare output file, returning a pandas.DataFrame.
 
         Parameters
         ----------
-        filename : [string or None]
+        filename : [string]
             Path of the LePhare file.
-            If None, read the outfile file made at the end of the fit of the corresponding object.
-
-        filter_list : [list(string) or None]
-            List of filters used in LePhare.
-            Necessary to create the good number of names for columns.
+        
+        Options
+        -------
+        filters : [list(string) or None]
+            List of filters you want to use to name the corresponding columns.
+            If None, use the LePhare filter names, included in the output file.
 
 
         Returns
@@ -1344,6 +1345,11 @@ class LePhareSEDFitter( BaseObject ):
                 ii_filters = ii + 1
                 break
         filter_list = buf_file[ii_filters].split()[2:]
+        if filters is not None:
+            if len(filters) != len(filter_list):
+                raise ValueError("You must input {} filter names. You've input {} of them.".format(len(filter_list), len(filters)))
+            else:
+                filter_list = filters
 
         #Skiprows
         skiprows = [ii for ii, line in enumerate(buf_file) if line==buf_delimiter]

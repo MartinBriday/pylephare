@@ -110,9 +110,9 @@ class KCorrection( BaseObject ):
     This class redshifts an SED spectrum and recover the k-corrected photometry.
     """
     
-    PROPERTIES         = ["data_sed", "z", "data_phot"]
+    PROPERTIES         = ["data_sed", "z", "data_phot", "phot_samplers"]
     SIDE_PROPERTIES    = ["list_bands", "filter_bandpass"]
-    DERIVED_PROPERTIES = ["data_sed_kcorr", "data_phot_kcorr"]
+    DERIVED_PROPERTIES = ["data_sed_kcorr", "phot_samplers_kcorr", "data_phot_kcorr"]
     
     def __init__(self, **kwargs):
         """
@@ -308,9 +308,9 @@ class KCorrection( BaseObject ):
                       for band in list_bands}
         return data_kcorr if type(bands)!=str else data_kcorr[bands]
     
-    def _get_data_phot_(self, data_sed):
+    def _get_phot_samplers_(self, data_sed):
         """
-        Return the integrated flux from every filter bands from a given SED.
+        Set as attributes the samplers of the photopoints, recovered from the random SEDs.
         
         Parameters
         ----------
@@ -320,20 +320,36 @@ class KCorrection( BaseObject ):
         
         Returns
         -------
+        Void
+        """
+        phot_samplers = {_band:{} for _band in self.list_bands}
+        for _band, _samplers in phot_samplers.items():
+            _samplers["flux"] = np.array([self._get_photopoint_(data_sed=pandas.DataFrame({"lbda":data_sed["lbda"], "flux":v}), bands=_band)
+                                          for k, v in data_sed.items() if k != "lbda"])
+            _samplers["mag"], _ = self.flux_to_mag(flux=_samplers["flux"], flux_err=0., band=data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
+        return phot_samplers
+    
+    def _get_data_phot_(self, phot_samplers):
+        """
+        Return the integrated flux from every filter bands from a given SED.
+        
+        Parameters
+        ----------
+        phot_samplers : [pandas.DataFrame]
+            Photopoint samplers on which to get the quantiles.
+        
+        
+        Returns
+        -------
         dict
         """
-        data_phot = {}
-        phot = {}
-        for _band in self.list_bands:
-            phot["flux"] = [self._get_photopoint_(data_sed=pandas.DataFrame({"lbda":data_sed["lbda"], "flux":v}), bands=_band)
-                            for k, v in data_sed.items() if k != "lbda"]
-            phot["mag"], _ = self.flux_to_mag(flux=phot["flux"], flux_err=0., band=data_sed["lbda"], flux_unit="Hz", opt_mAB0=False)
-            data_phot[_band] = {}
+        data_phot = {_band:{} for _band in self.list_bands}
+        for _band, _phot in data_phot.items():
             for k in ["flux", "mag"]:
-                quants = np.quantile(phot[k], [0.16, 0.5, 0.84]) if len(phot[k])>1 else phot[k]*3
-                data_phot[_band][k] = quants[1]
-                data_phot[_band][k+".err_low"] = quants[1] - quants[0]
-                data_phot[_band][k+".err_up"] = quants[2] - quants[1]
+                quants = np.quantile(phot_samplers[_band][k], [0.16, 0.5, 0.84]) if len(phot_samplers[_band][k])>1 else list(phot_samplers[_band][k])*3
+                _phot[k] = quants[1]
+                _phot[k+".err_low"] = quants[1] - quants[0]
+                _phot[k+".err_up"] = quants[2] - quants[1]
         return data_phot
 
     def k_correction(self):
@@ -347,9 +363,9 @@ class KCorrection( BaseObject ):
         -------
         Void
         """
-        self._properties["data_phot"] = self._get_data_phot_(data_sed=self.data_sed)
+        self._properties["data_phot"] = self._get_data_phot_(phot_samplers=self.phot_samplers)
         self.shift_sed()
-        self._derived_properties["data_phot_kcorr"] = self._get_data_phot_(data_sed=self.data_sed_kcorr)
+        self._derived_properties["data_phot_kcorr"] = self._get_data_phot_(phot_samplers=self.phot_samplers_kcorr)
 
     def _get_fit_quantiles_(self, data_sed, quants=[0.16, 0.5, 0.84], y_unit="AA"):
         """
@@ -781,6 +797,13 @@ class KCorrection( BaseObject ):
         return self._side_properties["filter_bandpass"]
     
     @property
+    def phot_samplers(self):
+        """ Photopoints samplers """
+        if self._properties["phot_samplers"] is None:
+            self._properties["phot_samplers"] = self._get_phot_samplers_(data_sed=self.data_sed)
+        return self._properties["phot_samplers"]
+    
+    @property
     def data_phot(self):
         """ Table of photopoints of the input SED """
         return self._properties["data_phot"]
@@ -801,6 +824,13 @@ class KCorrection( BaseObject ):
     def data_sed_kcorr(self):
         """ Dataframe of the shifted to redshift zero SED """
         return self._derived_properties["data_sed_kcorr"]
+    
+    @property
+    def phot_samplers_kcorr(self):
+        """ Photopoints samplers """
+        if self._derived_properties["phot_samplers_kcorr"] is None:
+            self._derived_properties["phot_samplers_kcorr"] = self._get_phot_samplers_(data_sed=self.data_sed_kcorr)
+        return self._derived_properties["phot_samplers_kcorr"]
     
     @property
     def data_phot_kcorr(self):

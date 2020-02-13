@@ -401,9 +401,9 @@ class KCorrection( BaseObject ):
         
         Options
         -------
-        ax : [matplotlib.axes]
+        ax : [matplotlib.axes or None]
             Already existing axes you want to add stuff in.
-            Else, None.
+            Default is None.
         
         plot_sed : [bool]
             If True, plot the fitted SED.
@@ -589,7 +589,7 @@ class KCorrection( BaseObject ):
         return np.log10(zp)
     
     @staticmethod
-    def mag_to_flux(mag, mag_err=0., band=None, flux_unit="Hz", opt_mAB0=False):
+    def mag_to_flux(mag, mag_err=None, band=None, flux_unit="Hz", opt_mAB0=False):
         """
         Convert magnitude to flux.
         Return the flux and its error.
@@ -599,8 +599,9 @@ class KCorrection( BaseObject ):
         mag : [float or np.array]
             Magnitude.
         
-        mag_err : [float or np.array]
+        mag_err : [float or np.array or None]
             Magnitude error.
+            Default is None.
         
         band : [string or np.array]
             The output flux is converted in the input unit with the wavelength based on this given 'band' filter.
@@ -622,7 +623,7 @@ class KCorrection( BaseObject ):
         -------
         float or np.array, float or np.array
         """
-        if type(mag_err) == float and mag_err == 0. and len(np.atleast_1d(mag)) > 1:
+        if (mag_err == 0. or mag_err is None) and len(np.atleast_1d(mag)) > 1:
             mag_err = np.zeros(len(mag))
         if opt_mAB0:
             flux_out = 10**(KCorrection.mag_ab_zeropoint(FILTER_BANDS[band]["ZP"], FILTER_BANDS[band]["lbda"]) - 0.4*mag)
@@ -642,7 +643,7 @@ class KCorrection( BaseObject ):
         return flux_out, flux_err_out
     
     @staticmethod
-    def flux_to_mag(flux, flux_err=0., band=None, flux_unit="Hz", opt_mAB0=False):
+    def flux_to_mag(flux, flux_err=None, band=None, flux_unit="Hz", opt_mAB0=False):
         """
         Convert flux to magnitude.
         Return the magnitude and its error.
@@ -652,8 +653,9 @@ class KCorrection( BaseObject ):
         flux : [float or np.array]
             Flux.
         
-        flux_err : [float or np.array]
+        flux_err : [float or np.array or None]
             Flux error.
+            Default is None.
         
         band : [string or np.array]
             The input flux is converted in a conversion convenient unit from the input unit with the wavelength based on this given 'band' filter.
@@ -675,7 +677,7 @@ class KCorrection( BaseObject ):
         -------
         float or np.array, float or np.array
         """
-        if type(flux_err) == float and flux_err == 0. and len(np.atleast_1d(flux)) > 1:
+        if (flux_err == 0. or flux_err is None) and len(np.atleast_1d(flux)) > 1:
             flux_err = np.zeros(len(flux))
         if opt_mAB0:
             unit_out = "AA"

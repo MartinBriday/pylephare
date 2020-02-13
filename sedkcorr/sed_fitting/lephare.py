@@ -1127,9 +1127,9 @@ class LePhareSEDFitter( BaseObject ):
         
         Options
         -------
-        ax : [matplotlib.axes]
+        ax : [matplotlib.axes or None]
             Already existing axes you want to add stuff in.
-            Else, None.
+            Default is None.
         
         plot_sed : [bool]
             If True, plot the fitted SED.
@@ -1617,7 +1617,8 @@ class LePhareRand( LePhareSEDFitter ):
         """
         lbda = self.data_sed[0]["lbda"]
         mags = np.quantile([v["mag"] for k, v in self.data_sed.items() if (k != -1 and len(v) != 0)], quants, axis=0)
-        return {k:m if y_unit=="mag" else KCorrection.mag_to_flux(m, np.zeros(len(m)), band=lbda, flux_unit=y_unit, opt_mAB0=False)[0] for k, m in zip(quants, mags)}
+        return {k:m if y_unit=="mag" else KCorrection.mag_to_flux(m, np.zeros(len(m)), band=lbda, flux_unit=y_unit, opt_mAB0=False)[0]
+                for k, m in zip(quants, mags)}
     
     def set_data_sed(self):
         """
@@ -1656,9 +1657,9 @@ class LePhareRand( LePhareSEDFitter ):
         
         Options
         -------
-        ax : [matplotlib.axes]
+        ax : [matplotlib.axes or None]
             Already existing axes you want to add stuff in.
-            Else, None.
+            Default is None.
         
         plot_sed : [bool]
             If True, plot the fitted SED.

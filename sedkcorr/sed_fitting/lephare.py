@@ -12,8 +12,7 @@ from propobject import BaseObject
 from astrobject import photometry
 from astrobject.instruments import sdss
 
-from ..k_correction import kcorrection
-from ..k_correction.kcorrection import KCorrection
+from ..utils import tools
 
 
 class LePhareSEDFitter( BaseObject ):
@@ -254,8 +253,8 @@ class LePhareSEDFitter( BaseObject ):
         data_buf = self.data_meas
         if self._get_param_details_("INP_TYPE")[1] == "F" and flux_unit != "Hz":
             for _filt in self.filt_list:
-                data_buf["flux_"+_filt] = KCorrection.convert_flux_unit(data_buf["flux_"+_filt], kcorrection.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
-                data_buf["flux_"+_filt+".err"] = KCorrection.convert_flux_unit(data_buf["flux_"+_filt+".err"], kcorrection.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+                data_buf["flux_"+_filt] = tools.convert_flux_unit(data_buf["flux_"+_filt], tools.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+                data_buf["flux_"+_filt+".err"] = tools.convert_flux_unit(data_buf["flux_"+_filt+".err"], tools.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
         data_buf.to_csv(self._get_param_details_("CAT_IN")[1], sep=" ", header=False)
 
     def _set_filt_list_(self, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"]):
@@ -275,7 +274,7 @@ class LePhareSEDFitter( BaseObject ):
         """
         filters = filters if type(filters)==list else [filters]
         try:
-            lp_filt_list = [kcorrection.FILTER_BANDS[_filt]["lephare_name"] for _filt in filters]
+            lp_filt_list = [tools.FILTER_BANDS[_filt]["lephare_name"] for _filt in filters]
         except(KeyError):
             raise KeyError("'filters' must be a list containing the filters with the syntax 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).")
         if lp_filt_list != self._get_param_details_("FILTER_LIST")[1]:
@@ -515,7 +514,7 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        if param == "FILTER_LIST" and new_param_value[0] in kcorrection.FILTER_BANDS.keys():
+        if param == "FILTER_LIST" and new_param_value[0] in tools.FILTER_BANDS.keys():
             self._set_filt_list_(new_param_value)
             return
         config = self._get_config_(param)
@@ -937,14 +936,14 @@ class LePhareSEDFitter( BaseObject ):
         filt_list = []
         lp_filt_list = self._get_param_details_("FILTER_LIST")[1]
         for _filt in lp_filt_list.split(","):
-            for key, value in kcorrection.FILTER_BANDS.items():
+            for key, value in tools.FILTER_BANDS.items():
                 if value["lephare_name"] == _filt:
                     filt_list.append(key)
                     break
                 else:
                     continue
                 raise ValueError("{} is an unknown lephare filter file name.".format(_filt))
-        return filt_list #[self.lephare_filt_to_filt(kcorrection.FILTER_BANDS, _filt) for _filt in filt_list.split(",")]
+        return filt_list #[self.lephare_filt_to_filt(tools.FILTER_BANDS, _filt) for _filt in filt_list.split(",")]
     
     def _get_context_filters_(self, data):
         """
@@ -1095,7 +1094,14 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        self._derived_properties["data_sed"] = {ii:self._read_spec_(self._get_sed_filename_(ii)) for ii in np.arange(len(self.data_meas))}
+        data_sed = {ii:self._read_spec_(self._get_sed_filename_(ii)) for ii in np.arange(len(self.data_meas))}
+        #for ii, df in data_sed.items():
+        #    for k, v in df.items():
+        #        if k == "lbda":
+        #            df[k] = tools.lbda_z0_to_z(v, self.data_meas.iloc[ii]["Z-SPEC"])
+                #else:
+                #    df[k] = tools.flux_z0_to_z(v, self.data_meas.iloc[ii]["Z-SPEC"])
+        self._derived_properties["data_sed"] = data_sed
     
     def set_data_res(self):
         """
@@ -1181,7 +1187,7 @@ class LePhareSEDFitter( BaseObject ):
         x_sed = np.asarray(self.data_sed[id_sed]["lbda"])[mask]
         y_sed = np.asarray(self.data_sed[id_sed]["mag"])[mask]
         if y_unit in ["Hz", "AA", "mgy"]:
-            y_sed, _ = KCorrection.mag_to_flux(y_sed, np.zeros(len(y_sed)), band=x_sed, flux_unit=y_unit, opt_mAB0=False)
+            y_sed, _ = tools.mag_to_flux(y_sed, None, band=x_sed, flux_unit=y_unit, opt_mAB0=False)
         
         #SED
         opt_sed = {"ls":"-", "marker":"", "color":"0.4"}
@@ -1194,16 +1200,16 @@ class LePhareSEDFitter( BaseObject ):
             data_meas = self.data_meas if id_sed != -1 else self.data_orig
             id_sed = 0 if id_sed is None else id_sed
             for _filt in self._get_context_filters_(self.data_meas.iloc[id_sed]):
-                x_phot = kcorrection.FILTER_BANDS[_filt]["lbda"]
+                x_phot = tools.FILTER_BANDS[_filt]["lbda"]
                 y_phot = float(data_meas.iloc[id_sed]["{}_{}".format(prefix, _filt)])
                 y_phot_err = float(data_meas.iloc[id_sed]["{}_{}.err".format(prefix, _filt)])
                 if y_unit in ["Hz", "AA", "mgy"] and prefix == "mag":
-                    y_phot, y_phot_err = KCorrection.mag_to_flux(y_phot, y_phot_err, band=_filt, flux_unit=y_unit, opt_mAB0=True)
+                    y_phot, y_phot_err = tools.mag_to_flux(y_phot, y_phot_err, band=_filt, flux_unit=y_unit, opt_mAB0=True)
                 elif y_unit == "mag" and prefix == "flux":
-                    y_phot, y_phot_err = KCorrection.flux_to_mag(y_phot, y_phot_err, band=_filt, flux_unit="Hz", opt_mAB0=True)
+                    y_phot, y_phot_err = tools.flux_to_mag(y_phot, y_phot_err, band=_filt, flux_unit="Hz", opt_mAB0=True)
                 elif y_unit in ["Hz", "AA", "mgy"] and prefix == "flux":
-                    y_phot, y_phot_err = KCorrection.convert_flux_unit((y_phot, y_phot_err), kcorrection.FILTER_BANDS[_filt]["lbda"], "Hz", y_unit)
-                ax.errorbar(x_phot, y_phot, yerr=y_phot_err, ls="", marker="o", color=kcorrection.FILTER_BANDS[_filt]["color"], label=_filt)
+                    y_phot, y_phot_err = tools.convert_flux_unit((y_phot, y_phot_err), tools.FILTER_BANDS[_filt]["lbda"], "Hz", y_unit)
+                ax.errorbar(x_phot, y_phot, yerr=y_phot_err, ls="", marker="o", color=tools.FILTER_BANDS[_filt]["color"], label=_filt)
         
         #Writings
         ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
@@ -1578,7 +1584,7 @@ class LePhareRand( LePhareSEDFitter ):
         for _filt in self.filt_list:
             photopoint = photometry.PhotoPoint(flux=self.data_meas["flux_{}".format(_filt)],
                                                var=self.data_meas["flux_{}.err".format(_filt)]**2,
-                                               lbda=kcorrection.FILTER_BANDS[_filt]["lbda"])
+                                               lbda=tools.FILTER_BANDS[_filt]["lbda"])
             photopoint.draw_photosamplers(nsamplers=nb_draw, negative_fluxmag=40)
             self.data_rand["flux_{}".format(_filt)] = photopoint.photosamplers.samplers
             self.data_rand["flux_{}.err".format(_filt)] = np.array([self.data_meas["flux_{}.err".format(_filt)][0]]*nb_draw)
@@ -1617,7 +1623,7 @@ class LePhareRand( LePhareSEDFitter ):
         """
         lbda = self.data_sed[0]["lbda"]
         mags = np.quantile([v["mag"] for k, v in self.data_sed.items() if (k != -1 and len(v) != 0)], quants, axis=0)
-        return {k:m if y_unit=="mag" else KCorrection.mag_to_flux(m, np.zeros(len(m)), band=lbda, flux_unit=y_unit, opt_mAB0=False)[0]
+        return {k:m if y_unit=="mag" else tools.mag_to_flux(m, None, band=lbda, flux_unit=y_unit, opt_mAB0=False)[0]
                 for k, m in zip(quants, mags)}
     
     def set_data_sed(self):

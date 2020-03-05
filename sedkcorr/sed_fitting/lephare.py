@@ -1720,7 +1720,7 @@ class LePhareRand( LePhareSEDFitter ):
                 mask = (xlim[0] < np.asarray(lbda)) if xlim[0] is not None else 1
                 mask *= (np.asarray(lbda) < xlim[1]) if xlim[1] is not None else 1
             nsigmas = len(np.atleast_1d(show_sigmas))
-            if plot_Sed:
+            if plot_sed:
                 if 2 in show_sigmas:
                     ff = self._get_fit_quantiles_(quants=[0.05, 0.95], y_unit=y_unit)
                     dict_fig["ax"].fill_between(lbda[mask], np.asarray(ff[0.05])[mask], np.asarray(ff[0.95])[mask], alpha=0.3/nsigmas, color="C0", lw=0, zorder=1)

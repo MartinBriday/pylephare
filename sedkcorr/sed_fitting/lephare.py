@@ -353,6 +353,8 @@ class LePhareSEDFitter( BaseObject ):
         """
         if results_path is None:
             results_path = self.results_path + "/data.out"
+        elif len(results_path.split("/")[-1].split(".")) > 1:
+            raise ValueError("You must input a compatible file name.")
         
         self.change_param("CAT_OUT", os.path.abspath(results_path))
         self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1])) + "/"
@@ -791,7 +793,8 @@ class LePhareSEDFitter( BaseObject ):
                 except:
                     raise ValueError("LePhareError : unable to run 'mag_gal' for '{}'.".format(elt))
     
-    def run_zphota(self, filters=None, input_param_file=None, output_param_file=None, results_path=None, change_params=None, savefile=None):
+    def run_zphota(self, filters=None, input_param_file=None, output_param_file=None, results_path=None, change_params=None,
+                   savefile=None, del_spec=True, **kwargs):
         """
         First change current directory to the results path.
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
@@ -821,6 +824,10 @@ class LePhareSEDFitter( BaseObject ):
         
         savefile : [string or None]
             If not None, the 'data_sed' will be saved in the given file path.
+        
+        del_spec : [bool]
+            If True, delete the spectra files after saving data in 'data_sed'.
+            Default is True.
             
             
         Returns
@@ -848,8 +855,9 @@ class LePhareSEDFitter( BaseObject ):
         
         self.set_data_sed()
         self.set_data_res()
-        for _spec in glob.glob(self.results_path+"*.spec"):
-            os.remove(_spec)
+        if del_spec:
+            for _spec in glob.glob(self.results_path+"*.spec"):
+                os.remove(_spec)
         if savefile is not None:
             self.write(savefile, None)
 
@@ -914,6 +922,11 @@ class LePhareSEDFitter( BaseObject ):
         savefile : [string or None]
             If not None, the 'data_sed' will be saved in the given file path.
         
+        **kwargs
+        del_spec : [bool]
+            If True, delete the spectra files after saving data in 'data_sed'.
+            Default is True.
+        
         
         Returns
         -------
@@ -922,7 +935,8 @@ class LePhareSEDFitter( BaseObject ):
         self._init_changes_(input_param_file=input_param_file, results_path=results_path, change_params=change_params)
         
         self.run_init(input_param_file=None, update=update, change_params=None)
-        self.run_zphota(filters=filters, input_param_file=None, output_param_file=output_param_file, results_path=None, change_params=None, savefile=savefile)
+        self.run_zphota(filters=filters, input_param_file=None, output_param_file=output_param_file, results_path=None,
+                        change_params=None, savefile=savefile, **kwargs)
     
     def _get_filt_list_(self):
         """

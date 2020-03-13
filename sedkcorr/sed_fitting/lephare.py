@@ -353,7 +353,7 @@ class LePhareSEDFitter( BaseObject ):
         """
         if results_path is None:
             results_path = self.results_path + "/data.out"
-        elif len(results_path.split("/")[-1].split(".")) > 1:
+        elif len(results_path.split("/")[-1].split(".")) < 2:
             raise ValueError("You must input a compatible file name.")
         
         self.change_param("CAT_OUT", os.path.abspath(results_path))

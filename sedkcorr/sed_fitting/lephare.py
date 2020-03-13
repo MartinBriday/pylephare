@@ -1612,7 +1612,7 @@ class LePhareRand( LePhareSEDFitter ):
         self.data_rand["Z-SPEC"] = np.array([self.data_meas["Z-SPEC"].values[0]]*nb_draw)
         for _col_name in self.data_meas.columns:
             if "STRING" in _col_name:
-                self.data_rand[_col_name] = np.array([self.data_meas[_col_name][0]]*nb_draw)
+                self.data_rand[_col_name] = np.array([self.data_meas[_col_name].values[0]]*nb_draw)
         self._properties["data_rand"] = pandas.DataFrame(self.data_rand)
 
         data_path = data_filename if "/" in data_filename else self.config_path+"/"+data_filename

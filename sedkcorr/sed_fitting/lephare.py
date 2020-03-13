@@ -1460,6 +1460,12 @@ class LePhareSEDFitter( BaseObject ):
 
 
 
+
+
+
+
+
+
 class LePhareRand( LePhareSEDFitter ):
     """
     This class is a child of 'LePhareSEDFitter' class. Its goal is to fit SED errors.
@@ -1601,9 +1607,9 @@ class LePhareRand( LePhareSEDFitter ):
                                                lbda=tools.FILTER_BANDS[_filt]["lbda"])
             photopoint.draw_photosamplers(nsamplers=nb_draw, negative_fluxmag=40)
             self.data_rand["flux_{}".format(_filt)] = photopoint.photosamplers.samplers
-            self.data_rand["flux_{}.err".format(_filt)] = np.array([self.data_meas["flux_{}.err".format(_filt)][0]]*nb_draw)
-        self.data_rand["CONTEXT"] = np.array([self.data_meas["CONTEXT"][0]]*nb_draw)
-        self.data_rand["Z-SPEC"] = np.array([self.data_meas["Z-SPEC"][0]]*nb_draw)
+            self.data_rand["flux_{}.err".format(_filt)] = np.array([self.data_meas["flux_{}.err".format(_filt)].values[0]]*nb_draw)
+        self.data_rand["CONTEXT"] = np.array([self.data_meas["CONTEXT"].values[0]]*nb_draw)
+        self.data_rand["Z-SPEC"] = np.array([self.data_meas["Z-SPEC"].values[0]]*nb_draw)
         for _col_name in self.data_meas.columns:
             if "STRING" in _col_name:
                 self.data_rand[_col_name] = np.array([self.data_meas[_col_name][0]]*nb_draw)

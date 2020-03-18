@@ -354,7 +354,7 @@ class LePhareSEDFitter( BaseObject ):
         if results_path is None:
             results_path = self.results_path + "/data.out"
         elif len(results_path.split("/")[-1].split(".")) < 2:
-            raise ValueError("You must input a compatible file name.")
+            raise ValueError("You must input a compatible file name. Your input is '{}'.".format(results_path))
         
         self.change_param("CAT_OUT", os.path.abspath(results_path))
         self._side_properties["results_path"] = os.path.abspath("/".join(results_path.split("/")[:-1])) + "/"
@@ -861,7 +861,7 @@ class LePhareSEDFitter( BaseObject ):
         if savefile is not None:
             self.write(savefile, None)
 
-    def run_init(self, input_param_file=None, update=False, change_params=None):
+    def run_init(self, input_param_file=None, update=False, change_params=None, **extras):
         """
         Run shell commands to initialize LePhare fitting.
         

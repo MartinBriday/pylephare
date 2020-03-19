@@ -1099,27 +1099,35 @@ class LePhareSEDFitter( BaseObject ):
         sed_filename = "/Id"+id_sed+".spec"
         return self.results_path+sed_filename
 
-    def set_data_sed(self):
+    def set_data_sed(self, rm_fails=False):
         """
         Set the LePhare fit results in a dictionary containing the fitted spectrum tables.
+        
+        Options
+        -------
+        rm_fails : [bool]
+            If True, remove the fit fails of the SEDs.
         
         
         Returns
         -------
         Void
         """
-        data_sed = {ii:self._read_spec_(self._get_sed_filename_(ii)) for ii in np.arange(len(self.data_meas))}
-        #for ii, df in data_sed.items():
-        #    for k, v in df.items():
-        #        if k == "lbda":
-        #            df[k] = tools.lbda_z0_to_z(v, self.data_meas.iloc[ii]["Z-SPEC"])
-                #else:
-                #    df[k] = tools.flux_z0_to_z(v, self.data_meas.iloc[ii]["Z-SPEC"])
-        self._derived_properties["data_sed"] = data_sed
+        jj = 0
+        for ii in np.arange(len(self.data_meas)):
+            if rm_fails and ii in self._get_idx_failed_():
+                jj += 1
+                continue
+            self.data_sed[ii-jj] = self._read_spec_(self._get_sed_filename_(ii))
     
-    def set_data_res(self):
+    def set_data_res(self, rm_fails=False):
         """
         Set the LePhare outfile as a pandas table attribute.
+        
+        Options
+        -------
+        rm_fails : [bool]
+            If True, remove the fit fails of the SEDs and the results file.
         
         
         Returns
@@ -1127,6 +1135,30 @@ class LePhareSEDFitter( BaseObject ):
         Void
         """
         self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1], filters=self.filt_list)
+        if rm_fails:
+            self.data_res.drop(index=self._get_idx_failed_(), inplace=True)
+    
+    def _get_idx_failed_(self):
+        """
+        Return a list of the indexes for which the fit has failed.
+        
+        
+        Returns
+        -------
+        list(int)
+        """
+        return [ii for ii, v in self.data_res.iterrows() if v["Z_BEST"] == -99]
+    
+    def _rm_fails_(self):
+        """
+        Remove the failed cases from the results file.
+        
+        
+        Returns
+        -------
+        Void
+        """
+        
 
     def show(self, ax=None, id_sed=0, y_unit="AA", plot_sed=True, plot_phot=True, xlim=(None, None), ylim=(None, None),
              xscale="linear", yscale="linear", savefile=None, **kwargs):
@@ -1387,6 +1419,42 @@ class LePhareSEDFitter( BaseObject ):
                     col_names.insert(ii+jj, name.replace("()", "_{}".format(filt)))
         return pandas.read_csv(filename, sep=" ", skipinitialspace=True, skiprows=skiprows+1, names=col_names)
     
+    @staticmethod
+    def set_input_data(data, sn_name, sn_z, filters):
+        """
+        Format input data (with fluxes) in a LePhare compatible format.
+        
+        Parameters
+        ----------
+        data : [dict or pandas.DataFrame]
+            Input data.
+        
+        sn_name : [string]
+            SNeIa's name.
+        
+        sn_z : [float]
+            SNeIa's redshift.
+        
+        filters : [list(string)]
+            List of filters to fit in LePhare.
+        
+        
+        Returns
+        -------
+        pandas.DataFrame
+        """
+        data_out = {}
+        for _filt in [filters] if len(np.array([filters]).shape) == 1 else filters:
+            data_out[_filt+"_flux"] = [data[_filt]["flux"]]
+            data_out[_filt+"_flux.err"] = [data[_filt]["flux.err_up"]]
+        data_out["CONTEXT"] = [np.sum([2**ii for ii, _ in enumerate(filters)])]
+        data_out["Z-SPEC"] = [sn_z]
+        data_out["STRING"] = [sn_name]
+        return pandas.DataFrame(data_out)
+    
+    
+    
+    
     
     #-------------------#
     #   Properties      #
@@ -1632,8 +1700,8 @@ class LePhareRand( LePhareSEDFitter ):
         y_unit : [string]
             Unit of the output spectrum quantiles:
             - "mag" : magnitudes
-            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
-            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
+            - "Hz" : erg . cm**-2 . s**-1 . Hz**-1
+            - "AA" [default] : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
             - "mgy" : mgy (mgy = maggies)
         
         
@@ -1656,10 +1724,11 @@ class LePhareRand( LePhareSEDFitter ):
         -------
         Void
         """
-        _ = super(LePhareRand, self).set_data_sed()
+        _ = super(LePhareRand, self).set_data_sed(rm_fails=True)
         quants = self._get_fit_quantiles_(quants=[0.16, 0.5, 0.84], y_unit="mag")
         pd_none = {"lbda":self.data_sed[0]["lbda"], "mag":quants[0.5], "mag.err_low":quants[0.5]-quants[0.16], "mag.err_up":quants[0.84]-quants[0.5]}
         self.data_sed[-1] = pandas.DataFrame(pd_none)
+        self.set_data_res(rm_fails=True)
 
     def show(self, ax=None, id_sed=None, y_unit="AA", plot_sed=True, plot_phot=True, xlim=(None, None), ylim=(None, None),
              xscale="linear", yscale="linear", savefile=None, show_sigmas=[1, 2], **kwargs):

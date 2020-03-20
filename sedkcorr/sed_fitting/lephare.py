@@ -15,6 +15,114 @@ from astrobject.instruments import sdss
 from ..utils import tools
 
 
+
+
+
+class BC03Installer( ):
+    """ Test if the proper installation is made and enables to run it 
+
+    USAGE:
+    simply do: BC03Installer.install()
+
+    """
+    LEPHAREDIR = os.getenv("LEPHAREDIR",default=None)  # os.getenv('SEDM_USER',default="auto")
+    
+    # ----------- #
+    # Initialize  #
+    # ----------- #
+    def __init__(self):
+        """ """
+    
+    @classmethod
+    def install(cls, compiler="gfortran", reinstall=False, verbose=False):
+        """ """
+        this = cls()
+        if not reinstall and this.has_ised_files():
+            if verbose:
+                print("No need to install ised files. set reinstall to True to force reinstallation")
+            return None
+        
+        this.run_ised_installer(compiler="gfortran", verbose=verbose)
+        return
+    
+    # =========== #
+    #  Methods    #
+    # =========== #
+    def get_list_sedmodel(self, which="*"):
+        """ """
+        return [l for l in os.listdir(self.BC03_CHAB) if l.startswith("bc2003")
+               and ((which in ["*", "all", "both"]) or 
+                    ((which.lower() == "ascii") and l.endswith("ASCII")) or
+                    ((which.lower() == "ised") and l.endswith("ised"))
+                   )]
+
+    def build_bc03_installer(self, compiler="gfortran"):
+        """ """
+        os.system("%s  -O5 -Wall -ffixed-line-length-132 %s -o %s"%(compiler,
+                                                                    self.bc03_installer+".f",
+                                                                    self.bc03_installer))
+        
+    def run_ised_installer(self, compiler="gfortran", verbose=False):
+        """ """
+        if not self.has_bc03_installer():
+            if verbose:
+                print("No bc03_installer. Creating one, using the '%s' compiler"%compiler)
+            self.build_bc03_installer(compiler)
+            if not self.has_bc03_installer():
+                raise AttributeError("build_bc03_installer() ran but still no has_bc03_installer()... sorry")
+        
+        if verbose:
+            print("Creating the .ised files from the .ised_ASCII ones")
+                  
+        for file in self.get_list_sedmodel('ASCII'):
+            report = os.system("%s %s"%(self.bc03_installer, self.BC03_CHAB+"/"+file))
+     
+    # ----------- #
+    # Has tests   #
+    # ----------- #
+    def has_lephare_env(self):
+        """ test that the global LEPHAREDIR is defined"""
+        return self.LEPHAREDIR is not None
+
+    def has_bc03_data(self):
+        """ """
+        if not self.has_lephare_env():
+            raise IOError("$LEPHAREDIR is not defined ")
+        
+        return os.path.isdir( self.BC03_CHAB )
+    
+    def has_bc03_installer(self):
+        """ """
+        if not self.has_bc03_data():
+            raise IOError("BC03_CHAB lephare gal library not downloaded. See http://www.cfht.hawaii.edu/~arnouts/LEPHARE/install.html")
+            
+        return os.path.isfile( self.bc03_installer)
+    
+    def has_ised_files(self):
+        """ """
+        return len(self.get_list_sedmodel("ised"))>0
+    
+    # =========== #
+    #  Properties #
+    # =========== #
+    @property
+    def BC03_CHAB(self):
+        """ """
+        return self.LEPHAREDIR+ "/sed/GAL/BC03_CHAB"
+    
+    @property
+    def bc03_installer(self):
+        """ """
+        return self.BC03_CHAB+ "/bin_ised"
+    
+
+    
+
+
+
+
+
+
 class LePhareSEDFitter( BaseObject ):
     """
     This class is a python "wrapper" (sort of) to run LePhare SED fitting.
@@ -671,7 +779,8 @@ class LePhareSEDFitter( BaseObject ):
             Set to True if you want to execute the command, even if the "$LEPAHAREWORK/filt/[...].filt" files already exist.
         
         change_params : [dict or None]
-            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, 
+            and as values a list containing the new parameter value as first element and the force comment option as second.
         
         
         Returns

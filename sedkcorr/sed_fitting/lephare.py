@@ -239,8 +239,16 @@ class LePhareSEDFitter( BaseObject ):
         if data is not None:
             self.set_data(data, **kwargs)
 
-    def set_data(self, data=None, filters=None, input_param_file=None, output_param_file=None,
-                 results_path=None, flux_unit="Hz", data_filename="data.csv", **kwargs):
+    # ============= #
+    #  Methods      #
+    # ============= #
+    # --------- #
+    #  SETTER   #
+    # --------- #
+    def set_data(self, data=None, filters=None,
+                     input_param_file=None,
+                     output_param_file=None,
+                     results_path=None, flux_unit="Hz", data_filename="data.csv", **kwargs):
         """
         Set up the file paths about the data, the config files (input and output) and the results path.
         
@@ -366,8 +374,11 @@ class LePhareSEDFitter( BaseObject ):
         data_buf = self.data_meas
         if self._get_param_details_("INP_TYPE")[1] == "F" and flux_unit != "Hz":
             for _filt in self.filt_list:
-                data_buf["flux_"+_filt] = tools.convert_flux_unit(data_buf["flux_"+_filt], tools.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
-                data_buf["flux_"+_filt+".err"] = tools.convert_flux_unit(data_buf["flux_"+_filt+".err"], tools.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+                data_buf["flux_"+_filt] = tools.convert_flux_unit(data_buf["flux_"+_filt],
+                                                                 tools.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+                data_buf["flux_"+_filt+".err"] = tools.convert_flux_unit(data_buf["flux_"+_filt+".err"],
+                                                                 tools.FILTER_BANDS[_filt]["lbda"], flux_unit, "Hz")
+                
         data_buf.to_csv(self._get_param_details_("CAT_IN")[1], sep=" ", header=False)
 
     def _set_filt_list_(self, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"]):
@@ -993,8 +1004,8 @@ class LePhareSEDFitter( BaseObject ):
         except:
             raise ValueError("LePhareError : unable to run 'zphota'.")
         
-        self.set_data_sed()
-        self.set_data_res()
+        self.set_sed()
+        self.set_fit_results()
         if del_spec:
             for _spec in glob.glob(self.results_path+"*.spec"):
                 os.remove(_spec)
@@ -1248,7 +1259,7 @@ class LePhareSEDFitter( BaseObject ):
         sed_filename = "/Id"+id_sed+".spec"
         return self.results_path+sed_filename
 
-    def set_data_sed(self, rm_fails=False):
+    def set_sed(self, rm_fails=False):
         """
         Set the LePhare fit results in a dictionary containing the fitted spectrum tables.
         
@@ -1270,7 +1281,7 @@ class LePhareSEDFitter( BaseObject ):
         data_sed.set_index("lbda", inplace=True)
         data_sed.to_csv(sed_savefile, sep=" ")
     
-    def set_data_res(self, rm_fails=False):
+    def set_fit_results(self, rm_fails=False):
         """
         Set the LePhare outfile as a pandas table attribute.
         
@@ -1670,7 +1681,7 @@ class LePhareSEDFitter( BaseObject ):
     def data_res(self):
         """ DataFrame of the LePhare results containing the wanted output parameters. """
         if self._derived_properties["data_res"] is None:
-            self.set_data_res()
+            self.set_fit_results()
         return self._derived_properties["data_res"]
 
 
@@ -1873,7 +1884,7 @@ class LePhareRand( LePhareSEDFitter ):
         return {k:m if y_unit=="mag" else tools.mag_to_flux(m, None, band=lbda, flux_unit=y_unit, opt_mAB0=False)[0]
                 for k, m in zip(quants, mags)}
     
-    def set_data_sed(self):
+    def set_sed(self):
         """
         Set the LePhare fit results in a dictionary.
         Add the Monte Carlo results with a dictionary containing the wavelength, 
@@ -1884,14 +1895,14 @@ class LePhareRand( LePhareSEDFitter ):
         -------
         Void
         """
-        _ = super(LePhareRand, self).set_data_sed(rm_fails=True)
+        _ = super(LePhareRand, self).set_sed(rm_fails=True)
         quants = self._get_fit_quantiles_(quants=[0.16, 0.5, 0.84], y_unit="mag")
         pd_none = {"lbda":self.data_sed[0]["lbda"], "mag":quants[0.5],
                     "mag.err_low":quants[0.5]-quants[0.16],
                     "mag.err_up":quants[0.84]-quants[0.5]
                    }
         self.data_sed[-1] = pandas.DataFrame(pd_none)
-        self.set_data_res(rm_fails=True)
+        self.set_fit_results(rm_fails=True)
 
     def show(self, ax=None, id_sed=None, y_unit="AA", plot_sed=True, plot_phot=True, xlim=(None, None), ylim=(None, None),
              xscale="linear", yscale="linear", savefile=None, show_sigmas=[1, 2], **kwargs):

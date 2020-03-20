@@ -1113,12 +1113,11 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        jj = 0
-        for ii in np.arange(len(self.data_meas)):
-            if rm_fails and ii in self._get_idx_failed_():
-                jj += 1
-                continue
-            self.data_sed[ii-jj] = self._read_spec_(self._get_sed_filename_(ii))
+        list_idx = np.array([ii for ii in np.arange(len(self.data_meas)) if ii not in self._get_idx_failed_()])\
+                   if rm_fails else np.arange(len(self.data_meas))
+        self._derived_properties["data_sed"] = {ii:self._read_spec_(self._get_sed_filename_(jj)) for ii, jj in enumerate(list_idx)}
+        sed_savefile = self._get_param_details_("CAT_OUT")[1].split(".out")[0] + "_spec.dat"
+        self.get_data_sed(None).to_csv(sed_savefile, sep=" ")
     
     def set_data_res(self, rm_fails=False):
         """

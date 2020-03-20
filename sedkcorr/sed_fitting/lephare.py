@@ -929,7 +929,8 @@ class LePhareSEDFitter( BaseObject ):
             Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
             
         change_params : [dict or None]
-            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, 
+            and as values a list containing the new parameter value as first element and the force comment option as second.
         
         savefile : [string or None]
             If not None, the 'data_sed' will be saved in the given file path.

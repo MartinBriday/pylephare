@@ -94,7 +94,8 @@ class BC03Installer( ):
     def has_bc03_installer(self):
         """ """
         if not self.has_bc03_data():
-            raise IOError("BC03_CHAB lephare gal library not downloaded. See http://www.cfht.hawaii.edu/~arnouts/LEPHARE/install.html")
+            raise IOError("BC03_CHAB lephare gal library not downloaded."+
+                          "\n See http://www.cfht.hawaii.edu/~arnouts/LEPHARE/install.html")
             
         return os.path.isfile( self.bc03_installer)
     
@@ -198,7 +199,8 @@ class LePhareSEDFitter( BaseObject ):
             Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
             
         filters : [list(string) or None]
-            List of filters of the given measurements, the 'FILTER_LIST' parameter in the configuration file will be changed to the corresponding list of LePhare file names.
+            List of filters of the given measurements, the 'FILTER_LIST' parameter in the configuration 
+            file will be changed to the corresponding list of LePhare file names.
             The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
             If None, the filter list will be based on the configuration file.
         
@@ -224,7 +226,8 @@ class LePhareSEDFitter( BaseObject ):
             As LePhare needs the flux to be in the "Hz" (see above) unit, it will be converted if necessary.
         
         data_filename : [string]
-            If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
+            If your input data are in a dict/pandas.DataFrame, 
+            this option is used to change the file created to save these data for LePhare use.
             You can either enter a full path, or a simple file name without any "/".
             The latter will create the file directly in the package (less easy to find).
         
@@ -247,7 +250,8 @@ class LePhareSEDFitter( BaseObject ):
             Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
             
         filters : [list(string) or None]
-            List of filters of the given measurements, the 'FILTER_LIST' parameter in the configuration file will be changed to the corresponding list of LePhare file names.
+            List of filters of the given measurements, the 'FILTER_LIST' parameter in the configuration 
+            file will be changed to the corresponding list of LePhare file names.
             The filter syntax must be like "project.band" (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
             If None, the filter list will be based on the configuration file.
         
@@ -275,7 +279,8 @@ class LePhareSEDFitter( BaseObject ):
             If 'None', the default file is located in the package ('/results/data.out').
         
         data_filename : [string]
-            If your input data are in a dict/pandas.DataFrame, this option is used to change the file created to save these data for LePhare use.
+            If your input data are in a dict/pandas.DataFrame, this option is used to change 
+            the file created to save these data for LePhare use.
             You can either enter a full path, or a simple file name without any "/".
             The latter will create the file directly in the package (less easy to find).
         
@@ -577,6 +582,7 @@ class LePhareSEDFitter( BaseObject ):
         """
         with open(file, "r") as file:
             file_buf = [line for line in file]
+            
         return file_buf
     
     def _get_config_(self, param):
@@ -595,10 +601,13 @@ class LePhareSEDFitter( BaseObject ):
         """
         if param in self.INPUT_PARAM:
             config = "input"
-        elif param in self.OUTPUT_PARAM + ["PHYS_PARA{}_{}".format(ii, jj) for ii in self.PHYS_PARAM.keys() for jj in ["BEST", "MED", "INF", "SUP"]]:
+        elif param in self.OUTPUT_PARAM + ["PHYS_PARA{}_{}".format(ii, jj)
+                                            for ii in self.PHYS_PARAM.keys()
+                                            for jj in ["BEST", "MED", "INF", "SUP"]]:
             config = "output"
         else:
             raise ValueError("'{}' neither is in input parameter list nor output parameter list.".format(param))
+        
         return config
     
     def change_param(self, param, new_param_value, force_comment=False):
@@ -627,6 +636,7 @@ class LePhareSEDFitter( BaseObject ):
         if param == "FILTER_LIST" and new_param_value[0] in tools.FILTER_BANDS.keys():
             self._set_filt_list_(new_param_value)
             return
+        
         config = self._get_config_(param)
         file_buf = self._get_file_lines(self._properties[config+"_param_file"])
         idx_line = self._get_idx_line_(file_buf, param)
@@ -635,8 +645,10 @@ class LePhareSEDFitter( BaseObject ):
         splitted_line, _ = self._get_cleared_line_(file_buf[idx_line])
         if config == "input":
             splitted_line[1] = new_param_value
+            
         if force_comment:
             splitted_line.insert(0, "#")
+            
         file_buf[idx_line] = " ".join(splitted_line) + "\n"
         
         with open(self._properties[config+"_param_file"], "w") as file:
@@ -646,9 +658,11 @@ class LePhareSEDFitter( BaseObject ):
         if param in ["{}_LIB".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
             self.change_param(param+"_IN", new_param_value, False)
         elif param in ["{}_LIB_OUT".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
-            self.change_param("ZPHOTLIB", [self._get_param_details_("{}_LIB_OUT".format(elt))[1] for elt in ["GAL", "QSO", "STAR"]], False)
+            self.change_param("ZPHOTLIB", [self._get_param_details_("{}_LIB_OUT".format(elt))[1]
+                                            for elt in ["GAL", "QSO", "STAR"]], False)
         elif param == "CAT_OUT":
             self._side_properties["results_path"] = os.path.abspath("/".join(new_param_value.split("/")[:-1]) + "/")
+            
         elif param == "GAL_SED":
             self._rename_libs_(filters=self.filt_list)
 
@@ -746,7 +760,10 @@ class LePhareSEDFitter( BaseObject ):
             Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
         
         change_params : [dict or None]
-        If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            If you want to change any configuration parameters, 
+            put a dictionary with parameters you want to change as keys,
+            and as values a list containing the new parameter value as first element 
+            and the force comment option as second.
         
         
         Returns
@@ -826,7 +843,8 @@ class LePhareSEDFitter( BaseObject ):
         lib_q_k, lib_q_v, _ = self._get_param_details_("QSO_LIB")
         lib_g_k, lib_g_v, _ = self._get_param_details_("GAL_LIB")
         
-        if not np.prod([os.path.isfile(self.PATH_LEPHAREWORK+"/lib_bin/"+elt+".bin") for elt in [lib_s_v, lib_q_v, lib_g_v]]) or update:
+        if not np.prod([os.path.isfile(self.PATH_LEPHAREWORK+"/lib_bin/"+elt+".bin")
+                        for elt in [lib_s_v, lib_q_v, lib_g_v]]) or update:
             for elt in ["S", "Q", "G"]:
                 cmd = "{}/source/sedtolib -t {} -c {}".format(self.PATH_LEPHAREDIR, elt, self.input_param_file)
                 try:
@@ -837,7 +855,8 @@ class LePhareSEDFitter( BaseObject ):
     def run_mag_star(self, input_param_file=None, update=False, change_params=None):
         """
         Execute "$LEPHAREDIR/source/mag_star -c [...].para" in the shell.
-        Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists, the command is not executed, unless 'update' is True.
+        Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists, 
+                    the command is not executed, unless 'update' is True.
         
         Options
         -------
@@ -849,7 +868,10 @@ class LePhareSEDFitter( BaseObject ):
             Set to True if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists.
             
         change_params : [dict or None]
-            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            If you want to change any configuration parameters, 
+            put a dictionary with parameters you want to change as keys, 
+            and as values a list containing the new parameter value as first element 
+            and the force comment option as second.
             
             
         Returns
@@ -870,7 +892,8 @@ class LePhareSEDFitter( BaseObject ):
     def run_mag_gal(self, input_param_file=None, update=False, change_params=None):
         """
         Execute "$LEPHAREDIR/source/mag_gal -t [Q,G] -c [...].para" in the shell.
-        Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist, the command is not executed, unless 'update' is True.
+        Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist, 
+                    the command is not executed, unless 'update' is True.
         
         Options
         -------
@@ -882,7 +905,10 @@ class LePhareSEDFitter( BaseObject ):
             Set to True if you want to execute the command, even if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist.
             
         change_params : [dict or None]
-            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            If you want to change any configuration parameters, 
+            put a dictionary with parameters you want to change as keys, 
+            and as values a list containing the new parameter value as first element 
+            and the force comment option as second.
             
             
         Returns
@@ -912,7 +938,8 @@ class LePhareSEDFitter( BaseObject ):
         -------
         filters : [list(string) or dict or None]
             If a list of filters is given, the context will be changed for every line to the corresponding one.
-            If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
+            If you want to change only a few indexes context, you can give a dictionary containing 
+            a list of the indexes under the key "id" and the list of filters under the key "filters".
             If None, nothing changes from the 'data_meas'.
             The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
         
@@ -985,7 +1012,10 @@ class LePhareSEDFitter( BaseObject ):
             Set to True if you want to update the initialization on filters, sed libraries, etc.
         
         change_params : [dict or None]
-            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            If you want to change any configuration parameters, 
+            put a dictionary with parameters you want to change as keys, 
+            and as values a list containing the new parameter value as first element 
+            and the force comment option as second.
         
         
         Returns
@@ -999,7 +1029,9 @@ class LePhareSEDFitter( BaseObject ):
         self.run_mag_star(input_param_file=None, update=update, change_params=None)
         self.run_mag_gal(input_param_file=None, update=update, change_params=None)
 
-    def run_fit(self, filters=None, input_param_file=None, output_param_file=None, results_path=None, update=False, change_params=None, savefile=None, **kwargs):
+    def run_fit(self, filters=None, input_param_file=None, output_param_file=None,
+                    results_path=None, update=False, change_params=None, savefile=None,
+                    **kwargs):
         """
         Run shell commands to execute LePhare fitting.
         
@@ -1007,7 +1039,8 @@ class LePhareSEDFitter( BaseObject ):
         -------
         filters : [list(string) or dict or None]
             If a list of filters is given, the context will be changed for every line to the corresponding one.
-            If you want to change only a few indexes context, you can give a dictionary containing a list of the indexes under the key "id" and the list of filters under the key "filters".
+            If you want to change only a few indexes context, you can give a dictionary containing 
+            a list of the indexes under the key "id" and the list of filters under the key "filters".
             If None, nothing changes from the 'data_meas'.
             The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
         
@@ -1027,7 +1060,10 @@ class LePhareSEDFitter( BaseObject ):
             Set to True if you want to update the initialization on filters, sed libraries, etc.
             
         change_params : [dict or None]
-            If you want to change any configuration parameters, put a dictionary with parameters you want to change as keys, and as values a list containing the new parameter value as first element and the force comment option as second.
+            If you want to change any configuration parameters, 
+            put a dictionary with parameters you want to change as keys, 
+            and as values a list containing the new parameter value as first element 
+            and the force comment option as second.
         
         savefile : [string or None]
             If not None, the 'data_sed' will be saved in the given file path.
@@ -1243,7 +1279,8 @@ class LePhareSEDFitter( BaseObject ):
         -------
         Void
         """
-        self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1], filters=self.filt_list)
+        self._derived_properties["data_res"] = self.lephare_output_file_reader(filename=self._get_param_details_("CAT_OUT")[1],
+                                                                                filters=self.filt_list)
         if rm_fails:
             self.data_res.drop(index=self._get_idx_failed_(), inplace=True)
     
@@ -1363,8 +1400,10 @@ class LePhareSEDFitter( BaseObject ):
                 elif y_unit == "mag" and prefix == "flux":
                     y_phot, y_phot_err = tools.flux_to_mag(y_phot, y_phot_err, band=_filt, flux_unit="Hz", opt_mAB0=True)
                 elif y_unit in ["Hz", "AA", "mgy"] and prefix == "flux":
-                    y_phot, y_phot_err = tools.convert_flux_unit((y_phot, y_phot_err), tools.FILTER_BANDS[_filt]["lbda"], "Hz", y_unit)
-                ax.errorbar(x_phot, y_phot, yerr=y_phot_err, ls="", marker="o", color=tools.FILTER_BANDS[_filt]["color"], label=_filt)
+                    y_phot, y_phot_err = tools.convert_flux_unit((y_phot, y_phot_err),
+                                                                    tools.FILTER_BANDS[_filt]["lbda"], "Hz", y_unit)
+                ax.errorbar(x_phot, y_phot, yerr=y_phot_err, ls="", marker="o", color=tools.FILTER_BANDS[_filt]["color"],
+                                label=_filt)
         
         #Writings
         ax.set_xlabel(r"$\lambda$ [\AA]", fontsize="large")
@@ -1752,8 +1791,12 @@ class LePhareRand( LePhareSEDFitter ):
         -------
         Void
         """
-        _ = super(LePhareRand, self).set_data(data=data, filters=filters, input_param_file=input_param_file, output_param_file=output_param_file,
-                                              results_path=results_path, flux_unit=flux_unit, data_filename=data_filename, **kwargs)
+        _ = super(LePhareRand, self).set_data(data=data, filters=filters,
+                                             input_param_file=input_param_file,
+                                             output_param_file=output_param_file,
+                                             results_path=results_path, flux_unit=flux_unit,
+                                             data_filename=data_filename,
+                                            **kwargs)
         self.set_rand_data(nb_draw=nb_draw, data_filename=data_filename)
     
     def set_rand_data(self, nb_draw=100, data_filename="data_rand.csv"):
@@ -1785,11 +1828,13 @@ class LePhareRand( LePhareSEDFitter ):
             photopoint.draw_photosamplers(nsamplers=nb_draw, negative_fluxmag=40)
             self.data_rand["flux_{}".format(_filt)] = photopoint.photosamplers.samplers
             self.data_rand["flux_{}.err".format(_filt)] = np.array([self.data_meas["flux_{}.err".format(_filt)].values[0]]*nb_draw)
+            
         self.data_rand["CONTEXT"] = np.array([self.data_meas["CONTEXT"].values[0]]*nb_draw)
         self.data_rand["Z-SPEC"] = np.array([self.data_meas["Z-SPEC"].values[0]]*nb_draw)
         for _col_name in self.data_meas.columns:
             if "STRING" in _col_name:
                 self.data_rand[_col_name] = np.array([self.data_meas[_col_name].values[0]]*nb_draw)
+                
         self._properties["data_rand"] = pandas.DataFrame(self.data_rand)
 
         data_path = data_filename if "/" in data_filename else self.config_path+"/"+data_filename
@@ -1826,7 +1871,8 @@ class LePhareRand( LePhareSEDFitter ):
     def set_data_sed(self):
         """
         Set the LePhare fit results in a dictionary.
-        Add the Monte Carlo results with a dictionary containing the wavelength, the spectra median and one sigma error below and above the median.
+        Add the Monte Carlo results with a dictionary containing the wavelength, 
+        the spectra median and one sigma error below and above the median.
         
         
         Returns
@@ -1835,7 +1881,10 @@ class LePhareRand( LePhareSEDFitter ):
         """
         _ = super(LePhareRand, self).set_data_sed(rm_fails=True)
         quants = self._get_fit_quantiles_(quants=[0.16, 0.5, 0.84], y_unit="mag")
-        pd_none = {"lbda":self.data_sed[0]["lbda"], "mag":quants[0.5], "mag.err_low":quants[0.5]-quants[0.16], "mag.err_up":quants[0.84]-quants[0.5]}
+        pd_none = {"lbda":self.data_sed[0]["lbda"], "mag":quants[0.5],
+                    "mag.err_low":quants[0.5]-quants[0.16],
+                    "mag.err_up":quants[0.84]-quants[0.5]
+                   }
         self.data_sed[-1] = pandas.DataFrame(pd_none)
         self.set_data_res(rm_fails=True)
 

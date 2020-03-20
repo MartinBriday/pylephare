@@ -636,6 +636,8 @@ class LePhareSEDFitter( BaseObject ):
         if param == "FILTER_LIST" and new_param_value[0] in tools.FILTER_BANDS.keys():
             self._set_filt_list_(new_param_value)
             return
+        elif param in ["{}_LIB_OUT".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
+            buf_lib_out = self._get_param_details_(param)[1]
         
         config = self._get_config_(param)
         file_buf = self._get_file_lines(self._properties[config+"_param_file"])
@@ -658,8 +660,9 @@ class LePhareSEDFitter( BaseObject ):
         if param in ["{}_LIB".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
             self.change_param(param+"_IN", new_param_value, False)
         elif param in ["{}_LIB_OUT".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
-            self.change_param("ZPHOTLIB", [self._get_param_details_("{}_LIB_OUT".format(elt))[1]
-                                            for elt in ["GAL", "QSO", "STAR"]], False)
+            buf_zphotlib = self._get_param_details_("ZPHOTLIB")[1]
+            if buf_lib_out in buf_zphotlib:
+                self.change_param("ZPHOTLIB", buf_zphotlib.replace(buf_lib_out, self._get_param_details_(param)[1]), False)
         elif param == "CAT_OUT":
             self._side_properties["results_path"] = os.path.abspath("/".join(new_param_value.split("/")[:-1]) + "/")
             
@@ -1222,7 +1225,7 @@ class LePhareSEDFitter( BaseObject ):
         """
         data_sed =  pandas.read_csv(os.path.expanduser(spec_filename),
                                     skiprows=self.header_spec_file, names=["lbda", "mag"], sep="  ",
-                                    engine="python", nrows=1000)
+                                    engine="python")#, nrows=1000)
         return data_sed
                         
     def _get_sed_filename_(self, id_sed):
@@ -1263,7 +1266,9 @@ class LePhareSEDFitter( BaseObject ):
                    if rm_fails else np.arange(len(self.data_meas))
         self._derived_properties["data_sed"] = {ii:self._read_spec_(self._get_sed_filename_(jj)) for ii, jj in enumerate(list_idx)}
         sed_savefile = self._get_param_details_("CAT_OUT")[1].split(".out")[0] + "_spec.dat"
-        self.get_data_sed(None).to_csv(sed_savefile, sep=" ")
+        data_sed = self.get_data_sed(None)
+        data_sed.set_index("lbda", inplace=True)
+        data_sed.to_csv(sed_savefile, sep=" ")
     
     def set_data_res(self, rm_fails=False):
         """

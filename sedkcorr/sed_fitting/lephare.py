@@ -628,7 +628,7 @@ class LePhareSEDFitter( BaseObject ):
             self._set_filt_list_(new_param_value)
             return
         elif param in ["{}_LIB_OUT".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
-            buf_lib_out = _get_param_details_(param)[1]
+            buf_lib_out = self._get_param_details_(param)[1]
         
         config = self._get_config_(param)
         file_buf = self._get_file_lines(self._properties[config+"_param_file"])
@@ -649,7 +649,7 @@ class LePhareSEDFitter( BaseObject ):
         if param in ["{}_LIB".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
             self.change_param(param+"_IN", new_param_value, False)
         elif param in ["{}_LIB_OUT".format(elt) for elt in ["GAL", "QSO", "STAR"]]:
-            buf_zphotlib = _get_param_details_("ZPHOTLIB")[1]
+            buf_zphotlib = self._get_param_details_("ZPHOTLIB")[1]
             if buf_lib_out in buf_zphotlib:
                 self.change_param("ZPHOTLIB", buf_zphotlib.replace(buf_lib_out, self._get_param_details_(param)[1]), False)
         elif param == "CAT_OUT":
@@ -1190,7 +1190,7 @@ class LePhareSEDFitter( BaseObject ):
         """
         data_sed =  pandas.read_csv(os.path.expanduser(spec_filename),
                                     skiprows=self.header_spec_file, names=["lbda", "mag"], sep="  ",
-                                    engine="python", nrows=1000)
+                                    engine="python")#, nrows=1000)
         return data_sed
                         
     def _get_sed_filename_(self, id_sed):

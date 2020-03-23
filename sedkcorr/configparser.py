@@ -1,3 +1,5 @@
+
+import os
 import numpy as np
 import warnings
 
@@ -20,6 +22,18 @@ class ConfigParser( object ):
     def read(cls, filename):
         """ """
         return cls(filename)
+
+    def writeto(self, filename=None):
+        """ """
+        if filename is None:
+            if self.fileout is not None:
+                filename = self.fileout
+            else:
+                raise IOError("filename is None and no self.fileout set.")
+            
+        with open(filename, 'w') as f:
+            f.writelines("\n".join(self.get_config("configfile")))
+
     # -------- #
     #  LOADDER #
     # -------- #
@@ -56,7 +70,7 @@ class ConfigParser( object ):
                     key = l.split()[0]
                     if key in self.switched_off_keys:
                         key = "# "+key
-                    newconfig.append(self.get_config_line(key))
+                    newconfig.append(self.get_config_lines(key))
                     set_key.append(key)
 
             keys = np.asarray(list(self.config.keys()))
@@ -65,7 +79,7 @@ class ConfigParser( object ):
             if len(not_set_key)>0:
                 newconfig.append("# == NEW KEYS == #")
                 for key in not_set_key:
-                    newconfig.append(self.get_config_line(key))
+                    newconfig.append(self.get_config_lines(key))
             return newconfig
         else:
             # new
@@ -77,8 +91,8 @@ class ConfigParser( object ):
         """ Mother setter methods. All data set this way will be recorded with using self.writeto() """
         self._config[key.upper()] = {"value":value,
                                      "comments":comments
-                                    }
-
+                                    }            
+        
     def switch_off_key(self, key):
         """ """
         if key not in self.switched_off_keys:
@@ -90,6 +104,15 @@ class ConfigParser( object ):
         if key in self.switched_off_keys:
             self.switched_off_keys.pop(self.switched_off_keys.index(key))
             self._config[key] = self._config.pop("# "+key)
+
+    def set_fileout(self, fileout, builddir=True):
+        """ """
+        if builddir:
+            dir_ = os.path.dirname(fileout)
+            if not os.path.isdir(dir_):
+                os.makedirs(dir_)
+                
+        self._fileout = fileout
         
     # -------- #
     #  GETTER  #
@@ -101,13 +124,13 @@ class ConfigParser( object ):
         
         return self._config[key]["value"]
     
-    def get_comments(self, key, default=np.NaN):
+    def get_comments(self, key):
         """ """
         if key not in self._config:
             raise ValueError("%s not in self.config"%key)
         return self._config[key]["comments"]
 
-    def get_config_line(self, key):
+    def get_config_lines(self, key):
         """ """
         return " ".join([key, self._config[key]["value"], "#", self._config[key]["comments"]]
                             if self._config[key]["comments"] is not None else
@@ -121,20 +144,28 @@ class ConfigParser( object ):
         elif astype.lower() == "dataframe":
             import pandas
             return pandas.DataFrame(self.config).T
+        
         elif astype.lower() == "array":
-            return [self.get_config_line(k_) for k_ in self.config.keys()]
+            return [self.get_config_lines(k_) for k_ in self.config.keys()]
+        
         elif astype.lower() in ["file", "configfile"]:
             return self._build_new_config_()
+        
         elif astype.lower() in ["original","input","inputfile"]:
             if hasattr(self,"_init_config"):
                 return self._init_config
             else:
                 raise ValueError("No original config file")
             
-        raise ValueError("astype not value (%s). Could be dict, dataframe, array, configfile, inputfile"%astype)
+        raise ValueError("astype '%s' not supported. Could be dict, dataframe, array, configfile, inputfile"%astype)
 
-
-
+    def get_fileout(self, buildit=True, update=False):
+        """ """
+        if self.has_fileout():
+            if update or (not os.path.isfile(self.fileout) and buildit):
+                self.writeto()
+                
+        return self.fileout
     # ================ #
     #  Properties      #
     # ================ #
@@ -152,3 +183,14 @@ class ConfigParser( object ):
             self._config = {}
             
         return self._config
+
+    @property
+    def fileout(self):
+        """ """
+        if not hasattr(self, "_fileout"):
+            self._fileout = None
+        return self._fileout
+
+    def has_fileout(self):
+        """ """
+        return self.fileout is not None

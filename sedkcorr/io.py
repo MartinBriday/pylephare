@@ -25,10 +25,12 @@ class IO( object ):
     LEPHAREWORK = PATH_LEPHAREWORK
     def __init__(self, dirout=None):
         """ """
-        if dirout is None:
-            self._dirout = self.get_default_path()
-            warnings.warn("Default dirout used: %s"%self._dirout)
-
+        self.set_dirout(dirout)
+        
+    def set_dirout(self, dirout=None):
+        """ """
+        self._dirout = dirout
+        
     # ================ #
     #    Statics       #
     # ================ #
@@ -72,6 +74,9 @@ class IO( object ):
     @property
     def dirout(self):
         """ """
+        if not hasattr(self,"_dirout") or self._dirout is None:
+            self.set_dirout( self.get_default_path() )
+            warnings.warn("Default dirout used: %s"%self._dirout)
         return self._dirout
 
 

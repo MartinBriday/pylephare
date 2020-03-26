@@ -227,7 +227,7 @@ def mag_to_flux(mag, mag_err=None, band=None, flux_unit="Hz", opt_mAB0=False):
     -------
     float or np.array, float or np.array
     """
-    if (mag_err == 0. or mag_err is None) and len(np.atleast_1d(mag)) > 1:
+    if len(np.atleast_1d(mag)) > 1 and (np.all(np.atleast_1d(mag_err)==0) or mag_err is None):
         mag_err = None
     if opt_mAB0:
         flux_out = 10**(KCorrection.mag_ab_zeropoint(FILTER_BANDS[band]["ZP"], FILTER_BANDS[band]["lbda"]) - 0.4*mag)

@@ -286,7 +286,7 @@ def flux_to_mag(flux, flux_err=None, band=None, flux_unit="Hz", opt_mAB0=False):
     -------
     float or np.array, float or np.array
     """
-    if (flux_err == 0. or flux_err is None) and len(np.atleast_1d(flux)) > 1:
+    if (np.all(np.atleast_1d(flux_err)==0) or flux_err is None) and len(np.atleast_1d(flux)) > 1:
         flux_err = None
     if opt_mAB0:
         unit_out = "AA"

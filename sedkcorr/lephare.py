@@ -8,7 +8,7 @@ import pandas
 import numpy as np
 
 
-from .utils import tools
+from . import tools
 from .io import PATH_LEPHAREDIR, PATH_LEPHAREWORK
 
 
@@ -149,8 +149,7 @@ class _LePhareBase_( object ):
     # -------- #
     #  SETTER  #
     # -------- #
-    def set_data(self, data=None, unit="Hz",
-                     **kwargs):
+    def set_data(self, data=None, inhz=False, **kwargs):
         """
         Set up the file paths about the data, the config files (input and output) and the results path.
         
@@ -165,12 +164,10 @@ class _LePhareBase_( object ):
             The filter syntax must be like "project.band" (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
             If None, the filter list will be based on the configuration file.
         
-        unit : [string]
-            If 'data' is in flux, you can precise here the unit :
-            - "Hz" [default] : erg . cm**-2 . s**-1 . Hz**-1
-            - "AA" : erg . cm**-2 . s**-1 . AA**-1 (AA = Angstrom)
-            - "mgy" : mgy (mgy = maggies)
-            As LePhare needs the flux to be in the "Hz" (see above) unit, it will be converted if necessary.
+        inhz:
+            set to true if the flux (and flux) are given in erg/s/cm2/Hz
+            (False means in erg/s/cm2/AA)
+
         
         Returns
         -------
@@ -191,17 +188,13 @@ class _LePhareBase_( object ):
         self.set_filters(filters) 
         
         # // flux units
-        if unit != "Hz":
+        if not inhz:
             for filter_ in self.filters:
-                data_[filter_]        = tools.convert_flux_unit(data_[filter_],
-                                                                 tools.FILTER_BANDS[filter_]["lbda"], unit, "Hz")
-                data_[filter_+".err"] = tools.convert_flux_unit(data_[filter_+".err"],
-                                                                 tools.FILTER_BANDS[filter_]["lbda"], unit, "Hz")
+                data_[filter_]        = tools.flux_aa_to_hz(data_[filter_], self.io.get_filter_bandpass(filter_).wave_eff)
+                data_[filter_+".err"] = tools.flux_aa_to_hz(data_[filter_+".err"], self.io.get_filter_bandpass(filter_).wave_eff)
         # // Setting
         self._data = data_
         
-        
-
     def set_config(self, configfile):
         """ """
         from .configparser import ConfigParser
@@ -209,13 +202,14 @@ class _LePhareBase_( object ):
         self.config.set_fileout(self.io.dirout+"/config")
         if self.has_filters():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
+            self.config.set_value("FILTER_FILE", "_".join([l.replace(".","") for l in self.filters])+".filt")
         
     def set_filters(self, filters):
         """ """
         self._filters = filters
         if self.has_config():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
-
+            self.config.set_value("FILTER_FILE", "_".join([l.replace(".","") for l in self.filters])+".filt")
         
         
     def set_redshift(self, redshift, index=None):
@@ -426,7 +420,7 @@ class LePhare( _LePhareBase_ ):
         """ """
         filter_file = self.config.get_value("FILTER_FILE")
         if not self.io.is_filt_known(filter_file) or update:
-            cmd = "{}/source/filter -c {} -FILTER_FILE {}".format(self.io.LEPHAREDIR, self.get_configfile(update=updateconfig) if configfile is None else configfile, filter_file)
+            cmd = "{}/source/filter -c {}".format(self.io.LEPHAREDIR, self.get_configfile(update=updateconfig) if configfile is None else configfile)
             try:
                 subprocess.run(cmd.split())
             except:

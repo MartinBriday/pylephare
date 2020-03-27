@@ -2,7 +2,87 @@
 
 import pandas
 import numpy as np
-from .utils import tools
+from . import tools, io
+
+
+def synthesize_photometry(lbda, flux, filter_lbda, filter_trans,
+                          normed=True):
+    """ Get Photometry from the given spectral information through the given filter.
+
+    This function converts the flux into photons since the transmission provides the
+    fraction of photons that goes though.
+
+
+    Parameters
+    -----------
+    lbda, flux: [array]
+        Wavelength and flux of the spectrum from which you want to synthetize photometry
+        
+    filter_lbda, filter_trans: [array]
+        Wavelength and transmission of the filter.
+
+    normed: [bool] -optional-
+        Shall the fitler transmission be normalized?
+
+    Returns
+    -------
+    Float (photometric point)
+    """
+    # ---------
+    # The Tool
+    def integrate_photons(lbda, flux, step, flbda, fthroughput):
+        """ """
+        filter_interp = np.interp(lbda, flbda, fthroughput)
+        dphotons = (filter_interp * flux) * lbda * 5.006909561e7
+        return np.trapz(dphotons,lbda) if step is None else np.sum(dphotons*step)
+    
+    # ---------
+    # The Code
+    normband = 1. if not normed else \
+      integrate_photons(lbda, np.ones(len(lbda)),None,filter_lbda,filter_trans)
+      
+    return integrate_photons(lbda,flux,None,filter_lbda,filter_trans)/normband
+
+# ----------- #
+# Redshifting #
+# ----------- #
+def deredshift(lbda, flux, z, variance=None, exp=3):
+    """Deredshift spectrum from z to 0, and apply a (1+z)**exp
+    flux-correction.
+
+    exp=3 is for erg/s/cm2/A spectra to be latter corrected using proper
+    (comoving) distance but *not* luminosity distance.
+
+    Parameters
+    ----------
+    lbda, flux : [array]
+        wavelength and flux or the spectrum. 
+        y is expected in erg/s/cm2/A (so x in A)
+        
+    z: [float]
+        Cosmological redshift
+
+    variance: [array] -optional-
+        spectral variance if any (square of flux units.)
+
+    exp: [float] -optional-
+        exposant for the redshift flux dilution 
+        [exp=3 is for erg/s/cm2/A spectra]
+
+    Returns
+    -------
+    arrays (x, y [and variance if any] corresponding to the deredshifted spectrum)
+
+    """
+    zp1 = 1 + z
+    lbda_rest = lbda/zp1           # Wavelength correction
+    flux_rest = flux*(zp1**exp)      # Flux correction
+    if variance is not None:
+        variance_rest = variance*(zp1**exp)**2
+
+    return (lbda_rest, flux_rest , variance_rest) if variance is not None else (lbda_rest, flux_rest)
+
+
 
 class LePhareSpectrum( object ):
     """ """
@@ -44,10 +124,9 @@ class LePhareSpectrum( object ):
         """ """
         self._flagin = (self.data.lbda>lbdamin) & (self.data.lbda<lbdamax)
         
-        
     # -------- #
     #  GETTER  #
-    # -------- # 
+    # -------- #        
     def get_data(self, model="gal", apply_lbdarange=True):
         """ """
         if model in ["gal"]:
@@ -55,27 +134,38 @@ class LePhareSpectrum( object ):
         index_start, index_end = self._get_model_nlines_(model)
         datas = self.data.iloc[index_start:index_end]
         return datas if not apply_lbdarange else datas[self.flagin[index_start:index_end]]
-        
-    def get_spectral_data(self, model="gal", influx=True, unit="AA"):
+
+    def get_redshift(self, spectro=True):
+        """ """
+        return self.zspec if spectro else self.zphoto
+    
+    def get_spectral_data(self, model="gal", influx=True, inhz=False, restframe=False):
         """ """
         data_ = self.get_data(model)
         lbda_, mag_ = data_.lbda, data_.mag
+        flux_aa = tools.mag_to_flux(mag_, None, wavelength=lbda_, inhz=False)[0]
+        
+        if restframe:
+            lbda_, flux_aa = deredshift(lbda_, flux_aa, self.get_redshift(spectro=True))
+            
         if influx:
-            return lbda_, tools.mag_to_flux(mag_, band=lbda_, flux_unit=unit)[0]
+            return lbda_, flux_aa if not inhz else tools.flux_aa_to_hz(flux_aa, lbda_)
+        
+        mag_ = tools.flux_to_mag(flux_aa, None, wavelength=lbda_, inhz=False)[0]
         return lbda_, mag_
     
-    def get_input_data(self, influx=True, unit="AA"):
+    def get_input_data(self, influx=True, inhz=False):
         """ """
-        lbda_, mag_, emag_ = np.asarray(spec.resultmags[["Lbd_mean", "Mag", "emag"]].values, dtype="float").T
+        lbda_, mag_, emag_ = np.asarray(self.resultmags[["Lbd_mean", "Mag", "emag"]].values, dtype="float").T
         if influx:
-            return lbda_, tools.mag_to_flux(mag_, mag_err=emag_, band=lbda_, flux_unit=unit)
+            return lbda_, tools.mag_to_flux(mag_, magerr=emag_, wavelength=lbda_, inhz=inhz)
         return lbda_, [mag_, emag_]
     
-    def get_model_data(self, influx=True, unit="AA"):
+    def get_model_data(self, influx=True, inhz=False):
         """ """
-        lbda_, mag_ = np.asarray(spec.resultmags[["Lbd_mean", "Mag_gal"]].values, dtype="float").T
+        lbda_, mag_ = np.asarray(self.resultmags[["Lbd_mean", "Mag_gal"]].values, dtype="float").T
         if influx:
-            return lbda_, tools.mag_to_flux(mag_, band=lbda_, flux_unit=unit)[0]
+            return lbda_, tools.mag_to_flux(mag_, None, wavelength=lbda_, inhz=inhz)[0]
         return lbda_, mag_
     
     def _get_model_nlines_(self, model):
@@ -85,35 +175,72 @@ class LePhareSpectrum( object ):
         return rangelist[self.resultmodels.index.get_loc(model)]
 
     # -------- #
+    #  Main    #
+    # -------- #
+    def synthesize_through_filter(self, filtername,  restframe=False, influx=True, inhz=False):
+        """ """
+        bp = io.get_filter_bandpass(filtername)
+        sflux_aa = self.synthesize_photometry(bp.wave, bp.trans, restframe=restframe)
+        slbda_ = bp.wave_eff/(1+self.get_redshift()) if restframe else bp.wave_eff
+
+        if influx:
+            return slbda_, (sflux_aa if not inhz else tools.flux_aa_to_hz(sflux_aa, slbda_))
+        
+        mag_ = tools.flux_to_mag(sflux_aa, None, wavelength=slbda_)[0]
+        return slbda_, mag_
+
+    def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
+        """ get the synthetic flux in AA """
+        lbda_, flux_aa = self.get_spectral_data(model="gal", influx=True, inhz=False, restframe=restframe)
+        return synthesize_photometry(lbda_, flux_aa, filter_lbda, filter_trans, normed=True)
+    
+
+    # -------- #
     # PLOTTER  #
     # -------- #        
-    def show(self, ax=None, influx=True, unit="AA", model="gal", 
-             scprop={}, **kwargs):
+    def show(self, ax=None, influx=True, inhz=False, model="gal", 
+             showdata=True, showmagmodel=True, restframe=False,
+             scprop={}, colormodel=".7",**kwargs):
         """ """
         import matplotlib.pyplot as mpl
         if ax is None:
-            fig = mpl.figure(figsize=[6,4])
-            ax = fig.add_axes([0.12,0.12,0.8,0.8])
+            fig = mpl.figure(figsize=[7,3.5])
+            ax = fig.add_axes([0.1,0.2,0.8,0.7])
         else:
             fig = ax.figure
             
-        propfunc = dict(influx=influx, unit=unit)
+        propfunc = dict(influx=influx, inhz=inhz)
             
-        lbda_, fluxmag_ = self.get_spectral_data(model=model, **propfunc)
-        ax.plot(lbda_, fluxmag_*100, **kwargs)
-        #if showdata:
-        #    lbda_, [data, err] = self.get_input_data(**propfunc)
-        #    prop_ = dict(ls="None", marker="o", mfc="C0", mec="C0", ecolor="0.7")
-        #    ax.errorbar(lbda_, data, yerr=err, **{**prop_,**scprop})
-        #if showmagmodel:
-        #    lbda_, data = self.get_model_data(**propfunc)
-        #    prop_ = dict(ls="None", marker="o", mfc="None", mec="C0", ecolor="0.7")
-        #    ax.errorbar(lbda_, data, yerr=err, **{**prop_,**scprop})   
+        lbda_, fluxmag_ = self.get_spectral_data(model=model,restframe=restframe, **propfunc)
+        ax.plot(lbda_, fluxmag_, color=colormodel, **kwargs)
+        if showdata:
+            lbda_, [data, err] = self.get_input_data(**propfunc)
+            prop_ = dict(ls="None", marker="o", mfc="C0", mec="C0", ecolor="0.7")
+            ax.errorbar(lbda_, data, yerr=err, **{**prop_,**scprop})
+        if showmagmodel:
+            lbda_, data = self.get_model_data(**propfunc)
+            prop_ = dict(ls="None", marker="o", mfc="w", mec=colormodel, mew=1)
+            ax.plot(lbda_, data, **{**prop_,**scprop})   
+            
+        ax.set_xlabel(r"Wavelentgh [$\AA$]", fontsize="large")
+        ax.set_ylabel(r"flux [$\mathrm{erg\,s^{-1}\,cm^{-2}\,%s}$]"%("Hz^{-1}" if inhz else "\AA^{-1}") 
+                      if influx else "magnitude", 
+        fontsize="large")        
         return fig
     
     # ============== #
     #   Properties   #
     # ============== #
+    @property
+    def zphoto(self):
+        """ """
+        return self._zphot
+
+    @property
+    def zspec(self):
+        """ """
+        return self._zspec
+    
     @property
     def mag(self):
         """ """

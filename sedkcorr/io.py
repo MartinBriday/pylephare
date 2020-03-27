@@ -5,6 +5,7 @@ import warnings
 import configparser # Careful not the .configparser
 from datetime import datetime
 
+import numpy as np
 
 
 PATH_LEPHAREDIR = os.path.expanduser(os.getenv("LEPHAREDIR", default=None))
@@ -29,6 +30,10 @@ _DEFAULT_FILTER_CONFIG = {'2mass': {'h': 'H.pb', 'j': 'J.pb', 'ks': 'Ks.pb'},
                           }
 FILTER_CONFIGGILE = PATH_LEPHAREWORK+"/filt/config"
 
+
+def get_filter_bandpass(filtername,**kwargs):
+    """ """
+    return IO().get_filter_bandpass(filtername,**kwargs)
 
 
 class IO( object ):
@@ -56,8 +61,21 @@ class IO( object ):
         
     def get_config_filterlist(self, filterlist):
         """ get the list of lephare"""
-        return ",".join([filt_.split(".")[0]+"/"+self._filtercongig.get(*filt_.split(".")) for filt_ in filterlist])
+        return ",".join([self.get_filterfile(filt_, fullpath=False) for filt_ in filterlist])
+
+    def get_filterfile(self, filtername, fullpath=True):
+        """ """
+        source = (self.get_filt_path(from_work=False)+"/") if fullpath else ""
+        return source+filtername.split(".")[0]+"/"+self._filtercongig.get(*filtername.split("."))
+
+    def get_filter_bandpass(self, filtername, **kwargs):
+        """ returns the sncosmo.Bandpass associated to the given filter """
+        from  sncosmo import bandpasses
+        wave, trans = np.asarray([l.split() for l in open(self.get_filterfile(filtername)).read().splitlines()
+                                      if len(l)>0 and not l.startswith("#")], 
+                                     dtype="float").T
         
+        return bandpasses.Bandpass(wave, trans, **kwargs)
     # ================ #
     #    Statics       #
     # ================ #
@@ -84,9 +102,10 @@ class IO( object ):
         """ """
         return os.path.isfile(PATH_LEPHAREWORK+"/filt"+"/"+filtname)
 
+    @staticmethod
     def get_instrument_filters(instrument):
         """ """
-        return os.listdir(PATH_LEPHAREDIR+"/filt/"+l)
+        return os.listdir(PATH_LEPHAREDIR+"/filt/"+instrument)
         
     @staticmethod
     def _get_instrument_filters():

@@ -84,9 +84,21 @@ class ConfigParser( object ):
         else:
             # new
             return self.get_config("array")
+
+
     # -------- #
     #  SETTER  #
     # -------- #
+    def set_fileout(self, fileout, builddir=True):
+        """ """
+        if builddir:
+            dir_ = os.path.dirname(fileout)
+            if not os.path.isdir(dir_):
+                os.makedirs(dir_)
+                
+        self._fileout = fileout
+
+        
     def set_value(self, key, value, comments=None):
         """ Mother setter methods. All data set this way will be recorded with using self.writeto() """
         self._config[key.upper()] = {"value":value,
@@ -105,14 +117,58 @@ class ConfigParser( object ):
             self.switched_off_keys.pop(self.switched_off_keys.index(key))
             self._config[key] = self._config.pop("# "+key)
 
-    def set_fileout(self, fileout, builddir=True):
+    def set_filter_suffix(self, suffix ):
+        """ 
+        Add the suffix to the {}_LIB, {}_LIB_IN {}_LIB_OUT values
+        {} = {STAR, QSO or GAL}
+
+        It also sets FILTER_FILE = suffix.filt
+        """
+        for key in ["STAR","QSO","GAL"]:
+            self.set_value("%s_LIB"%key, "LIB_%s_%s"%(key,suffix))
+            self.set_value("%s_LIB_IN"%key, "LIB_%s_%s"%(key,suffix))
+            self.set_value("%s_LIB_OUT"%key, "%s_%s"%(key,suffix))
+
+        self.set_value("FILTER_FILE", suffix+".filt")
+        
+    def set_zphotlib(self, gal=True, star=False, qso=False, gallib="BC03"):
         """ """
-        if builddir:
-            dir_ = os.path.dirname(fileout)
-            if not os.path.isdir(dir_):
-                os.makedirs(dir_)
+        zphoto=""
+        if not star:
+            self.switch_off_key("STAR_LIB")
+            self.switch_off_key("STAR_LIB_IN")
+            self.switch_off_key("STAR_LIB_OUT")
+            starkey = []
+        else:
+            starkey = [self.get_value("STAR_LIB_OUT")]
+            
+        if not qso:
+            self.switch_off_key("QSO_LIB")
+            self.switch_off_key("QSO_LIB_IN")
+            self.switch_off_key("QSO_LIB_OUT")
+            qsokey = []
+        else:
+            qsokey = [self.get_value("QSO_LIB_OUT")]
+
+        if not gal:
+            self.switch_off_key("GAL_LIB")
+            self.switch_off_key("GAL_LIB_IN")
+            self.switch_off_key("GAL_LIB_OUT")
+            galkey = []
+        else:
+            for key in ["GAL_LIB","GAL_LIB_IN","GAL_LIB_OUT"]:
+                self.set_value(key, self.get_value(key).replace("GAL",gallib) )
+            galkey = [self.get_value("GAL_LIB_OUT")]
+
+        self.set_value("ZPHOTLIB", ','.join(starkey+qsokey+galkey))
+        return self.get_value("ZPHOTLIB")
+
+            
+        
+                                   
+
                 
-        self._fileout = fileout
+        
         
     # -------- #
     #  GETTER  #

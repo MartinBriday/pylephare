@@ -202,15 +202,14 @@ class _LePhareBase_( object ):
         self.config.set_fileout(self.io.dirout+"/config")
         if self.has_filters():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
-            self.config.set_value("FILTER_FILE", "_".join([l.replace(".","") for l in self.filters])+".filt")
-        
+            self.config.set_filter_suffix(self._filter_labels)
+            
     def set_filters(self, filters):
         """ """
         self._filters = filters
         if self.has_config():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
-            self.config.set_value("FILTER_FILE", "_".join([l.replace(".","") for l in self.filters])+".filt")
-        
+            self.config.set_filter_suffix(self._filter_labels)
         
     def set_redshift(self, redshift, index=None):
         """ """
@@ -316,7 +315,11 @@ class _LePhareBase_( object ):
     def has_filters(self):
         """ """
         return self.filters is not None and len(self.filters)>0
-    
+
+    @property
+    def _filter_labels(self):
+        """ """
+        return "_".join([l.replace(".","") for l in self.filters])
     @property
     def nfilters(self):
         """ """
@@ -352,7 +355,8 @@ class LePhare( _LePhareBase_ ):
     # - Main
     #
     def run(self, update=False, filters=None, contextid=None, dirout=None,
-                configfile=None, catinfile=None, originalconfig=False):
+                configfile=None, catinfile=None, originalconfig=False,
+                proplib={}):
         """
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
         
@@ -365,7 +369,11 @@ class LePhare( _LePhareBase_ ):
         dirout : [string or None]
             Where the data should be stored.
             Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
-                        
+               
+        proplib: [dict] -optional-
+            by default:
+            dict(gal=True, star=False, qso=False, gallib="BC03")
+            this will updte that.
         Returns
         -------
         Void
@@ -377,6 +385,9 @@ class LePhare( _LePhareBase_ ):
         if dirout is None:
             dirout = self.io.dirout
 
+        defaultproplib = dict(gal=True, star=False, qso=False, gallib="BC03")
+        self.config.set_zphotlib({**defaultproplib,**proplib})
+        
         if configfile is None:
             if catinfile is None:
                 catinfile = self.get_datafile()
@@ -419,8 +430,12 @@ class LePhare( _LePhareBase_ ):
     def build_filter_files(self, update=False, configfile=None, updateconfig=True):
         """ """
         filter_file = self.config.get_value("FILTER_FILE")
+        print("filter_file: ", filter_file)
+        if configfile is None:
+            configfile = self.get_configfile(update=updateconfig)
+        print("configfile:", configfile)
         if not self.io.is_filt_known(filter_file) or update:
-            cmd = "{}/source/filter -c {}".format(self.io.LEPHAREDIR, self.get_configfile(update=updateconfig) if configfile is None else configfile)
+            cmd = "{}/source/filter -c {} -FILTER_FILE {}".format(self.io.LEPHAREDIR, configfile, filter_file)
             try:
                 subprocess.run(cmd.split())
             except:
@@ -441,13 +456,23 @@ class LePhare( _LePhareBase_ ):
         -------
         Void
         """
-    
-        lib_s_v = self.config.get_value("STAR_LIB")
-        lib_q_v = self.config.get_value("QSO_LIB")
-        lib_g_v = self.config.get_value("GAL_LIB")
+        if "STAR_LIB" not in self.config.switched_off_keys:
+            lib_s_v = self.config.get_value("STAR_LIB")
+        else:
+            lib_s_v = None
+            
+        if "QSO_LIB" not in self.config.switched_off_keys:
+            lib_q_v = self.config.get_value("QSO_LIB")
+        else:
+            lib_q_v = None
+            
+        if "GAL_LIB" not in self.config.switched_off_keys:
+            lib_g_v = self.config.get_value("GAL_LIB")
+        else:
+            lib_g_v =None
         
         if not np.prod([os.path.isfile(self.io.LEPHAREWORK+"/lib_bin/"+elt+".bin")
-                        for elt in [lib_s_v, lib_q_v, lib_g_v]]) or update:
+                        for elt in [lib_s_v, lib_q_v, lib_g_v] if elt is not None]) or update:
             for elt in ["S", "Q", "G"]:
                 cmd = "{}/source/sedtolib -t {} -c {}".format(self.io.LEPHAREDIR, elt, self.get_configfile(update=updateconfig) if configfile is None else configfile)
                 try:
@@ -470,6 +495,8 @@ class LePhare( _LePhareBase_ ):
         -------
         Void
         """
+        if "STAR_LIB_OUT" in self.config.switched_off_keys:
+            return None
         
         lib_s_v = self.config.get_value("STAR_LIB_OUT")
         
@@ -495,10 +522,17 @@ class LePhare( _LePhareBase_ ):
         -------
         Void
         """
-        lib_q_v = self.config.get_value("QSO_LIB_OUT")
-        lib_g_v = self.config.get_value("GAL_LIB_OUT")
+        if "QSO_LIB_OUT" not in self.config.switched_off_keys:
+            lib_q_v = self.config.get_value("QSO_LIB_OUT")
+        else:
+            lib_q_v = None
+            
+        if "GAL_LIB_OUT" not in self.config.switched_off_keys:
+            lib_g_v = self.config.get_value("GAL_LIB_OUT")
+        else:
+            lib_g_v =None
         
-        if not np.prod([os.path.isfile(self.io.LEPHAREWORK+"/lib_mag/"+elt+".bin") for elt in [lib_q_v, lib_g_v]]) or update:
+        if not np.prod([os.path.isfile(self.io.LEPHAREWORK+"/lib_mag/"+elt+".bin") for elt in [lib_q_v, lib_g_v] if elt is not None]) or update:
             for elt in ["Q", "G"]:
                 cmd = "{}/source/mag_gal -t {} -c {}".format(self.io.LEPHAREDIR, elt, self.get_configfile(update=updateconfig) if configfile is None else configfile)
                 try:

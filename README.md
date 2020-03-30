@@ -25,7 +25,7 @@ LePhare request that you provide a config file. We invite you to check LePhare c
 
 All config file parameters could be changed later on.
 
-## pylephare environment
+### pylephare environment
 
 the first time you import a pylephare modul, this will create the pylephare working environment:
 - the directory `$LEPHAREWORK/pylephare`

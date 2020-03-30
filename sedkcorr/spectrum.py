@@ -86,10 +86,12 @@ def deredshift(lbda, flux, z, variance=None, exp=3):
 
 class LePhareSpectrum( object ):
     """ """
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, lbda_range=None):
         """ """
         if filename is not None:
             self.load(filename)
+            if lbda_range is not None:
+                self.set_lbda_range(*lbda_range)
     
     def load(self, filename, onlyfirstrow=True):
         """ """
@@ -200,7 +202,7 @@ class LePhareSpectrum( object ):
     # -------- #        
     def show(self, ax=None, influx=True, inhz=False, model="gal", 
              showdata=True, showmagmodel=True, restframe=False,
-             scprop={}, colormodel=".7",**kwargs):
+             scprop={}, colormodel=".7", set_label=True, **kwargs):
         """ """
         import matplotlib.pyplot as mpl
         if ax is None:
@@ -221,11 +223,12 @@ class LePhareSpectrum( object ):
             lbda_, data = self.get_model_data(**propfunc)
             prop_ = dict(ls="None", marker="o", mfc="w", mec=colormodel, mew=1)
             ax.plot(lbda_, data, **{**prop_,**scprop})   
+
+        if set_label:
+            ax.set_xlabel(r"Wavelentgh [$\AA$]", fontsize="large")
+            ax.set_ylabel(r"flux [$\mathrm{erg\,s^{-1}\,cm^{-2}\,%s}$]"%("Hz^{-1}" if inhz else "\AA^{-1}") 
+                      if influx else "magnitude",  fontsize="large")
             
-        ax.set_xlabel(r"Wavelentgh [$\AA$]", fontsize="large")
-        ax.set_ylabel(r"flux [$\mathrm{erg\,s^{-1}\,cm^{-2}\,%s}$]"%("Hz^{-1}" if inhz else "\AA^{-1}") 
-                      if influx else "magnitude", 
-        fontsize="large")        
         return fig
     
     # ============== #

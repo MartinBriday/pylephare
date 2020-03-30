@@ -35,7 +35,10 @@ def get_filter_bandpass(filtername,**kwargs):
     """ """
     return IO().get_filter_bandpass(filtername,**kwargs)
 
-
+def keys_to_filters(keys):
+    """ """
+    return [k for k in keys if k+".err" in keys]
+    
 class IO( object ):
     """ """
     LEPHAREDIR = PATH_LEPHAREDIR
@@ -92,6 +95,11 @@ class IO( object ):
 
     
     # // Filters
+    @staticmethod
+    def keys_to_filters(keys):
+        """ """
+        return keys_to_filters(keys)
+    
     @staticmethod
     def get_filt_path(from_work=True):
         """ """

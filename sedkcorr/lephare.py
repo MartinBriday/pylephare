@@ -10,7 +10,7 @@ import numpy as np
 
 from . import tools
 from .io import PATH_LEPHAREDIR, PATH_LEPHAREWORK
-
+from .base import _FilterHolder_
 
 class BC03Installer( object ):
     """ Test if the proper installation is made and enables to run it 
@@ -116,12 +116,24 @@ class BC03Installer( object ):
 #  LEPHARE           #
 #                    #
 ######################
+def read_catout(filein, filternames):
+    """ """
+    with open(filein) as f_:
+        d = f_.read().splitlines()
+        i_col_names = [ii for ii, line in enumerate(d) if "Output format" in line][0]
+        i_header = [i for i, line in enumerate(d) if line.startswith("#")]
+        colname_, colid = np.concatenate([[l_.replace("#","").split() for l_ in l.split(",") if len(l_)>1] for l in d[i_col_names+1:i_header[-1]]],
+                                        axis=0).T
+        colname = np.concatenate([[l.replace("()","_%s"%f_) for f_ in filternames] if "()" in l else [l] for l in colname_])
+        datain = np.asarray([l.split() for l in np.asarray(d)[i_header[-1]+1:]])
+        return pandas.DataFrame(datain, columns=colname).set_index("IDENT")
+    
 # ================== #
 #                    #
 #  Virtual LEPHARE   #
 #                    #
 # ================== #
-class _LePhareBase_( object ):
+class _LePhareBase_( _FilterHolder_ ):
     """ 
     This Basic Class contains the data - filter - config interactions
     """
@@ -184,14 +196,14 @@ class _LePhareBase_( object ):
         data_ = data.copy()
 
         # // filters
-        filters = [k for k in data.columns if k+".err" in data.columns]
+        filters = self.io.keys_to_filters(data_.columns)
         self.set_filters(filters) 
         
         # // flux units
         if not inhz:
             for filter_ in self.filters:
-                data_[filter_]        = tools.flux_aa_to_hz(data_[filter_], self.io.get_filter_bandpass(filter_).wave_eff)
-                data_[filter_+".err"] = tools.flux_aa_to_hz(data_[filter_+".err"], self.io.get_filter_bandpass(filter_).wave_eff)
+                data_[filter_]        = tools.flux_aa_to_hz(data_[filter_], self.filter_bandpasses[filter_].wave_eff)
+                data_[filter_+".err"] = tools.flux_aa_to_hz(data_[filter_+".err"], self.filter_bandpasses[filter_].wave_eff)
         # // Setting
         self._data = data_
         
@@ -206,7 +218,7 @@ class _LePhareBase_( object ):
             
     def set_filters(self, filters):
         """ """
-        self._filters = filters
+        _ = super().set_filters(filters)
         if self.has_config():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
             self.config.set_filter_suffix(self._filter_labels)
@@ -304,29 +316,6 @@ class _LePhareBase_( object ):
             raise AttributeError("No data set yet.")
         return len(self.data)
 
-    # - Filters
-    @property
-    def filters(self):
-        """ """
-        if not hasattr(self,"_filters"):
-            self._filters = None
-        return self._filters
-
-    def has_filters(self):
-        """ """
-        return self.filters is not None and len(self.filters)>0
-
-    @property
-    def _filter_labels(self):
-        """ """
-        return "_".join([l.replace(".","") for l in self.filters])
-    @property
-    def nfilters(self):
-        """ """
-        if not self.has_filters():
-            raise AttributeError("No filter set yet.")
-        return len(self.filters)
-    
     # - Config
     @property
     def config(self):

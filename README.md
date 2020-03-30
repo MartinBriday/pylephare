@@ -1,4 +1,4 @@
-# sedkcorr
+# pylephare
 
 Module to obtain k-corrected magnitudes from SED.
 

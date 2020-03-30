@@ -25,13 +25,21 @@ LePhare request that you provide a config file. We invite you to check LePhare c
 
 All config file parameters could be changed later on.
 
+## pylephare environment
+
+the first time you import a pylephare modul, this will create the pylephare working environment:
+- the directory `$LEPHAREWORK/pylephare`
+- the directory `$LEPHAREWORK/pylephare/config`
+- copy the package default config file  and parameter out config file inside `$LEPHAREWORK/pylephare/config`
+
 ## Let's go
 
 Let's load the example dataframe (`/test/lephare/data_test.csv`) and configfiles (`/test/lephare/lephare_zphot_input.para`):
 ```python
 import pandas
-data = pandas.read_csv("test/lephare/data_test.csv", sep=" ")
-configfile = "test/lephare/lephare_zphot_input.para"
+from pylephare import io
+data = pandas.read_csv(io._PACKAGE_ROOT+"/data/data_test.csv", sep=" ")
+configfile = None # default file stored in your $LEPHAREWORK/pylephare/config/default.config
 ```
 and let's load the `LePhare` class:
 ```python
@@ -63,10 +71,10 @@ For that, let's use only one entry of the catalog used in the first example:
 
 ```python
 import pandas
-data = pandas.read_csv("test/lephare/data_test.csv", sep=" ")
+data = pandas.read_csv(io._PACKAGE_ROOT+"/data/data_test.csv", sep=" ")
 target = data.iloc[0]
 
-configfile = "test/lephare/lephare_zphot_input.para"
+configfile = None # use the default one
 ```
 The `MCLePhare` class is a wrapper that draw `ndraw` realisation of the data given their respective errors and runs lephare (as illustrated in the first example) on each. Here let's do 50 draws:
 

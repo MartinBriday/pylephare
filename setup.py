@@ -11,7 +11,7 @@ MAINTAINER_EMAIL = 'briday@ipnl.in2p3.fr'
 URL = 'https://github.com/MartinBriday/pylephare'
 LICENSE = 'Apache 2.0'
 DOWNLOAD_URL = 'https://github.com/MartinBriday/pylephare'
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 
 try:
     from setuptools import setup, find_packages
@@ -74,7 +74,7 @@ if __name__ == "__main__":
           download_url=DOWNLOAD_URL,
           install_requires=install_requires,
           packages=packages,
-          package_data={"pylephare":["config/*"]},
+          package_data={"pylephare":["config/*", 'data/*']},
           classifiers=[
               'Intended Audience :: Science/Research',
               'Programming Language :: Python :: 2.7',

@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import warnings
+from . import io
 
 class ConfigParser( object ):
     """ """
@@ -9,10 +10,16 @@ class ConfigParser( object ):
     # ================ #
     #    Methods       #
     # ================ #
-    def __init__(self, filename):
+    def __init__(self, filename=None, fileconfout=None):
         """ """
         self._init_config_()
-        self.load_config(filename)
+        if filename is None:
+            filename = io.DEFAULTCONFIG
+            warnings.warn("using default config file")
+        if fileconfout is None:
+            fileconfout = io.DEFAULTCONFIG_OUT
+            
+        self.load_config(filename, fileconfout=fileconfout)
 
     def _init_config_(self):
         """ """
@@ -37,7 +44,7 @@ class ConfigParser( object ):
     # -------- #
     #  LOADDER #
     # -------- #
-    def load_config(self, filename):
+    def load_config(self, filename, fileconfout=None):
         """ """
         self._filename = filename
         self._init_config = open(filename).read().splitlines()
@@ -56,7 +63,9 @@ class ConfigParser( object ):
                     raise IOError("cannot parse the line %s"%k)
             else:
                 raise IOError("cannot parse the line %s"%k)
-        
+        if fileconfout is not None:
+            self.set_value("PARA_OUT", fileconfout)
+            
     def _build_new_config_(self):
         """ """
         if hasattr(self,"_init_config"):

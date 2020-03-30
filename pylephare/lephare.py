@@ -145,8 +145,7 @@ class _LePhareBase_( _FilterHolder_ ):
         if data is not None:
             self.set_data(data=data, unit=dataunits)
             
-        if configfile is not None:
-            self.set_config(configfile)
+        self.set_config(configfile) 
 
         
     @classmethod

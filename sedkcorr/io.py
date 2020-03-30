@@ -73,7 +73,7 @@ class IO( object ):
 
     def get_filter_bandpass(self, filtername, **kwargs):
         """ returns the sncosmo.Bandpass associated to the given filter """
-        from  sncosmo import bandpasses
+        from sncosmo import bandpasses
         wave, trans = np.asarray([l.split() for l in open(self.get_filterfile(filtername)).read().splitlines()
                                       if len(l)>0 and not l.startswith("#")], 
                                      dtype="float").T

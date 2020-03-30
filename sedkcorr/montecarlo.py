@@ -4,7 +4,7 @@ import pandas
 import numpy as np
 from . import io, base
 
-class MCSED( base._FilterHolder_ ):
+class MCLePhare( base._FilterHolder_ ):
     """ """
     def __init__(self, serie=None, ndraw=500):
         """ """
@@ -21,7 +21,35 @@ class MCSED( base._FilterHolder_ ):
             self.load_lephare(configfile)
             
         self._lephare_out = self.lephare.run(**kwargs)
-        
+
+
+    def get_synthetic_photometry(self, filter_, restframe=False, influx=True, inhz=False):
+        """ get photometry synthesized trought the given filter/bandpass
+
+        Parameters
+        ----------
+        filter_: [string, sncosmo.BandPass, 2D array]
+            the filter through which the spectrum will be synthesized.
+            accepted input format:
+            - string: name of a know filter, the actual bandpass will be grab using io.get_filter_bandpass(filter_)
+            - 2D array: bandpass = sncosmo.bandpass.BandPass(*filter_)
+            - sncosmo.bandpass.BandPass
+            
+        restframe: [bool] -optional-
+            The spectrum is first deredshifted before doing the synthetic photometry
+
+        influx: [bool] -optional-
+            Shall the result returned in flux (True) or in ABmag (False)
+
+        inhz: [bool] -optional-
+            Should the returned flux be in  erg/s/cm2/A or erg/s/cm2/Hz
+            // ignored if influx = False //
+
+        Returns
+        -------
+        effective wavelength, synthesize flux/mag (see influx)
+        """
+        return self.spectra.get_synthetic_photometry(filter_, restframe=restframe, influx=influx, inhz=inhz)
     # ------- #
     # SETTER  #
     # ------- #

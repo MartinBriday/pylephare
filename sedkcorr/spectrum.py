@@ -185,9 +185,45 @@ class LePhareSpectrum( object ):
     # -------- #
     #  Main    #
     # -------- #
-    def synthesize_through_filter(self, filtername,  restframe=False, influx=True, inhz=False):
-        """ """
-        bp = io.get_filter_bandpass(filtername)
+    def get_synthetic_photometry(self, filter_, restframe=False, influx=True, inhz=False):
+        """ get photometry synthesized trought the given filter/bandpass
+
+        Parameters
+        ----------
+        filter_: [string, sncosmo.BandPass, 2D array]
+            the filter through which the spectrum will be synthesized.
+            accepted input format:
+            - string: name of a know filter, the actual bandpass will be grab using io.get_filter_bandpass(filter_)
+            - 2D array: bandpass = sncosmo.bandpass.BandPass(*filter_)
+            - sncosmo.bandpass.BandPass
+            
+        restframe: [bool] -optional-
+            The spectrum is first deredshifted before doing the synthetic photometry
+
+        influx: [bool] -optional-
+            Shall the result returned in flux (True) or in ABmag (False)
+
+        inhz: [bool] -optional-
+            Should the returned flux be in  erg/s/cm2/A or erg/s/cm2/Hz
+            // ignored if influx = False //
+
+        Returns
+        -------
+        effective wavelength, synthesize flux/mag (see influx)
+        """
+        from sncosmo import bandpasses
+        
+        # - Get the corresponding bandpass
+        if type(filter_) == str:
+            bp = io.get_filter_bandpass(filter_)
+        elif type(filter_) = bandpasses.Bandpass:
+            bp = filter_
+        elif len(filter_) == 2:
+            bp = bandpasses.Bandpass(*filter_)
+        else:
+            raise TypeError(" filter_ must either be a filter name like filter_='sdss.u', a sncosmo.BandPass or a 2D array filter_=[wave, transmission]")
+
+        # - Synthesize through bandpass
         sflux_aa = self.synthesize_photometry(bp.wave, bp.trans, restframe=restframe)
         slbda_ = bp.wave_eff/(1+self.get_redshift()) if restframe else bp.wave_eff
 
@@ -196,7 +232,11 @@ class LePhareSpectrum( object ):
         
         mag_ = tools.flux_to_mag(sflux_aa, None, wavelength=slbda_)[0]
         return slbda_, mag_
-
+    
+    def synthesize_through_filter(self, filtername,  restframe=False, influx=True, inhz=False):
+        """ """
+        return self.get_synthetic_photometry(filtername,  restframe=False, influx=True, inhz=False)
+    
     def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
         """ get the synthetic flux in AA """
         lbda_, flux_aa = self.get_spectral_data(model="gal", influx=True, inhz=False, restframe=restframe)
@@ -320,10 +360,34 @@ class LePhareSpectrumCollection( object ):
     # -------- #
     #  Main    #
     # -------- #
-    def synthesize_through_filter(self, filtername,  restframe=False, influx=True, inhz=False):
-        """ """
-        return [spec.synthesize_through_filter(filtername, restframe=restframe, influx=influx, inhz=inhz) for  spec in self._spectra]
+    def get_synthetic_photometry(self, filter_,  restframe=False, influx=True, inhz=False):
+        """ get photometry synthesized trought the given filter/bandpass
 
+        Parameters
+        ----------
+        filter_: [string, sncosmo.BandPass, 2D array]
+            the filter through which the spectrum will be synthesized.
+            accepted input format:
+            - string: name of a know filter, the actual bandpass will be grab using io.get_filter_bandpass(filter_)
+            - 2D array: bandpass = sncosmo.bandpass.BandPass(*filter_)
+            - sncosmo.bandpass.BandPass
+            
+        restframe: [bool] -optional-
+            The spectrum is first deredshifted before doing the synthetic photometry
+
+        influx: [bool] -optional-
+            Shall the result returned in flux (True) or in ABmag (False)
+
+        inhz: [bool] -optional-
+            Should the returned flux be in  erg/s/cm2/A or erg/s/cm2/Hz
+            // ignored if influx = False //
+
+        Returns
+        -------
+        effective wavelength, synthesize flux/mag (see influx)
+        """
+        return [spec.synthesize_through_filter(filter_, restframe=restframe, influx=influx, inhz=inhz) for  spec in self._spectra]
+    
     def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
         """ get the synthetic flux in AA """
         return [spec.synthesize_photometry(filter_lbda, filter_trans, model=model, restframe=restframe) for  spec in self._spectra]

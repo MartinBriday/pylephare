@@ -1,16 +1,16 @@
 #! /usr/bin/env python
 #
 
-DESCRIPTION = "sedkcorr: Apply k-correction from a given SED."
-LONG_DESCRIPTION = """  sedkcorr: Apply k-correction from a given SED. """
+DESCRIPTION = "pylephare: Python wrapper for LePhare SED fitting."
+LONG_DESCRIPTION = """ pylephare: Python wrapper for LePhare SED fitting. """
 
-DISTNAME = 'sedkcorr'
+DISTNAME = 'pylephare'
 AUTHOR = 'Martin Briday'
 MAINTAINER = 'Martin Briday' 
 MAINTAINER_EMAIL = 'briday@ipnl.in2p3.fr'
-URL = 'https://github.com/MartinBriday/sedkcorr'
+URL = 'https://github.com/MartinBriday/pylephare'
 LICENSE = 'Apache 2.0'
-DOWNLOAD_URL = 'https://github.com/MartinBriday/sedkcorr'
+DOWNLOAD_URL = 'https://github.com/MartinBriday/pylephare'
 VERSION = '0.1.0'
 
 try:
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         print(packages)
     else:
         # This should be updated if new submodules are added
-        packages = ['sedkcorr']
+        packages = ['pylephare']
 
     setup(name=DISTNAME,
           author=AUTHOR,
@@ -74,7 +74,7 @@ if __name__ == "__main__":
           download_url=DOWNLOAD_URL,
           install_requires=install_requires,
           packages=packages,
-          package_data={"sedkcorr":["k_correction/filter_bandpass/*.dat", "sed_fitting/config/*", "sed_fitting/results/*"]},
+          package_data={"pylephare":["config/*"]},
           classifiers=[
               'Intended Audience :: Science/Research',
               'Programming Language :: Python :: 2.7',

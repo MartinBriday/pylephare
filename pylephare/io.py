@@ -22,11 +22,12 @@ def get_default_path():
     return PATH_LEPHAREWORK+"/pylephare/"+get_now()
     
 
-_DEFAULT_FILTER_CONFIG = {'2mass': {'h': 'H.pb', 'j': 'J.pb', 'ks': 'Ks.pb'},
-                          'megacam': {'g': 'gp.pb','r': 'rp.pb', 'u': 'up.pb','z': 'zp.pb','i': 'ip.pb'},
-                          'sdss': {'u': 'up.pb','g': 'gp.pb',  'r': 'rp.pb',  'i': 'ip.pb',  'z': 'zp.pb'},
-                          'galex': {'fuv': 'FUV.pb','fuvo': 'FUV_old.pb', 'nuv': 'NUV.pb', 'nuvo': 'NUV_old.pb'},
-                          'ukidss': {'k': 'K.pb', 'h': 'H.pb', 'h2': 'H2.pb','j': 'J.pb',  'brg': 'Brg.pb','y': 'Y.pb','z': 'Z.pb'}
+_DEFAULT_FILTER_CONFIG = {"2mass": {"h": "H.pb", "j": "J.pb", "ks": "Ks.pb"},
+                          "megacam": {"g": "gp.pb","r": "rp.pb", "u": "up.pb","z": "zp.pb","i": "ip.pb"},
+                          "sdss": {"u": "up.pb","g": "gp.pb",  "r": "rp.pb",  "i": "ip.pb",  "z": "zp.pb"},
+                          "galex": {"fuv": "FUV.pb","fuvo": "FUV_old.pb", "nuv": "NUV.pb", "nuvo": "NUV_old.pb"},
+                          "ukidss": {"k": "K.pb", "h": "H.pb", "h2": "H2.pb","j": "J.pb",  "brg": "Brg.pb","y": "Y.pb","z": "Z.pb"}, 
+                          "ps1": {"g": "g_ps.pb", "r": "r_ps.pb", "i": "i_ps.pb", "z": "z_ps.pb", "y": "y_ps.pb"}
                           }
 FILTER_CONFIGGILE = PATH_LEPHAREWORK+"/filt/config"
 

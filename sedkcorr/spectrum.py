@@ -216,7 +216,7 @@ class LePhareSpectrum( object ):
         # - Get the corresponding bandpass
         if type(filter_) == str:
             bp = io.get_filter_bandpass(filter_)
-        elif type(filter_) = bandpasses.Bandpass:
+        elif type(filter_) == bandpasses.Bandpass:
             bp = filter_
         elif len(filter_) == 2:
             bp = bandpasses.Bandpass(*filter_)

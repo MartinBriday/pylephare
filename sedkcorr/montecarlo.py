@@ -22,7 +22,13 @@ class MCLePhare( base._FilterHolder_ ):
             
         self._lephare_out = self.lephare.run(**kwargs)
 
-
+    # ------- #
+    # GETTER  #
+    # ------- #
+    def get_spectrum(self, index):
+        """ Returns the index-th LePhareSpectrum """
+        return self.spectra.spectra[index]
+    
     def get_synthetic_photometry(self, filter_, restframe=False, influx=True, inhz=False):
         """ get photometry synthesized trought the given filter/bandpass
 
@@ -50,6 +56,7 @@ class MCLePhare( base._FilterHolder_ ):
         effective wavelength, synthesize flux/mag (see influx)
         """
         return self.spectra.get_synthetic_photometry(filter_, restframe=restframe, influx=influx, inhz=inhz)
+    
     # ------- #
     # SETTER  #
     # ------- #

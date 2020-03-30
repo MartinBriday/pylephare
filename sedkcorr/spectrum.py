@@ -235,7 +235,7 @@ class LePhareSpectrum( object ):
     
     def synthesize_through_filter(self, filtername,  restframe=False, influx=True, inhz=False):
         """ """
-        return self.get_synthetic_photometry(filtername,  restframe=False, influx=True, inhz=False)
+        return self.get_synthetic_photometry(filtername,  restframe=restframe, influx=influx, inhz=inhz)
     
     def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
         """ get the synthetic flux in AA """
@@ -386,7 +386,7 @@ class LePhareSpectrumCollection( object ):
         -------
         effective wavelength, synthesize flux/mag (see influx)
         """
-        return [spec.synthesize_through_filter(filter_, restframe=restframe, influx=influx, inhz=inhz) for  spec in self._spectra]
+        return [spec.get_synthetic_photometry(filter_, restframe=restframe, influx=influx, inhz=inhz) for  spec in self._spectra]
     
     def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
         """ get the synthetic flux in AA """

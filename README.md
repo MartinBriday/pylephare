@@ -1,6 +1,10 @@
-# sedkcorr
+# pylephare
 
-Module to obtain k-corrected magnitudes from SED.
+Python wrapper of LePhare SED fitting.
+
+http://www.cfht.hawaii.edu/~arnouts/LEPHARE/lephare.html
+
+It includes Monte Carlo generated SED spectra.
 
 
 # Running the Code: Simple LePhare run()

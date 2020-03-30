@@ -83,6 +83,12 @@ def deredshift(lbda, flux, z, variance=None, exp=3):
     return (lbda_rest, flux_rest , variance_rest) if variance is not None else (lbda_rest, flux_rest)
 
 
+#####################
+#                   #
+#  Spectra Classes  #
+#                   #
+#####################
+
 
 class LePhareSpectrum( object ):
     """ """
@@ -268,3 +274,64 @@ class LePhareSpectrum( object ):
     def resultmags(self):
         """ """
         return self._dfmag
+
+
+
+class LePhareSpectrumCollection( object ):
+    def __init__(self, lepharespectra):
+        """ """
+        self._spectra = lepharespectra
+
+    @classmethod
+    def read_files(cls, filenames, lbda_range=None):
+        """ """
+        return cls([LePhareSpectrum(file_, lbda_range) for file_ in filenames])
+    
+    # -------- #
+    #  SETTER  #
+    # -------- #
+    def set_lbda_range(self, lbdamin=None, lbdamax=None):
+        """ """
+        _ = [spec.set_lbda_range(lbdamin=None, lbdamax=None) for spec in self._spectra]
+
+    # -------- #
+    #  GETTER  #
+    # -------- #
+    def get_data(self, model="gal", apply_lbdarange=True):
+        """ """
+        return [spec.get_data(model=model, apply_lbdarange=apply_lbdarange) for spec in self._spectra]
+
+    def get_redshift(self, spectro=True):
+        """ """
+        return [spec.get_redshift(spectro=spectro) for  spec in self._spectra]
+    
+    def get_spectral_data(self, model="gal", influx=True, inhz=False, restframe=False):
+        """ """
+        return [spec.get_spectral_data(model=model, influx=influx, inhz=inhz, restframe=restframe) for  spec in self._spectra]
+    
+    def get_input_data(self, influx=True, inhz=False):
+        """ """
+        return [spec.get_input_data(influx=influx, inhz=inhz) for  spec in self._spectra]
+    
+    def get_model_data(self, influx=True, inhz=False):
+        """ """
+        return [spec.get_model_data(influx=influx, inhz=inhz) for  spec in self._spectra]
+
+    # -------- #
+    #  Main    #
+    # -------- #
+    def synthesize_through_filter(self, filtername,  restframe=False, influx=True, inhz=False):
+        """ """
+        return [spec.synthesize_through_filter(filtername, restframe=restframe, influx=influx, inhz=inhz) for  spec in self._spectra]
+
+    def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
+        """ get the synthetic flux in AA """
+        return [spec.synthesize_photometry(filter_lbda, filter_trans, model=model, restframe=restframe) for  spec in self._spectra]
+
+    # ============== #
+    #   Properties   #
+    # ============== #
+    @property
+    def spectra(self):
+        """ """
+        return self._spectra

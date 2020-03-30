@@ -63,7 +63,7 @@ class MCSED( base._FilterHolder_ ):
         self._config = configparser.ConfigParser(self._lephare_out["config"])
         self._catin = pandas.read_csv(self._lephare_out["catin"], sep=" ")
         self._catout = lephare.read_catout(self._lephare_out["catout"], self.filters)
-        self._spectra = [spectrum.LePhareSpectrum(spec_, lbda_range=[3000,10000]) for spec_ in self._lephare_out["spec"]]
+        self._spectra = spectrum.LePhareSpectrumCollection.read_files(self._lephare_out["spec"], lbda_range=[3000,10000])
         
     # ------- #
     # PLOTTER #
@@ -90,13 +90,13 @@ class MCSED( base._FilterHolder_ ):
             ax.plot([self.filter_bandpasses[f].wave_eff]*nmc, self.mcdata[f][idmc],  **propmc)
             
         if add_spec:
-            _ = [self._spectra[i_].show(ax=ax, showdata=False, showmagmodel=False, set_label=False)
+            _ = [self.spectra.spectra[i_].show(ax=ax, showdata=False, showmagmodel=False,
+                                        set_label=False, lw=1, alpha=0.3)
                 for i_ in idmc]
             
         
         ax.set_xlabel(r"Wavelentgh [$\AA$]", fontsize="large")
-        ax.set_ylabel(r"flux [$\mathrm{erg\,s^{-1}\,cm^{-2}\,%s}$]"%("Hz^{-1}" if inhz else "\AA^{-1}") 
-                      if influx else "magnitude",  fontsize="large")
+        ax.set_ylabel(r"flux [$\mathrm{erg\,s^{-1}\,cm^{-2}\,%s}$]"%("Hz^{-1}" if inhz else "\AA^{-1}"),  fontsize="large")
 
     # ============== #
     #  Properties    #
@@ -142,3 +142,41 @@ class MCSED( base._FilterHolder_ ):
     def has_lephare(self):
         """ """
         return hasattr(self, "_lephare") and self._lephare is not None
+
+    def _did_run_(self):
+        """ test if you ran self.run()"""
+        return hasattr(self, "_lephare_out")
+
+    # - lephare.run() results
+    @property
+    def catout(self):
+        """ Output catalog"""
+        if not hasattr(self, "_catout"):
+            if self._did_run_():
+                self._load_results_()
+            else:
+                raise AttributeError("you did not run self.run()")
+                
+        return self._catout
+    
+    @property
+    def config(self):
+        """ config used to run()"""
+        if not hasattr(self, "_config"):
+            if self._did_run_():
+                self._load_results_()
+            else:
+                raise AttributeError("you did not run self.run()")
+                
+        return self._config
+
+    @property
+    def spectra(self):
+        """ spectra estimated from run()"""
+        if not hasattr(self, "_spectra"):
+            if self._did_run_():
+                self._load_results_()
+            else:
+                raise AttributeError("you did not run self.run()")
+                
+        return self._spectra

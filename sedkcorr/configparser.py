@@ -163,12 +163,16 @@ class ConfigParser( object ):
         self.set_value("ZPHOTLIB", ','.join(starkey+qsokey+galkey))
         return self.get_value("ZPHOTLIB")
 
-            
+    def set_intrinsic_error(self, err_scale):
+        """ """
+        if err_scale is None:
+            self.switch_off_key("ERR_SCALE")
+            return
+        elif len(err_scale) != len(self.get_filters()):
+            raise ValueError(" you must provide the number of intrinsic magnitude as you have filters (%d vs. %d)"%(len(err_scale), len(self.get_filters())))
         
-                                   
-
-                
-        
+        self.switch_on_key("ERR_SCALE") # ignored if already on
+        self.set_value("ERR_SCALE",",".join(["{}".format(l) for l in err_scale]))
         
     # -------- #
     #  GETTER  #
@@ -222,6 +226,11 @@ class ConfigParser( object ):
                 self.writeto()
                 
         return self.fileout
+
+    def get_filters(self):
+        """ """
+        return self.get_value("FILTER_LIST").split(",")
+    
     # ================ #
     #  Properties      #
     # ================ #

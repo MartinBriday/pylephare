@@ -18,10 +18,10 @@ The code expects input data in form of a dataframe with the following column for
 `filtername1, filtername1.err, filtername2, filtername2.err, ... filternameN, filternameN.err, CONTEXT, Z-SPEC, STRING`
 
 where `filtername{}` is a known filter by LePhare with the format `instrument.band`, for instance `sdss.u` or `ps1.z`.
-The file `/test/lephare/data_test.csv` is an example. 
+The file `pylephare/data/data_test.csv` is an example. 
 
 ### Config File
-LePhare request that you provide a config file. We invite you to check LePhare config documentation. An example is provided here: `test/lephare/lephare_zphot_input.para`
+LePhare request that you provide a config file. We invite you to check LePhare config documentation. An example is provided here: `pylephare/config/default.config` which is copied to your pylephare environment, see below.
 
 All config file parameters could be changed later on.
 
@@ -34,7 +34,7 @@ the first time you import a pylephare modul, this will create the pylephare work
 
 ## Let's go
 
-Let's load the example dataframe (`/test/lephare/data_test.csv`) and configfiles (`/test/lephare/lephare_zphot_input.para`):
+Let's load the example dataframe (`pylephare/data/data_test.csv`) and configfiles (`$LEPHAREWORK/pylephare/config/default.config`):
 ```python
 import pandas
 from pylephare import io

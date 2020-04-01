@@ -67,13 +67,59 @@ class MCLePhare( base._FilterHolder_ ):
         self._data = serie
         filters = io.keys_to_filters(serie.keys())
         self.set_filters(filters) 
+
+    def set_intrinsic_scatter(self, magerr, onconfig=False, redraw=True):
+        """ This sets the intrinisic scatter
+        This scatter could be added during the lephare fit itself or when drawing the MonteCarlo.
+
+        Parameters
+        ----------
+        magerr: [1D array]
+            same number as magerr as you have filters
+            
+        onconfig: [bool] -optional-
+            - False: Individual data error will be increased by the given magnitude error
+                     and the ERR_SCALE config parameter will be set to None.
+            - True: Individual data error are unchanged, magerr passed to ERR_SCALE.
+            
+        redraw: [bool] -optional-
+            If redraw the mcdata.
+            // Ignored if onconfig is True //
+            
+        Returns
+        -------
+        Void
+
+        """
+        if onconfig:
+            if not self.has_lephare():
+                raise AttributeError("lephare is not loaded.")
+            self.lephare.config.set_intrinsic_error(magerr)
+            self._sigma_int = None
+        elif len( magerr) != self.nfilters:
+            raise ValueError("You must provide exactly one magerr per filterband")
         
+        #dflux = np.abs(flux*(-magerr/2.5*np.log(10)))
+        self._sigma_int = {k:v for k,v in zip(self.filters,magerr)}
+        
+        if redraw:
+            if self.ndraw is not None:
+                self.draw_mc(self.ndraw)
+            else:
+                self.draw_mc()
+            
     def draw_mc(self, ndraw=500):
         """ """
-        data_mc = {k:np.random.normal(loc=self.data[k], scale= self.data[k+".err"], size=ndraw)
-                       for k in self.filters}
+        data_mc = {}
+        for filt_ in self.filters:
+            if self.sigma_int is None:
+                filt_err = self.data[filt_+".err"]
+            else:
+                filt_err = np.sqrt(self.data[filt_+".err"]**2  + self.sigma_int[filt_]**2)
+            data_mc[filt_] = np.random.normal(loc=self.data[filt_], scale= filt_err, size=ndraw)
+            data_mc[filt_+".err"] = filt_err
+                
         mcdata = pandas.DataFrame(data_mc)
-        
         for k in self.data.keys():
             if k not in mcdata.columns:
                 mcdata[k] = self.data[k]
@@ -149,6 +195,13 @@ class MCLePhare( base._FilterHolder_ ):
         """ """
         return self.data is not None and len(self.data)>0
 
+    @property
+    def sigma_int(self):
+        """ Intrinsic magnitude scatter to be applied to the data when drawing """
+        if not hasattr(self, "_sigma_int"):
+            self._sigma_int = None
+        return self._sigma_int
+        
     @property
     def mcdata(self):
         """ DataFrame containing the data """

@@ -4,6 +4,8 @@ Python wrapper of LePhare SED fitting.
 
 http://www.cfht.hawaii.edu/~arnouts/LEPHARE/lephare.html
 
+[See LePhare Documentation](http://www.cfht.hawaii.edu/~arnouts/LEPHARE/DOWNLOAD/lephare_doc.pdf)
+
 It includes Monte Carlo generated SED spectra.
 
 

@@ -94,7 +94,7 @@ class MCLePhare( base._FilterHolder_ ):
         if verbose:
             print("loading results...")
             
-        from sedkcorr import configparser, spectrum, lephare
+        from pylephare import configparser, spectrum, lephare
         self._config = configparser.ConfigParser(self._lephare_out["config"])
         self._catin = pandas.read_csv(self._lephare_out["catin"], sep=" ")
         self._catout = lephare.read_catout(self._lephare_out["catout"], self.filters)

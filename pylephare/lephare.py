@@ -144,7 +144,7 @@ class _LePhareBase_( _FilterHolder_ ):
 
         if data is not None:
             self.set_data(data=data, unit=dataunits)
-            
+
         self.set_config(configfile) 
 
         
@@ -211,17 +211,19 @@ class _LePhareBase_( _FilterHolder_ ):
         from .configparser import ConfigParser
         self._config = ConfigParser.read(configfile)
         self.config.set_fileout(self.io.dirout+"/config")
+        
+
         if self.has_filters():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
             self.config.set_filter_suffix(self._filter_labels)
-            
+        
     def set_filters(self, filters):
         """ """
         _ = super().set_filters(filters)
         if self.has_config():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
             self.config.set_filter_suffix(self._filter_labels)
-        
+            
     def set_redshift(self, redshift, index=None):
         """ """
         self.data.at[index, "zspec"] = redshift
@@ -238,6 +240,15 @@ class _LePhareBase_( _FilterHolder_ ):
 
         """
         self.data.at[index, "context"] = context_value
+
+    def set_photolib_prop(self, gal=True, star=False, qso=False, gallib="BC03"):
+        """ """
+        if not self.has_config():
+            raise AttributeError("No config set.")
+        
+        self._photolib_set = True
+        print("gal: ",gal, "star: ",star, "qso: ",qso, "; gallib: ",gallib)
+        self.config.set_zphotlib(gal=gal, star=star, qso=qso, gallib=gallib)
 
     def set_dirout(self, dirout):
         """ """
@@ -344,7 +355,7 @@ class LePhare( _LePhareBase_ ):
     #
     def run(self, update=False, filters=None, contextid=None, dirout=None,
                 configfile=None, catinfile=None, originalconfig=False,
-                proplib={}):
+                onwhat=["star","qso","gal"], gallib="BC03"):
         """
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
         
@@ -358,10 +369,16 @@ class LePhare( _LePhareBase_ ):
             Where the data should be stored.
             Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
                
-        proplib: [dict] -optional-
-            by default:
+        onwhat: [list or None] -optional-
+            // ignored if None //
+            could contain "gal", "star", "qso" (any or combination of)
+            e.g. onwhat=["gal", "qso"]
+            
+        gallib: [string] -optional-
+            
             dict(gal=True, star=False, qso=False, gallib="BC03")
             this will updte that.
+
         Returns
         -------
         Void
@@ -372,10 +389,7 @@ class LePhare( _LePhareBase_ ):
 
         if dirout is None:
             dirout = self.io.dirout
-
-        defaultproplib = dict(gal=True, star=False, qso=False, gallib="BC03")
-        self.config.set_zphotlib({**defaultproplib,**proplib})
-        
+                    
         if configfile is None:
             if catinfile is None:
                 catinfile = self.get_datafile()
@@ -386,7 +400,7 @@ class LePhare( _LePhareBase_ ):
             catinfile = "see given configfile"
 
         # - Initialize
-        self.run_init(update=update, configfile=configfile)
+        self.run_init(update=update, configfile=configfile, onwhat=onwhat, gallib=gallib)
 
         # - Run the fit        
         cmd = "{}/source/zphota -c {} -CAT_OUT {}".format(self.io.LEPHAREDIR, configfile, dirout+"/catout")
@@ -429,7 +443,7 @@ class LePhare( _LePhareBase_ ):
             except:
                 raise ValueError("LePhareError : unable to run 'filter'.")
 
-    def run_sedtolib(self, update=False, configfile=None, updateconfig=True):
+    def run_sedtolib(self, update=False, configfile=None, updateconfig=True, photolibprop=None):
         """
         Execute "$LEPHAREDIR/source/sedtolib -t [S,Q,G] -c [...].para" in the shell.
         Exception : if the "$LEPAHAREWORK/lib_bin/[...].bin" files already exist, the command is not executed, unless 'update' is True.
@@ -444,6 +458,9 @@ class LePhare( _LePhareBase_ ):
         -------
         Void
         """
+        if photolibprop is not None:
+            self.set_photolib_prop(**photolibprop)
+
         if "STAR_LIB" not in self.config.switched_off_keys:
             lib_s_v = self.config.get_value("STAR_LIB")
         else:
@@ -468,7 +485,7 @@ class LePhare( _LePhareBase_ ):
                 except:
                     raise ValueError("LePhareError : unable to run 'sedtolib' for '{}'.".format(elt))
 
-    def run_mag_star(self, update=False, configfile=None, updateconfig=True):
+    def run_mag_star(self, update=False, configfile=None, updateconfig=True, photolibprop=None):
         """
         Execute "$LEPHAREDIR/source/mag_star -c [...].para" in the shell.
         Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists, 
@@ -483,6 +500,9 @@ class LePhare( _LePhareBase_ ):
         -------
         Void
         """
+        if photolibprop is not None:
+            self.set_photolib_prop(**photolibprop)
+
         if "STAR_LIB_OUT" in self.config.switched_off_keys:
             return None
         
@@ -495,7 +515,8 @@ class LePhare( _LePhareBase_ ):
             except:
                 raise ValueError("LePhareError : unable to run 'mag_star'.")
 
-    def run_mag_gal(self, update=False, configfile=None, updateconfig=True):
+    def run_mag_gal(self, update=False, configfile=None, updateconfig=True,
+                        photolibprop=None):
         """
         Execute "$LEPHAREDIR/source/mag_gal -t [Q,G] -c [...].para" in the shell.
         Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist, 
@@ -510,6 +531,9 @@ class LePhare( _LePhareBase_ ):
         -------
         Void
         """
+        if photolibprop is not None:
+            self.set_photolib_prop(**photolibprop)
+         
         if "QSO_LIB_OUT" not in self.config.switched_off_keys:
             lib_q_v = self.config.get_value("QSO_LIB_OUT")
         else:
@@ -528,7 +552,8 @@ class LePhare( _LePhareBase_ ):
                 except:
                     raise ValueError("LePhareError : unable to run 'mag_gal' for '{}'.".format(elt))
 
-    def run_init(self, update=False, configfile=None, updateconfig=True):
+    def run_init(self, update=False, configfile=None, updateconfig=True,
+                     onwhat=None, gallib="BC03"):
         """
         Run shell commands to initialize LePhare fitting.
         
@@ -541,6 +566,10 @@ class LePhare( _LePhareBase_ ):
         -------
         Void
         """
+        if onwhat is not None:
+            photolibprop = {**{"gal":False, "qso":False, "star":False},**{k:True for k in np.atleast_1d(onwhat)}}
+            self.set_photolib_prop(gallib=gallib, **photolibprop)
+            
         prop = dict(update=update, configfile=configfile, updateconfig=updateconfig)
         self.build_filter_files(**prop)
         self.run_sedtolib(**prop)
@@ -552,71 +581,3 @@ class LePhare( _LePhareBase_ ):
 #  LEPHARE RESULTS   #
 #                    #
 # ================== #
-class LePhareResults( _LePhareBase_ ):
-    """ """
-    def __init__(self, data=None, results=None,
-                     spectrafiles=None, configfile=None, **kwargs):
-        """ """
-        
-        return super().__init__(data=data, configfile=configfile, **kwargs)
-
-    @classmethod
-    def read_csv(cls, datafile, resultsfile=None, spectrafiles=None,
-                     configfile=None, sep=",", **kwargs):
-        """ """
-        return cls( data = pandas.read_csv(datafile, sep=sep, **kwargs),
-                    results = pandas.read_csv(resultsfile, sep=sep, **kwargs),
-                    spectrafiles=spectrafiles,
-                    configfile=configfile, **kwargs
-                  )
-
-
-    # ============== #
-    #  Methods       #
-    # ============== #
-    # ------- #
-    # SETTER  #
-    # ------- #    
-    def set_results(self, results):
-        """ """
-        self._results = results
-
-    def set_spectra(self, spectralfiles):
-        """ """
-        self._spectra = spectralfiles
-
-    # ------- #
-    # GETTER  #
-    # ------- #    
-
-    # ------- #
-    # PLOTTER #
-    # ------- #    
-    def show(self, ax=None):
-        """ """
-        import matplotlib.pyplot as mpl
-
-    # ============== #
-    #  Properties    #
-    # ============== #
-    @property
-    def results(self):
-        """ """
-        if not hasattr(self,"_results"):
-            self._results = None
-        return self._results
-
-    def has_results(self):
-        """ """
-        return self.results is not None
-
-    @property
-    def spectra(self):
-        """ """
-        if not hasattr(self,"_spectra"):
-            self._spectra = None
-        return self._spectra
-
-    def has_spectra(self):
-        """ """
-        return self.spectra is not None

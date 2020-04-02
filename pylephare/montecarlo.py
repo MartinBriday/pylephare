@@ -131,7 +131,7 @@ class MCLePhare( base._FilterHolder_ ):
     # ------- #
     def load_lephare(self, configfile):
         """ """
-        from sedkcorr import lephare
+        from . import lephare
         self._lephare = lephare.LePhare(self.mcdata, configfile)
         self._lephare.config.set_value("CAT_FMT","MMEE")
         

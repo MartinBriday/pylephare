@@ -142,6 +142,7 @@ class ConfigParser( object ):
         
     def set_zphotlib(self, gal=True, star=False, qso=False, gallib="BC03"):
         """ """
+        print("calling set_zphotlib")
         zphoto=""
         if not star:
             self.switch_off_key("STAR_LIB")

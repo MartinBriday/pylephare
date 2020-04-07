@@ -1,6 +1,7 @@
 
 
 import os
+import shutil
 import warnings
 import subprocess
 
@@ -420,7 +421,10 @@ class LePhare( _LePhareBase_ ):
             new_location = [dirout+"/"+l for l in specfiles]
             print(specfiles)
             print("moved to")
-            _ = [os.rename(l, nl) for l, nl in zip(specfiles,new_location)]
+            try:
+                _ = [os.rename(l, nl) for l, nl in zip(specfiles,new_location)]
+            except OSError:
+                _ = [shutil.move(l, nl) for l, nl in zip(specfiles,new_location)]
             fileout["spec"] =  new_location            
         else:
             fileout["spec"] = None

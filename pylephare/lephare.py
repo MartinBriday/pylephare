@@ -13,8 +13,7 @@ from .io import PATH_LEPHAREDIR, PATH_LEPHAREWORK
 from .base import _FilterHolder_
 
 class BC03Installer( object ):
-    """
-    Test if the proper installation is made and enables to run it
+    """ Test if the proper installation is made and enables to run it 
 
     USAGE:
     simply do: BC03Installer.install()
@@ -25,31 +24,12 @@ class BC03Installer( object ):
     # ----------- #
     # Initialize  #
     # ----------- #
+    def __init__(self):
+        """ """
+    
     @classmethod
-    def install(cls, compiler="gfortran", reinstall=False, verbose=True):
-        """
-        Install the .ised files in the BC03 galaxy models folder.
-        
-        Parameters
-        ----------
-        compiler : [string]
-            Compiler choice to install the .ised files.
-            Default is "gfortran".
-        
-        Options
-        -------
-        reinstall : [bool]
-            If True, install the .ised files even if they already exist.
-            Defualt is False.
-        
-        verbose : [bool]
-            Printing running messages.
-        
-        
-        Returns
-        -------
-        None
-        """
+    def install(cls, compiler="gfortran", reinstall=False, verbose=False):
+        """ """
         this = cls()
         if not reinstall and this.has_ised_files():
             if verbose:
@@ -63,19 +43,15 @@ class BC03Installer( object ):
     #  Methods    #
     # =========== #
     def get_list_sedmodel(self, which="*"):
-        """
-        
-        """
+        """ """
         return [l for l in os.listdir(self.BC03_CHAB) if l.startswith("bc2003")
-                and ((which in ["*", "all", "both"]) or
+               and ((which in ["*", "all", "both"]) or 
                     ((which.lower() == "ascii") and l.endswith("ASCII")) or
                     ((which.lower() == "ised") and l.endswith("ised"))
                    )]
 
     def build_bc03_installer(self, compiler="gfortran"):
-        """
-        
-        """
+        """ """
         os.system("%s  -O5 -Wall -ffixed-line-length-132 %s -o %s"%(compiler,
                                                                     self.bc03_installer+".f",
                                                                     self.bc03_installer))
@@ -141,23 +117,7 @@ class BC03Installer( object ):
 #                    #
 ######################
 def read_catout(filein, filternames):
-    """
-    Read a LePhare output file, returning a pandas.DataFrame.
-    
-    Parameters
-    ----------
-    filein : [string]
-        Path of the LePhare CAT_OUT file.
-    
-    filternames : [list(string)]
-        List of filters you want to use to name the corresponding columns.
-        If None, use the LePhare filter names, included in the output file.
-
-
-    Returns
-    -------
-    pandas.DataFrame
-    """
+    """ """
     with open(filein) as f_:
         d = f_.read().splitlines()
         i_col_names = [ii for ii, line in enumerate(d) if "Output format" in line][0]
@@ -167,52 +127,6 @@ def read_catout(filein, filternames):
         colname = np.concatenate([[l.replace("()","_%s"%f_) for f_ in filternames] if "()" in l else [l] for l in colname_])
         datain = np.asarray([l.split() for l in np.asarray(d)[i_header[-1]+1:]])
         return pandas.DataFrame(datain, columns=colname).set_index("IDENT")
-
-def format_input_data(data, sn_z, filters=["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"], sn_name=None):
-    """
-    Return a DataFrame in a LePhare input catalog compatible format.
-    // One SN available for now! //
-    
-    Parameters
-    ----------
-    data : [dict or pandas.DataFrame]
-        Database containing fluxes and errors.
-    
-    sn_z : [float]
-        SN redshift.
-    
-    filters : [list(string)]
-        List of filters to be included in the LePhare input catalog.
-        Must be in the format "project.band" (e.g. "sdss.r", "ps1.g", "galex.FUV",...).
-    
-    Options
-    -------
-    sn_name : [string]
-        SN name.
-        Default is None.
-    
-    
-    Results
-    -------
-    pandas.DataFrame
-    """
-    data_out = {}
-    filters = [filters] if len(np.array([filters]).shape) == 1 else filters
-    for _filt in filters:
-        try:
-            key = [k for k in data.keys() if (_filt in k and "err" not in k)][0]
-            key_err = [k for k in data.keys() if (_filt in k and "err" in k)][0]
-            data_out[_filt] = [data[key]]
-            data_out[_filt+".err"] = [data[key_err]]
-        except:
-            warn("No data recognized for the filter '{}'")
-            data_out[_filt] = [-999]
-            data_out[_filt+".err"] = [-999]
-    context = [ii for ii, _f in enumerate(filters) if data_out[_f][0] > -1]
-    data_out["CONTEXT"] = [np.sum([2**ii for ii in context])]
-    data_out["Z-SPEC"] = [sn_z]
-    data_out["STRING"] = [str(sn_name)]
-    return pandas.DataFrame(data_out)
     
 # ================== #
 #                    #
@@ -283,7 +197,9 @@ class _LePhareBase_( _FilterHolder_ ):
         # // filters
         filters = self.io.keys_to_filters(data_.columns)
         self.set_filters(filters) 
-        
+        if "context" not in data_.columns and "CONTEXT" not in data_.columns:
+            warnings.warn("No context key in given data. Adding default context in the dataframe. ")
+            data_.insert(self.nfilters*2, "context", self.get_filters_context())
         # // flux units
         if not inhz:
             for filter_ in self.filters:
@@ -298,7 +214,6 @@ class _LePhareBase_( _FilterHolder_ ):
         self._config = ConfigParser.read(configfile)
         self.config.set_fileout(self.io.dirout+"/config")
         
-
         if self.has_filters():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
             self.config.set_filter_suffix(self._filter_labels)
@@ -314,7 +229,7 @@ class _LePhareBase_( _FilterHolder_ ):
         """ """
         self.data.at[index, "zspec"] = redshift
 
-    def set_context(self, context_alue, index=None):
+    def set_context(self, context_value, index=None):
         """ 
         The 'context' number must be : sum(2**[band_nb]). 
             For example, bands = ["u", "g", "r", "i", "z"] (bands_nb = [0, 1, 2, 3, 4]) :
@@ -373,7 +288,7 @@ class _LePhareBase_( _FilterHolder_ ):
             
         idx_cross = np.argwhere(np.in1d(self.filters, filters)).ravel()
         context = np.sum([2**ii for ii in idx_cross])
-        return self.get_filters_context()
+        return context
 
     def get_configfile(self, original=False, update=False):
         """ """
@@ -441,7 +356,7 @@ class LePhare( _LePhareBase_ ):
     #
     def run(self, update=False, filters=None, contextid=None, dirout=None,
                 configfile=None, catinfile=None, originalconfig=False,
-                onwhat=["star","qso","gal"], gallib="BC03"):
+                onwhat=["star","qso","gal"], gallib="BC03", run_init=True):
         """
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
         

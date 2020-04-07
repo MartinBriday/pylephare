@@ -15,12 +15,12 @@ class MCLePhare( base._FilterHolder_ ):
     # ============== #
     #  Methods       #
     # ============== #
-    def run(self, configfile = None, **kwargs):
+    def run(self, configfile = None, dirout=None, onwhat="gal", gallib="BC03", **kwargs):
         """ """
         if not self.has_lephare() or configfile is not None:
-            self.load_lephare(configfile)
+            self.load_lephare(configfile, dirout=dirout)
             
-        self._lephare_out = self.lephare.run(**kwargs)
+        self._lephare_out = self.lephare.run(onwhat=onwhat, gallib=gallib, **kwargs)
 
     # ------- #
     # GETTER  #
@@ -129,10 +129,10 @@ class MCLePhare( base._FilterHolder_ ):
     # ------- #
     # LOADER  #
     # ------- #
-    def load_lephare(self, configfile):
+    def load_lephare(self, configfile, dirout=None,  **kwargs):
         """ """
         from . import lephare
-        self._lephare = lephare.LePhare(self.mcdata, configfile)
+        self._lephare = lephare.LePhare(self.mcdata, configfile, dirout=dirout, **kwargs)
         self._lephare.config.set_value("CAT_FMT","MMEE")
         
     def _load_results_(self, verbose=True):

@@ -133,12 +133,14 @@ class ConfigParser( object ):
 
         It also sets FILTER_FILE = suffix.filt
         """
+        print('running set_filter_suffix')
         for key in ["STAR","QSO","GAL"]:
             self.set_value("%s_LIB"%key, "LIB_%s_%s"%(key,suffix))
             self.set_value("%s_LIB_IN"%key, "LIB_%s_%s"%(key,suffix))
             self.set_value("%s_LIB_OUT"%key, "%s_%s"%(key,suffix))
 
         self.set_value("FILTER_FILE", suffix+".filt")
+        self.set_zphotlib()
         
     def set_zphotlib(self, gal=True, star=False, qso=False, gallib="BC03"):
         """ """

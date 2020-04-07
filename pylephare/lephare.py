@@ -243,13 +243,14 @@ class _LePhareBase_( _FilterHolder_ ):
         """
         self.data.at[index, "context"] = context_value
 
-    def set_photolib_prop(self, gal=True, star=False, qso=False, gallib="BC03"):
+    def set_photolib_prop(self, gal=True, star=False, qso=False, gallib="BC03", verbose=True):
         """ """
         if not self.has_config():
             raise AttributeError("No config set.")
         
         self._photolib_set = True
-        print("gal: ",gal, "star: ",star, "qso: ",qso, "; gallib: ",gallib)
+        if verbose:
+            print("gal: ",gal, "star: ",star, "qso: ",qso, "; gallib: ",gallib)
         self.config.set_zphotlib(gal=gal, star=star, qso=qso, gallib=gallib)
 
     def set_dirout(self, dirout):
@@ -357,7 +358,7 @@ class LePhare( _LePhareBase_ ):
     #
     def run(self, update=False, filters=None, contextid=None, dirout=None,
                 configfile=None, catinfile=None, originalconfig=False,
-                onwhat=["star","qso","gal"], gallib="BC03", run_init=True):
+                onwhat=["star","qso","gal"], gallib="BC03", run_init=True, verbose=True):
         """
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
         
@@ -402,7 +403,7 @@ class LePhare( _LePhareBase_ ):
             catinfile = "see given configfile"
 
         # - Initialize
-        self.run_init(update=update, configfile=configfile, onwhat=onwhat, gallib=gallib)
+        self.run_init(update=update, configfile=configfile, onwhat=onwhat, gallib=gallib, verbose=verbose)
 
         # - Run the fit        
         cmd = "{}/source/zphota -c {} -CAT_OUT {}".format(self.io.LEPHAREDIR, configfile, dirout+"/catout")
@@ -419,8 +420,10 @@ class LePhare( _LePhareBase_ ):
         if self.config.get_value("SPEC_OUT") in ["True", True, "yes", "YES","Yes"]:
             specfiles = [l for l in os.listdir(".") if l.startswith('Id') and l.endswith(".spec")]
             new_location = [dirout+"/"+l for l in specfiles]
-            print(specfiles)
-            print("moved to")
+            if verbose:
+                print(specfiles)
+                print("moved to")
+                print(new_location)
             try:
                 _ = [os.rename(l, nl) for l, nl in zip(specfiles,new_location)]
             except OSError:
@@ -434,13 +437,14 @@ class LePhare( _LePhareBase_ ):
     #
     # - Secondary
     #
-    def build_filter_files(self, update=False, configfile=None, updateconfig=True):
+    def build_filter_files(self, update=False, configfile=None, updateconfig=True, verbose=True):
         """ """
         filter_file = self.config.get_value("FILTER_FILE")
-        print("filter_file: ", filter_file)
         if configfile is None:
             configfile = self.get_configfile(update=updateconfig)
-        print("configfile:", configfile)
+        if verbose:
+            print("filter_file: ", filter_file)
+            print("configfile:", configfile)
         if not self.io.is_filt_known(filter_file) or update:
             cmd = "{}/source/filter -c {} -FILTER_FILE {}".format(self.io.LEPHAREDIR, configfile, filter_file)
             try:
@@ -558,7 +562,7 @@ class LePhare( _LePhareBase_ ):
                     raise ValueError("LePhareError : unable to run 'mag_gal' for '{}'.".format(elt))
 
     def run_init(self, update=False, configfile=None, updateconfig=True,
-                     onwhat=None, gallib="BC03"):
+                     onwhat=None, gallib="BC03", verbose=True):
         """
         Run shell commands to initialize LePhare fitting.
         
@@ -573,10 +577,10 @@ class LePhare( _LePhareBase_ ):
         """
         if onwhat is not None:
             photolibprop = {**{"gal":False, "qso":False, "star":False},**{k:True for k in np.atleast_1d(onwhat)}}
-            self.set_photolib_prop(gallib=gallib, **photolibprop)
+            self.set_photolib_prop(gallib=gallib, verbose=verbose, **photolibprop)
             
         prop = dict(update=update, configfile=configfile, updateconfig=updateconfig)
-        self.build_filter_files(**prop)
+        self.build_filter_files(verbose=verbose, **prop)
         self.run_sedtolib(**prop)
         self.run_mag_star(**prop)
         self.run_mag_gal(**prop)

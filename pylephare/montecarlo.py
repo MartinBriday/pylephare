@@ -133,7 +133,6 @@ class MCLePhare( base._FilterHolder_ ):
         """ """
         from . import lephare
         self._lephare = lephare.LePhare(self.mcdata, configfile, dirout=dirout, **kwargs)
-        self._lephare.config.set_value("CAT_FMT","MMEE")
         
     def _load_results_(self, verbose=True):
         """ """

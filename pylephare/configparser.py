@@ -239,10 +239,35 @@ class ConfigParser( object ):
                 
         return self.fileout
 
-    def get_filters(self):
+    def get_filters(self, name=False):
         """ """
-        return self.get_value("FILTER_LIST").split(",")
-    
+        filtfile_list = self.get_value("FILTER_LIST").split(",")
+        if not name:
+            return filtfile_list
+        return [io.filterfile_to_filtername(filt) for filt in filtfile_list]
+        
+            
+    def get_catin_columns(self):
+        """ """
+        catformat = self.get_value("CAT_FMT")
+        cattype   = self.get_value("CAT_TYPE")
+        filters   = self.get_filters(name=True)
+        
+        if catformat == "MMEE":
+            names = list(filters)+[f+".err" for f in filters]
+        elif catformat == "MEME":
+            names = list(np.concatenate([[f,f+".err"] for f in filters]))
+        else:
+            raise ValueError("Cannot Parse the CAT_FMT (%s) from the configfile"%catformat)
+        
+        if cattype == "LONG":
+            names += ["context","z-spec", "string"]
+        elif cattype == "SHORT":
+            names += ["context"]
+        else:
+            raise ValueError("Cannot Parse the CAT_TYPE (%s) from the configfile"%cattype)
+        
+        return names
     # ================ #
     #  Properties      #
     # ================ #

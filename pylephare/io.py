@@ -56,6 +56,20 @@ def get_filter_bandpass(filtername,**kwargs):
     """ """
     return IO().get_filter_bandpass(filtername,**kwargs)
 
+def filterfile_to_filtername(filtefile):
+    """ """
+    ii = IO()
+    if len(np.atleast_1d(filtefile))==1:
+        return ii.get_filtername(filtefile)
+    return [ii.get_filtername(filt) for filt in np.atleast_1d(filtefile)]
+
+def filtername_to_filterfile(filtename, fullpath=True):
+    """ """
+    ii = IO()
+    if len(np.atleast_1d(filtename))==1:
+        return ii.get_filterfile(filtename, fullpath=fullpath)
+    return [ii.get_filterfile(filt,fullpath=fullpath) for filt in np.atleast_1d(filtename)]
+    
 def keys_to_filters(keys):
     """ """
     return [k for k in keys if k+".err" in keys]
@@ -88,10 +102,18 @@ class IO( object ):
         return ",".join([self.get_filterfile(filt_, fullpath=False) for filt_ in filterlist])
 
     def get_filterfile(self, filtername, fullpath=True):
-        """ """
+        """ Converts filterfile name like sdss.u into a filterfile (here sdss/up.pb) """
         source = (self.get_filt_path(from_work=False)+"/") if fullpath else ""
         return source+filtername.split(".")[0]+"/"+self._filtercongig.get(*filtername.split("."))
 
+    def get_filtername(self, filterfile):
+        """ Converts filterfile like sdss/up.pb into filtername (here sdss.u) """
+        inst,bandin = filterfile.split("/")
+        band = [k for k,v in self._filtercongig[inst].items() if v==bandin]
+        if len(band)==0:
+            raise ValueError("cannong parse filt, unknown band: %s"%bandin)
+        return inst+".%s"%band[0]
+    
     def get_filter_bandpass(self, filtername, **kwargs):
         """ returns the sncosmo.Bandpass associated to the given filter """
         from sncosmo import bandpasses

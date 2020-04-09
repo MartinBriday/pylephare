@@ -1,6 +1,7 @@
 """ Handles the target SEDfitting Monte Carlo """
 
 import pandas
+import warnings
 import numpy as np
 from . import io, base
 
@@ -8,10 +9,33 @@ class MCLePhare( base._FilterHolder_ ):
     """ """
     def __init__(self, serie=None, ndraw=500):
         """ """
-        self.set_data(serie)
+        if serie is not None:
+            self.set_data(serie)
         if self.has_data() and (ndraw is not None and ndraw>1):
             self.draw_mc(ndraw)
-            
+
+    @classmethod
+    def load_fromdir(cls, dirin):
+        """ """
+        import os
+        from . import tools
+        try:
+            datain = {"spec":[dirin+"/"+l for l in os.listdir(dirin) if l.endswith(".spec")],
+                      "config":[dirin+"/"+l for l in os.listdir(dirin) if "config" in l][0],
+                      "catin":[dirin+"/"+l for l in os.listdir(dirin) if "data" in l or "catin" in l][0],
+                      "catout":[dirin+"/"+l for l in os.listdir(dirin) if "catout" in l][0]}
+        except:
+            raise IOError("Cannot find the spec, config, catin and catout from this directory")
+
+        this = cls()
+        this._lephare_out = datain
+        this._load_results_(updatefilters=True)
+        #  mcdata in AA while _catin in hz
+        this._mcdata = pandas.DataFrame({k:tools.flux_hz_to_aa( this._catin[k], this.filter_bandpasses[k.replace(".err","")].wave_eff)
+                                             if k.replace(".err","") in this.filters else this._catin[k]
+                                        for k in this._catin.columns})
+        #this._data = this.mcdata.iloc[0]
+        return this
     # ============== #
     #  Methods       #
     # ============== #
@@ -126,6 +150,7 @@ class MCLePhare( base._FilterHolder_ ):
                 
         self._mcdata = mcdata
 
+
     # ------- #
     # LOADER  #
     # ------- #
@@ -134,17 +159,20 @@ class MCLePhare( base._FilterHolder_ ):
         from . import lephare
         self._lephare = lephare.LePhare(self.mcdata, configfile, dirout=dirout, **kwargs)
         
-    def _load_results_(self, verbose=True):
+    def _load_results_(self, verbose=True, updatefilters=False):
         """ """
         if verbose:
             print("loading results...")
             
-        from pylephare import configparser, spectrum, lephare
+        from . import configparser, spectrum, lephare
         self._config = configparser.ConfigParser(self._lephare_out["config"])
-        self._catin = pandas.read_csv(self._lephare_out["catin"], sep=" ")
+        if updatefilters:
+            self.set_filters(self._config.get_filters(name=True))
+            
+        self._catin = pandas.read_csv(self._lephare_out["catin"], sep=" ", index_col=0, names=self._config.get_catin_columns())
         self._catout = lephare.read_catout(self._lephare_out["catout"], self.filters)
         self._spectra = spectrum.LePhareSpectrumCollection.read_files(self._lephare_out["spec"], lbda_range=[3000,10000])
-        
+
     # ------- #
     # PLOTTER #
     # ------- #
@@ -164,7 +192,8 @@ class MCLePhare( base._FilterHolder_ ):
         propmc = dict(ls="None", marker="o", mfc="0.7", mec="None", ms=5, alpha=0.3, zorder=3)
         idmc = np.random.choice(np.arange(self.ndraw), replace=False, size=nmc)
         for f in self.filters:
-            ax.errorbar(self.filter_bandpasses[f].wave_eff, self.data[f], 
+            if self.has_data(): # not single data is loaded from results
+                ax.errorbar(self.filter_bandpasses[f].wave_eff, self.data[f], 
                        yerr=self.data[f+".err"], **prop)
             
             ax.plot([self.filter_bandpasses[f].wave_eff]*nmc, self.mcdata[f][idmc],  **propmc)

@@ -5,13 +5,13 @@ DESCRIPTION = "pylephare: Python wrapper for LePhare SED fitting."
 LONG_DESCRIPTION = """ pylephare: Python wrapper for LePhare SED fitting. """
 
 DISTNAME = 'pylephare'
-AUTHOR = 'Martin Briday'
-MAINTAINER = 'Martin Briday' 
-MAINTAINER_EMAIL = 'briday@ipnl.in2p3.fr'
+AUTHOR = 'Martin Briday, Mickael Rigault'
+MAINTAINER = 'Martin Briday, Mickael Rigault' 
+MAINTAINER_EMAIL = 'briday@ipnl.in2p3.fr, m.rigault@ipnl.in2p3.fr'
 URL = 'https://github.com/MartinBriday/pylephare'
 LICENSE = 'Apache 2.0'
 DOWNLOAD_URL = 'https://github.com/MartinBriday/pylephare'
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 
 try:
     from setuptools import setup, find_packages

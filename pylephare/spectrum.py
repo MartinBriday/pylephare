@@ -273,7 +273,7 @@ class LePhareSpectrum( object ):
         if set_label:
             ax.set_xlabel(r"Wavelentgh [$\AA$]", fontsize="large")
             ax.set_ylabel(r"flux [$\mathrm{erg\,s^{-1}\,cm^{-2}\,%s}$]"%("Hz^{-1}" if inhz else "\AA^{-1}") 
-                      if influx else "magnitude",  fontsize="large")
+                          if influx else "magnitude",  fontsize="large")
             
         return fig
     

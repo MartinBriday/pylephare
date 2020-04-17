@@ -3,6 +3,7 @@
 import pandas
 import warnings
 import numpy as np
+from scipy import stats
 from . import io, base
 
 class MCLePhare( base._FilterHolder_ ):
@@ -18,7 +19,6 @@ class MCLePhare( base._FilterHolder_ ):
     def load_fromdir(cls, dirin):
         """ """
         import os
-        from . import tools
         try:
             datain = {"spec":[dirin+"/"+l for l in os.listdir(dirin) if l.endswith(".spec")],
                       "config":[dirin+"/"+l for l in os.listdir(dirin) if "config" in l][0],
@@ -29,13 +29,9 @@ class MCLePhare( base._FilterHolder_ ):
 
         this = cls()
         this._lephare_out = datain
-        this._load_results_(updatefilters=True)
-        #  mcdata in AA while _catin in hz
-        this._mcdata = pandas.DataFrame({k:tools.flux_hz_to_aa( this._catin[k], this.filter_bandpasses[k.replace(".err","")].wave_eff)
-                                             if k.replace(".err","") in this.filters else this._catin[k]
-                                        for k in this._catin.columns})
-        #this._data = this.mcdata.iloc[0]
+        this._load_results_(dirin=dirin, updatefilters=True)
         return this
+        
     # ============== #
     #  Methods       #
     # ============== #
@@ -140,8 +136,11 @@ class MCLePhare( base._FilterHolder_ ):
                 filt_err = self.data[filt_+".err"]
             else:
                 filt_err = np.sqrt(self.data[filt_+".err"]**2  + self.sigma_int[filt_]**2)
-            data_mc[filt_] = np.random.normal(loc=self.data[filt_], scale= filt_err, size=ndraw)
+            data_mc[filt_] = np.random.normal(loc=self.data[filt_], scale=filt_err, size=ndraw)
             data_mc[filt_+".err"] = filt_err
+            #Save of the measurement origins
+            data_mc[filt_][0] = self.data[filt_]
+            
                 
         mcdata = pandas.DataFrame(data_mc)
         for k in self.data.keys():
@@ -159,19 +158,47 @@ class MCLePhare( base._FilterHolder_ ):
         from . import lephare
         self._lephare = lephare.LePhare(self.mcdata, configfile, dirout=dirout, **kwargs)
         
-    def _load_results_(self, verbose=True, updatefilters=False):
+    def _load_results_(self, dirin=None, verbose=True, updatefilters=False):
         """ """
         if verbose:
             print("loading results...")
             
-        from . import configparser, spectrum, lephare
+        from . import configparser, spectrum, lephare, tools
         self._config = configparser.ConfigParser(self._lephare_out["config"])
         if updatefilters:
             self.set_filters(self._config.get_filters(name=True))
             
         self._catin = pandas.read_csv(self._lephare_out["catin"], sep=" ", index_col=0, names=self._config.get_catin_columns())
+        #  mcdata in AA while _catin in hz
+        if not self.has_mcdata():
+            self._mcdata = pandas.DataFrame({k:tools.flux_hz_to_aa( self._catin[k], self.filter_bandpasses[k.replace(".err","")].wave_eff)
+                                             if k.replace(".err","") in self.filters else self._catin[k] for k in self._catin.columns})
+        if not self.has_data():
+            self._data = self._mcdata.iloc[0].copy()
+            self._data.drop("context", inplace=True)
+            self._data.rename({"z-spec":"Z-SPEC", "string":"STRING"}, inplace=True)
+        
         self._catout = lephare.read_catout(self._lephare_out["catout"], self.filters)
-        self._spectra = spectrum.LePhareSpectrumCollection.read_files(self._lephare_out["spec"], lbda_range=[3000,10000])
+        try:
+            self._spectra = spectrum.LePhareSpectrumCollection.read_files(self._lephare_out["spec"], lbda_range=[1000,10000])
+        except ValueError:
+            self._replace_failed_mc_(dirout=dirin)
+    
+    def _replace_failed_mc_(self, dirout=None):
+        """
+        
+        """
+        data_mc = self._mcdata.copy()
+        list_idx_fails = [ii for ii, k in enumerate(self.catout.Z_BEST.values) if k == '-99.0000']
+        for ii in list_idx_fails:
+            for filt_ in self.filters:
+                data_mc.loc[ii, filt_] = np.random.normal(loc=self.data[filt_], scale=self.data[filt_+".err"])
+        self._mcdata = data_mc
+        self.load_lephare(configfile=self._lephare_out["config"], dirout=dirout)
+        self.run(verbose=False, update=False)
+        self._load_results_(dirin=dirout, verbose=False, updatefilters=False)
+        
+            
 
     # ------- #
     # PLOTTER #

@@ -8,6 +8,12 @@ http://www.cfht.hawaii.edu/~arnouts/LEPHARE/lephare.html
 
 It includes Monte Carlo generated SED spectra.
 
+# Acknowledgements
+
+If you are using pylephare for your research, please add the following sentence in you acknowledgements:
+
+_pylephare code has been funded by the European Research Council (ERC) under the European Union's Horizon 2020 research and innovation programme (grant agreement n°759194 - USNAC)
+
 
 # Running the Code: Simple LePhare run()
 

@@ -10,7 +10,7 @@ import numpy as np
 
 PATH_LEPHAREDIR = os.path.expanduser(os.getenv("LEPHAREDIR", default=None))
 PATH_LEPHAREWORK = os.path.expanduser(os.getenv("LEPHAREWORK", default=None))
-PAHT_PYLEPHAREWORK = PATH_LEPHAREWORK+"/pylephare"
+PATH_PYLEPHAREWORK = PATH_LEPHAREWORK+"/pylephare"
 
 
 def get_now(format="%d%m%Y_%H%M%S"):
@@ -19,7 +19,7 @@ def get_now(format="%d%m%Y_%H%M%S"):
 
 def get_default_path():
     """ """
-    return PAHT_PYLEPHAREWORK+"/"+get_now()
+    return PATH_PYLEPHAREWORK+"/"+get_now()
 
 
 _PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))+"/"
@@ -32,16 +32,16 @@ _DEFAULT_FILTER_CONFIG = {"2mass": {"h": "H.pb", "j": "J.pb", "ks": "Ks.pb"},
                           }
 FILTER_CONFIGGILE = PATH_LEPHAREWORK+"/filt/config"
 
-DEFAULTCONFIG = PAHT_PYLEPHAREWORK+"/config/default.config"
-DEFAULTCONFIG_OUT = PAHT_PYLEPHAREWORK+"/config/default_output.config"
+DEFAULTCONFIG = PATH_PYLEPHAREWORK+"/config/default.config"
+DEFAULTCONFIG_OUT = PATH_PYLEPHAREWORK+"/config/default_output.config"
 
 
 # Create the pylephare environment
-if not os.path.isdir(PAHT_PYLEPHAREWORK):
-    os.mkdir(PAHT_PYLEPHAREWORK)
+if not os.path.isdir(PATH_PYLEPHAREWORK):
+    os.mkdir(PATH_PYLEPHAREWORK)
     
-if not os.path.isdir(PAHT_PYLEPHAREWORK+"/config"):
-    os.mkdir(PAHT_PYLEPHAREWORK+"/config")
+if not os.path.isdir(PATH_PYLEPHAREWORK+"/config"):
+    os.mkdir(PATH_PYLEPHAREWORK+"/config")
     
 if not os.path.isfile(DEFAULTCONFIG):
     from shutil import copyfile

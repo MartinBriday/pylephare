@@ -117,13 +117,13 @@ class ConfigParser( object ):
     def switch_off_key(self, key):
         """ """
         if key not in self.switched_off_keys:
-            self.switched_off_keys.append(key)
+            self._switched_off_keys.append(key)
             self._config["# "+key] = self._config.pop(key)
         
     def switch_on_key(self, key):
         """ """
         if key in self.switched_off_keys:
-            self.switched_off_keys.pop(self.switched_off_keys.index(key))
+            self._switched_off_keys.pop(self._switched_off_keys.index(key))
             self._config[key] = self._config.pop("# "+key)
 
     def set_filter_suffix(self, suffix ):
@@ -144,35 +144,25 @@ class ConfigParser( object ):
         
     def set_zphotlib(self, gal=True, star=False, qso=False, gallib="BC03"):
         """ """
-        print("calling set_zphotlib")
-        zphoto=""
-        if not star:
-            self.switch_off_key("STAR_LIB")
-            self.switch_off_key("STAR_LIB_IN")
-            self.switch_off_key("STAR_LIB_OUT")
-            starkey = []
-        else:
-            starkey = [self.get_value("STAR_LIB_OUT")]
+        def switch_lib(self, lib, button):
+            _button = "on" if button else "off"
+            for ii in ["_LIB", "_LIB_IN", "_LIB_OUT"]:
+                eval("""self.switch_{}_key("{}")""".format(_button, lib+ii))
+            return eval("""self.get_value("{}_LIB_OUT")""".format(lib)) if button else None
             
-        if not qso:
-            self.switch_off_key("QSO_LIB")
-            self.switch_off_key("QSO_LIB_IN")
-            self.switch_off_key("QSO_LIB_OUT")
-            qsokey = []
-        else:
-            qsokey = [self.get_value("QSO_LIB_OUT")]
-
-        if not gal:
-            self.switch_off_key("GAL_LIB")
-            self.switch_off_key("GAL_LIB_IN")
-            self.switch_off_key("GAL_LIB_OUT")
-            galkey = []
-        else:
+        print("calling set_zphotlib")
+        
+        if gal:
             for key in ["GAL_LIB","GAL_LIB_IN","GAL_LIB_OUT"]:
                 self.set_value(key, self.get_value(key).replace("GAL",gallib) )
-            galkey = [self.get_value("GAL_LIB_OUT")]
+        
+        _zphotlib = []
+        for _lib in ["STAR", "QSO", "GAL"]:
+            _lib_out = switch_lib(self, lib=_lib, button=eval(_lib.lower()))
+            if _lib_out is not None:
+                _zphotlib.append(_lib_out)
 
-        self.set_value("ZPHOTLIB", ','.join(starkey+qsokey+galkey))
+        self.set_value("ZPHOTLIB", ','.join(_zphotlib))
         return self.get_value("ZPHOTLIB")
 
     def set_intrinsic_error(self, err_scale):
@@ -218,7 +208,7 @@ class ConfigParser( object ):
             return pandas.DataFrame(self.config).T
         
         elif astype.lower() == "array":
-            return [self.get_config_lines(k_) for k_ in self.config.keys()]
+            return np.array([self.get_config_lines(k_) for k_ in self.config.keys()])
         
         elif astype.lower() in ["file", "configfile"]:
             return self._build_new_config_()

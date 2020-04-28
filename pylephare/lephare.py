@@ -138,13 +138,13 @@ class _LePhareBase_( _FilterHolder_ ):
     """ 
     This Basic Class contains the data - filter - config interactions
     """
-    def __init__(self, data=None,  configfile=None, dirout=None, dataunits="AA"):
+    def __init__(self, data=None,  configfile=None, dirout=None, inhz=False):
         """ """
         from .io import IO
         self.io = IO(dirout)
 
         if data is not None:
-            self.set_data(data=data, unit=dataunits)
+            self.set_data(data=data, inhz=inhz)
 
         self.set_config(configfile) 
 
@@ -241,7 +241,11 @@ class _LePhareBase_( _FilterHolder_ ):
         - context = 25 --> ["u", "i", "z"]
 
         """
-        self.data.at[index, "context"] = context_value
+        if index is None:
+            self.data["context"] = np.array([context_value] * len(self.data))
+        else:
+            for ii in np.atleast_1d(index):
+                self.data.at[ii, "context"] = context_value
 
     def set_photolib_prop(self, gal=True, star=False, qso=False, gallib="BC03", verbose=True):
         """ """
@@ -356,9 +360,9 @@ class LePhare( _LePhareBase_ ):
     #
     # - Main
     #
-    def run(self, update=False, filters=None, contextid=None, dirout=None,
-                configfile=None, catinfile=None, originalconfig=False,
-                onwhat=["star","qso","gal"], gallib="BC03", run_init=True, verbose=True):
+    def run(self, filters=None, contextid=None, dirout=None,
+            configfile=None, catinfile=None, originalconfig=False,
+            onwhat=["star","qso","gal"], gallib="BC03", update_init=False, verbose=True):
         """
         Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
         
@@ -403,7 +407,7 @@ class LePhare( _LePhareBase_ ):
             catinfile = "see given configfile"
 
         # - Initialize
-        self.run_init(update=update, configfile=configfile, onwhat=onwhat, gallib=gallib, verbose=verbose)
+        self.run_init(update=update_init, configfile=configfile, onwhat=onwhat, gallib=gallib, verbose=verbose)
 
         # - Run the fit        
         cmd = "{}/source/zphota -c {} -CAT_OUT {}".format(self.io.LEPHAREDIR, configfile, dirout+"/catout")

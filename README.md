@@ -73,7 +73,7 @@ you can swith on and off a given key by using the `lp.config.switch_{on/off}_key
 
 # Monte Carlo Fit 
 
-A montecarlo fitting proceedure has been implemented to better account for mesurement errors when deriving the SED fitted parameters by lephare. 
+A montecarlo fitting procedure has been implemented to better account for mesurement errors when deriving the SED fitted parameters by lephare. 
 
 For that, let's use only one entry of the catalog used in the first example:
 
@@ -87,7 +87,7 @@ configfile = None # use the default one
 The `MCLePhare` class is a wrapper that draw `ndraw` realisation of the data given their respective errors and runs lephare (as illustrated in the first example) on each. Here let's do 50 draws:
 
 ```python
-from sedkcorr import montecarlo
+from pylephare import montecarlo
 mclp = montecarlo.MCLePhare(target, 50)
 ```
 and let's load lephare with our config file:

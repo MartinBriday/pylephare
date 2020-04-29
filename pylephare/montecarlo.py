@@ -35,7 +35,7 @@ class MCLePhare( base._FilterHolder_ ):
     # ============== #
     #  Methods       #
     # ============== #
-    def run(self, configfile = None, dirout=None, onwhat="gal", gallib="BC03", **kwargs):
+    def run(self, configfile=None, dirout=None, onwhat="gal", gallib="BC03", **kwargs):
         """ """
         if not self.has_lephare() or configfile is not None:
             self.load_lephare(configfile, dirout=dirout)
@@ -221,18 +221,19 @@ class MCLePhare( base._FilterHolder_ ):
         for f in self.filters:
             if self.has_data(): # not single data is loaded from results
                 ax.errorbar(self.filter_bandpasses[f].wave_eff, self.data[f], 
-                       yerr=self.data[f+".err"], **prop)
+                            yerr=self.data[f+".err"], **prop)
             
             ax.plot([self.filter_bandpasses[f].wave_eff]*nmc, self.mcdata[f][idmc],  **propmc)
             
         if add_spec:
             _ = [self.spectra.spectra[i_].show(ax=ax, showdata=False, showmagmodel=False,
-                                        set_label=False, lw=1, alpha=0.3)
-                for i_ in idmc]
-            
+                                               set_label=False, lw=1, alpha=0.3)
+                 for i_ in idmc]
         
         ax.set_xlabel(r"Wavelentgh [$\AA$]", fontsize="large")
         ax.set_ylabel(r"flux [$\mathrm{erg\,s^{-1}\,cm^{-2}\,%s}$]"%("Hz^{-1}" if inhz else "\AA^{-1}"),  fontsize="large")
+        
+        return {"fig":fig, "ax":ax}
 
     # ============== #
     #  Properties    #

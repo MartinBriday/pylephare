@@ -10,7 +10,7 @@ import numpy as np
 
 
 from . import tools
-from .io import PATH_LEPHAREDIR, PATH_LEPHAREWORK
+from .io import PATH_LEPHAREDIR, PATH_LEPHAREWORK, _DEFAULT_FILTER_CONFIG
 from .base import _FilterHolder_
 
 class BC03Installer( object ):
@@ -22,43 +22,107 @@ class BC03Installer( object ):
     """
     LEPHAREDIR = PATH_LEPHAREDIR  # os.getenv('SEDM_USER',default="auto")
     
-    # ----------- #
-    # Initialize  #
-    # ----------- #
-    def __init__(self):
-        """ """
-    
+    # =========== #
+    #  Installer  #
+    # =========== #
     @classmethod
     def install(cls, compiler="gfortran", reinstall=False, verbose=False):
-        """ """
+        """
+        Install, if needed, the BC03 libraries in LePhare package.
+        
+        Parameters
+        ----------
+        compiler : [string]
+            Compiler to use to build the BC03 libraries installer.
+            Default is "gfortran".
+        
+        Options
+        -------
+        reinstall : [bool]
+            Run the installation, even if the libraries already are installed.
+            Default is False.
+        
+        verbose : [bool]
+            Print informations.
+            Default is False.
+        
+        
+        Returns
+        -------
+        None
+        """
         this = cls()
         if not reinstall and this.has_ised_files():
             if verbose:
-                print("No need to install ised files. set reinstall to True to force reinstallation")
+                print("No need to install ised files. Set 'reinstall' to True to force reinstallation")
             return None
         
-        this.run_ised_installer(compiler="gfortran", verbose=verbose)
+        this.run_ised_installer(compiler=compiler, verbose=verbose)
         return
     
     # =========== #
     #  Methods    #
     # =========== #
     def get_list_sedmodel(self, which="*"):
-        """ """
+        """
+        Return the list of files in the chosen format.
+        
+        Parameters
+        ----------
+        which : [string]
+            File format choice between "ASCII", "ised" or both ("*") to rturn the list of files.
+        
+        
+        Returns
+        -------
+        list(string)
+        """
         return [l for l in os.listdir(self.BC03_CHAB) if l.startswith("bc2003")
-               and ((which in ["*", "all", "both"]) or 
-                    ((which.lower() == "ascii") and l.endswith("ASCII")) or
-                    ((which.lower() == "ised") and l.endswith("ised"))
-                   )]
+                and ((which in ["*", "all", "both"]) or
+                     ((which.lower() == "ascii") and l.endswith("ASCII")) or
+                     ((which.lower() == "ised") and l.endswith("ised"))
+                    )]
 
     def build_bc03_installer(self, compiler="gfortran"):
-        """ """
-        os.system("%s  -O5 -Wall -ffixed-line-length-132 %s -o %s"%(compiler,
-                                                                    self.bc03_installer+".f",
-                                                                    self.bc03_installer))
+        """
+        Execute the bash command to build the BC03 libraries installer.
+        
+        Parameters
+        ----------
+        compiler : [string]
+            Compiler to use to build the BC03 libraries installer.
+            Default is "gfortran".
+        
+        
+        Returns
+        -------
+        Void
+        """
+        os.system("%s -O5 -Wall -ffixed-line-length-132 %s -o %s"%(compiler,
+                                                                   self.bc03_installer+".f",
+                                                                   self.bc03_installer))
         
     def run_ised_installer(self, compiler="gfortran", verbose=False):
-        """ """
+        """
+        Run the BC03 libraries installer on each file.
+        
+        Parameters
+        ----------
+        compiler : [string]
+            Compiler to use to build the BC03 libraries installer.
+            Default is "gfortran".
+        
+        Options
+        -------
+        verbose : [bool]
+            Print informations.
+            Default is False.
+        
+        
+        Returns
+        -------
+        Void
+        """
         if not self.has_bc03_installer():
             if verbose:
                 print("No bc03_installer. Creating one, using the '%s' compiler"%compiler)
@@ -69,33 +133,33 @@ class BC03Installer( object ):
         if verbose:
             print("Creating the .ised files from the .ised_ASCII ones")
                   
-        for file in self.get_list_sedmodel('ASCII'):
+        for file in self.get_list_sedmodel("ASCII"):
             report = os.system("%s %s"%(self.bc03_installer, self.BC03_CHAB+"/"+file))
      
     # ----------- #
     # Has tests   #
     # ----------- #
     def has_lephare_env(self):
-        """ test that the global LEPHAREDIR is defined"""
+        """ test that the global LEPHAREDIR is defined """
         return self.LEPHAREDIR is not None
 
     def has_bc03_data(self):
-        """ """
+        """ test that the BC03 directory exists """
         if not self.has_lephare_env():
             raise IOError("$LEPHAREDIR is not defined ")
         
         return os.path.isdir( self.BC03_CHAB )
     
     def has_bc03_installer(self):
-        """ """
+        """ test that the fortran code is compiled and thus taht the BC03 installer exists """
         if not self.has_bc03_data():
             raise IOError("BC03_CHAB lephare gal library not downloaded."+
-                          "\n See http://www.cfht.hawaii.edu/~arnouts/LEPHARE/install.html")
+                          "\nSee http://www.cfht.hawaii.edu/~arnouts/LEPHARE/install.html")
             
         return os.path.isfile( self.bc03_installer)
     
     def has_ised_files(self):
-        """ """
+        """ test that .ised files exist """
         return len(self.get_list_sedmodel("ised"))>0
     
     # =========== #
@@ -103,12 +167,12 @@ class BC03Installer( object ):
     # =========== #
     @property
     def BC03_CHAB(self):
-        """ """
+        """ BC03 directory in the LePhare package """
         return self.LEPHAREDIR+ "/sed/GAL/BC03_CHAB"
     
     @property
     def bc03_installer(self):
-        """ """
+        """ BC03 installer directory """
         return self.BC03_CHAB+ "/bin_ised"
 
 
@@ -117,14 +181,43 @@ class BC03Installer( object ):
 #  LEPHARE           #
 #                    #
 ######################
-def read_catout(filein, filternames):
-    """ """
+def read_catout(filein, filternames=None):
+    """
+    Read a LePhare output catalog and return a pandas.DataFrame.
+    
+    Parameters
+    ----------
+    filein : [string]
+        LePhare output catalog directory.
+    
+    Options
+    -------
+    filternames : [list(string)]
+        List of filter names to use in column names.
+        If None, automatically look into the output catalog to find them.
+        Default is None.
+    
+    
+    Returns
+    -------
+    pandas.DataFrame
+    """
+    def _get_filternames_(lines):
+        i_filter_file = [ii for ii, _line in enumerate(lines) if "FILTER_FILE" in _line][0]
+        _filter_file = lines[i_filter_file].split(" ")[-1]
+        _lp_filters = [ii for ii in lines[i_filter_file+1].split(" ") if ii not in ["", "#", "AB", "VEGA"]]
+        _filternames = [ii for ii in _filter_file.split(".filt")[0].split("_")]
+        filternames = [jj+"."+ii.split(jj)[-1] for ii in _filternames for jj in _DEFAULT_FILTER_CONFIG.keys() if jj in ii]
+        return filternames if len(filternames)==len(_lp_filters) else _lp_filters
+    
     with open(filein) as f_:
         d = f_.read().splitlines()
         i_col_names = [ii for ii, line in enumerate(d) if "Output format" in line][0]
         i_header = [i for i, line in enumerate(d) if line.startswith("#")]
+        if filternames is None:
+            filternames = _get_filternames_(d)
         colname_, colid = np.concatenate([[l_.replace("#","").split() for l_ in l.split(",") if len(l_)>1] for l in d[i_col_names+1:i_header[-1]]],
-                                        axis=0).T
+                                         axis=0).T
         colname = np.concatenate([[l.replace("()","_%s"%f_) for f_ in filternames] if "()" in l else [l] for l in colname_])
         datain = np.asarray([l.split() for l in np.asarray(d)[i_header[-1]+1:]])
         return pandas.DataFrame(datain, columns=colname).set_index("IDENT")
@@ -139,7 +232,22 @@ class _LePhareBase_( _FilterHolder_ ):
     This Basic Class contains the data - filter - config interactions
     """
     def __init__(self, data=None,  configfile=None, dirout=None, inhz=False):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         from .io import IO
         self.io = IO(dirout)
 
@@ -151,7 +259,22 @@ class _LePhareBase_( _FilterHolder_ ):
         
     @classmethod
     def read_csv(cls, catin, configfile=None, filters=None, dirout=None, sep=",", **kwargs):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         return cls( pandas.read_csv(catin, sep=sep, **kwargs),
                     configfile=configfile, filters=filters, dirout=dirout,
                   )
@@ -210,7 +333,22 @@ class _LePhareBase_( _FilterHolder_ ):
         self._data = data_
         
     def set_config(self, configfile):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         from .configparser import ConfigParser
         self._config = ConfigParser.read(configfile)
         self.config.set_fileout(self.io.dirout+"/config")
@@ -220,14 +358,44 @@ class _LePhareBase_( _FilterHolder_ ):
             self.config.set_filter_suffix(self._filter_labels)
         
     def set_filters(self, filters):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         _ = super().set_filters(filters)
         if self.has_config():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
             self.config.set_filter_suffix(self._filter_labels)
             
     def set_redshift(self, redshift, index=None):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         self.data.at[index, "zspec"] = redshift
 
     def set_context(self, context_value, index=None):
@@ -239,6 +407,19 @@ class _LePhareBase_( _FilterHolder_ ):
         - context = 30 --> ["g", "r", "i", "z"]
         - context = 15 --> ["u", "g", "r", "i"]
         - context = 25 --> ["u", "i", "z"]
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
 
         """
         if index is None:
@@ -248,7 +429,22 @@ class _LePhareBase_( _FilterHolder_ ):
                 self.data.at[ii, "context"] = context_value
 
     def set_photolib_prop(self, gal=True, star=False, qso=False, gallib="BC03", verbose=True):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         if not self.has_config():
             raise AttributeError("No config set.")
         
@@ -258,7 +454,22 @@ class _LePhareBase_( _FilterHolder_ ):
         self.config.set_zphotlib(gal=gal, star=star, qso=qso, gallib=gallib)
 
     def set_dirout(self, dirout):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         self.io.set_dirout(dirout)
         
     # -------- #
@@ -297,11 +508,41 @@ class _LePhareBase_( _FilterHolder_ ):
         return context
 
     def get_configfile(self, original=False, update=False):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         return self.config._filename if original else self.config.get_fileout(buildit=True, update=update)
 
     def get_datafile(self, catfile=None):
-        """ """
+        """
+        
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         if catfile is None:
             catfile = self.io.dirout+"/data.csv"
 
@@ -442,7 +683,21 @@ class LePhare( _LePhareBase_ ):
     # - Secondary
     #
     def build_filter_files(self, update=False, configfile=None, updateconfig=True, verbose=True):
-        """ """
+        """
+        
+        Parameters
+        ----------
+        
+        
+        Options
+        -------
+        
+        
+        
+        Returns
+        -------
+        
+        """
         filter_file = self.config.get_value("FILTER_FILE")
         if configfile is None:
             configfile = self.get_configfile(update=updateconfig)

@@ -140,18 +140,18 @@ class BC03Installer( object ):
     # Has tests   #
     # ----------- #
     def has_lephare_env(self):
-        """ test that the global LEPHAREDIR is defined """
+        """ Test that the global LEPHAREDIR is defined """
         return self.LEPHAREDIR is not None
 
     def has_bc03_data(self):
-        """ test that the BC03 directory exists """
+        """ Test that the BC03 directory exists """
         if not self.has_lephare_env():
             raise IOError("$LEPHAREDIR is not defined ")
         
         return os.path.isdir( self.BC03_CHAB )
     
     def has_bc03_installer(self):
-        """ test that the fortran code is compiled and thus taht the BC03 installer exists """
+        """ Test that the fortran code is compiled and thus taht the BC03 installer exists """
         if not self.has_bc03_data():
             raise IOError("BC03_CHAB lephare gal library not downloaded."+
                           "\nSee http://www.cfht.hawaii.edu/~arnouts/LEPHARE/install.html")
@@ -159,7 +159,7 @@ class BC03Installer( object ):
         return os.path.isfile( self.bc03_installer)
     
     def has_ised_files(self):
-        """ test that .ised files exist """
+        """ Test that .ised files exist """
         return len(self.get_list_sedmodel("ised"))>0
     
     # =========== #
@@ -233,20 +233,46 @@ class _LePhareBase_( _FilterHolder_ ):
     """
     def __init__(self, data=None,  configfile=None, dirout=None, inhz=False):
         """
-        
+        Class builder.
+        Deal with the input data, the configuration file and the output directory.
         
         Parameters
         ----------
+        data : [pandas.DataFrame or dict]
+            Input data in a compatible LePhare format. Here are the columns style to adopt:
+                filtername0, filtername0.err, filtername1, filtername1.err, ... filternameN, filternameN.err, CONTEXT, Z-SPEC, STRING
+            where 'filtername{}' is a known filter by LePhare with the format instrument.band, for instance sdss.u or ps1.z, given in flux.
+            The 'CONTEXT' sets the filters to use among the provided ones in input data for the SED fitting in each row.
+            It is the sum of 2 to the {i}, {i} being the filtername numbers to use in each row.
+            For example, using the filters = ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"] in data input:
+                * ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"] --> CONTEXT = 2^0 + 2^1 + 2^2 + 2^3 + 2^4 = 31
+                * ["sdss.g", "sdss.r", "sdss.i", "sdss.z"]           --> CONTEXT = 2^1 + 2^2 + 2^3 + 2^4       = 30
+                * ["sdss.u", "sdss.g", "sdss.r", "sdss.i"]           --> CONTEXT = 2^0 + 2^1 + 2^2 + 2^3       = 15
+                * ["sdss.u", "sdss.i", "sdss.z"]                     --> CONTEXT = 2^0 + 2^3 + 2^4             = 25
+            If 'CONTEXT' column doesn't exist, automatically create one with the maximum CONTEXT value.
+            'Z-SPEC' is the spectroscopic redshift, if available.
+            'STRING' and all following columns are not used for the SED fitting. Allow the user to store additional informations.
         
+        configfile : [string or None]
+            Configuration file directory.
+            If None, use the default one ($LEPHAREWORK/pylephare/config/default.config).
+            Default is None.
+        
+        dirout : [string or None]
+            Setting the output catalog directory.
+            If None, create a default directory based on date and time in $LEPHAREWORK/pylephare/.
+            Default is None.
         
         Options
         -------
-        
+        inhz : [bool]
+            Set to True if the fluxes (and flux uncertainties) are given in erg/s/cm2/Hz ; False means in erg/s/cm2/AA.
+            Default is False.
         
         
         Returns
         -------
-        
+        Void
         """
         from .io import IO
         self.io = IO(dirout)
@@ -258,50 +284,78 @@ class _LePhareBase_( _FilterHolder_ ):
 
         
     @classmethod
-    def read_csv(cls, catin, configfile=None, filters=None, dirout=None, sep=",", **kwargs):
+    def read_csv(cls, catin, configfile=None, dirout=None, inhz=False, sep=",", **kwargs):
         """
-        
+        Build an instance giving a data directory.
         
         Parameters
         ----------
+        catin : [string]
+            Input data directory.
         
+        configfile : [string or None]
+            Configuration file directory.
+            If None, use the default one ($LEPHAREWORK/pylephare/config/default.config).
+            Default is None.
+        
+        dirout : [string or None]
+            Setting the output catalog directory.
+            If None, create a default directory based on date and time in $LEPHAREWORK/pylephare/.
+            Default is None.
         
         Options
         -------
+        inhz : [bool]
+            Set to True if the flux (and flux uncertainties) are given in erg/s/cm2/Hz ; False means in erg/s/cm2/AA.
+            Default is False.
         
+        sep : [string]
+            pandas.read_csv parameter setting the separator in data file.
+            Default is ",".
+        
+        **kwargs
+            pandas.read_csv kwargs.
         
         
         Returns
         -------
-        
+        _LePhareBase_
         """
         return cls( pandas.read_csv(catin, sep=sep, **kwargs),
-                    configfile=configfile, filters=filters, dirout=dirout,
-                  )
+                    configfile=configfile, inhz=inhz, dirout=dirout )
+                  
     # =============== #
     #  Methods        #
     # =============== #
     # -------- #
     #  SETTER  #
     # -------- #
-    def set_data(self, data=None, inhz=False, **kwargs):
+    def set_data(self, data=None, inhz=False, **extras):
         """
-        Set up the file paths about the data, the config files (input and output) and the results path.
+        Set the input data as attribute, ready for LePhare SED fitting.
         
         Parameters
         ----------
-        data : [string or pandas.DataFrame or dict]
-            Path of the data file or a DataFrame/dict, both of them in a format readable by LePhare fitter.
-            
-        filters : [list(string) or None]
-            List of filters of the given measurements, the 'FILTER_LIST' parameter in the configuration 
-            file will be changed to the corresponding list of LePhare file names.
-            The filter syntax must be like "project.band" (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
-            If None, the filter list will be based on the configuration file.
+        data : [pandas.DataFrame or dict]
+            Input data in a compatible LePhare format. Here are the columns style to adopt:
+                filtername0, filtername0.err, filtername1, filtername1.err, ... filternameN, filternameN.err, CONTEXT, Z-SPEC, STRING
+            where 'filtername{}' is a known filter by LePhare with the format instrument.band, for instance sdss.u or ps1.z, given in flux.
+            The 'CONTEXT' sets the filters to use among the provided ones in input data for the SED fitting in each row.
+            It is the sum of 2 to the {i}, {i} being the filtername numbers to use in each row.
+            For example, using the filters = ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"] in data input:
+                * ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"] --> CONTEXT = 2^0 + 2^1 + 2^2 + 2^3 + 2^4 = 31
+                * ["sdss.g", "sdss.r", "sdss.i", "sdss.z"]           --> CONTEXT = 2^1 + 2^2 + 2^3 + 2^4       = 30
+                * ["sdss.u", "sdss.g", "sdss.r", "sdss.i"]           --> CONTEXT = 2^0 + 2^1 + 2^2 + 2^3       = 15
+                * ["sdss.u", "sdss.i", "sdss.z"]                     --> CONTEXT = 2^0 + 2^3 + 2^4             = 25
+            If 'CONTEXT' column doesn't exist, automatically create one with the maximum CONTEXT value.
+            'Z-SPEC' is the spectroscopic redshift, if available.
+            'STRING' and all following columns are not used for the SED fitting. Allow the user to store additional informations.
         
-        inhz:
-            set to true if the flux (and flux) are given in erg/s/cm2/Hz
-            (False means in erg/s/cm2/AA)
+        Options
+        -------
+        inhz : [bool]
+            Set to True if the fluxes (and flux uncertainties) are given in erg/s/cm2/Hz ; False means in erg/s/cm2/AA.
+            Default is False.
 
         
         Returns
@@ -334,20 +388,20 @@ class _LePhareBase_( _FilterHolder_ ):
         
     def set_config(self, configfile):
         """
-        
+        Handle the configuration file.
+        If filters have already been set, handle the filter related parameters in the configuration file.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        configfile : [string or None]
+            Configuration file directory.
+            If None, use the default one ($LEPHAREWORK/pylephare/config/default.config).
+            Default is None.
         
         
         Returns
         -------
-        
+        Void
         """
         from .configparser import ConfigParser
         self._config = ConfigParser.read(configfile)
@@ -359,20 +413,18 @@ class _LePhareBase_( _FilterHolder_ ):
         
     def set_filters(self, filters):
         """
-        
+        Handle with the given filters: set them as attribute and configuration file related parameters.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        filters : [list(string)]
+            List of filters provided in input data.
+            Must be known filters by LePhare with the format instrument.band, for instance sdss.u or ps1.z.
         
         
         Returns
         -------
-        
+        Void
         """
         _ = super().set_filters(filters)
         if self.has_config():
@@ -381,69 +433,95 @@ class _LePhareBase_( _FilterHolder_ ):
             
     def set_redshift(self, redshift, index=None):
         """
-        
+        Set the redshift in input data either for one row or the whole data.
         
         Parameters
         ----------
+        redshift : [float]
+            Redshift value to set.
         
-        
-        Options
-        -------
-        
+        index : [int or None]
+            Row index to set the redshift.
+            If None, set the given redshift for the whole data table.
+            Default is None.
         
         
         Returns
         -------
-        
+        Void
         """
-        self.data.at[index, "zspec"] = redshift
+        if "zspec" not in self.data.columns and "Z-SPEC" not in self.data.columns:
+            self.data.insert(self.nfilters*2 + 1, "zsepc", 0.)
+        if index is None:
+            self.data["zspec"] = np.array([redshift]*self.ndata)
+        else:
+            for ii in np.atleast_1d(index):
+                self.data.at[ii, "zspec"] = redshift
 
     def set_context(self, context_value, index=None):
         """ 
-        The 'context' number must be : sum(2**[band_nb]). 
-            For example, bands = ["u", "g", "r", "i", "z"] (bands_nb = [0, 1, 2, 3, 4]) :
-
-        - context = 31 --> ["u", "g", "r", "i", "z"]
-        - context = 30 --> ["g", "r", "i", "z"]
-        - context = 15 --> ["u", "g", "r", "i"]
-        - context = 25 --> ["u", "i", "z"]
+        The context defines the filters to use among the provided ones in input data for the SED fitting in each row.
+        It is the sum of 2 to the {i}, {i} being the filtername numbers to use in each row.
+        For example, using the filters = ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"] in data input:
+            * ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"] --> CONTEXT = 2^0 + 2^1 + 2^2 + 2^3 + 2^4 = 31
+            * ["sdss.g", "sdss.r", "sdss.i", "sdss.z"]           --> CONTEXT = 2^1 + 2^2 + 2^3 + 2^4       = 30
+            * ["sdss.u", "sdss.g", "sdss.r", "sdss.i"]           --> CONTEXT = 2^0 + 2^1 + 2^2 + 2^3       = 15
+            * ["sdss.u", "sdss.i", "sdss.z"]                     --> CONTEXT = 2^0 + 2^3 + 2^4             = 25
         
         Parameters
         ----------
+        context_value : [float]
+            Context value to set.
         
-        
-        Options
-        -------
-        
+        index : [int or None]
+            Row index to set the context.
+            If None, set the given context value for the whole data table.
+            Default is None.
         
         
         Returns
         -------
-        
-
+        Void
         """
         if index is None:
-            self.data["context"] = np.array([context_value] * len(self.data))
+            self.data["context"] = np.array([context_value] * self.ndata)
         else:
             for ii in np.atleast_1d(index):
                 self.data.at[ii, "context"] = context_value
 
     def set_photolib_prop(self, gal=True, star=False, qso=False, gallib="BC03", verbose=True):
         """
-        
+        Set which kind(s) of SED fitting is(are) done.
+        Handle the related parameters in the configuration file.
         
         Parameters
         ----------
+        gal : [bool]
+            If True, run LePhare on galaxy SED templates.
+            Default is True.
         
+        star : [bool]
+            If True, run LePhare on star SED templates.
+            Default is False.
+        
+        qso : [bool]
+            If True, run LePhare on QSO SED templates.
+            Default is False.
+        
+        gallib : [bool]
+            If 'gal' is True, define the used library among the available ones ($LEPHAREDIR/sed/GAL/).
+            Default is "BC03".
         
         Options
         -------
-        
+        verbose : [bool]
+            Print informations.
+            Default is True.
         
         
         Returns
         -------
-        
+        Void
         """
         if not self.has_config():
             raise AttributeError("No config set.")
@@ -455,20 +533,19 @@ class _LePhareBase_( _FilterHolder_ ):
 
     def set_dirout(self, dirout):
         """
-        
+        Set the output catalog directory as attribute.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        dirout : [string or None]
+            Setting the output catalog directory.
+            If None, create a default directory based on date and time in $LEPHAREWORK/pylephare/.
+            Default is None.
         
         
         Returns
         -------
-        
+        Void
         """
         self.io.set_dirout(dirout)
         
@@ -476,22 +553,19 @@ class _LePhareBase_( _FilterHolder_ ):
     #  GETTER  #
     # -------- #
     def get_filters_context(self, filters=None):
-        """ get the 'CONTEXT' value in 'data_meas' given the list filters to fit on.
+        """
+        Return the 'CONTEXT' value in 'data_meas' given the list filters to fit on.
         
-        The 'context' number must be : sum(2**[band_nb]). 
-            For example, bands = ["u", "g", "r", "i", "z"] (bands_nb = [0, 1, 2, 3, 4]) :
-
-        - context = 31 --> ["u", "g", "r", "i", "z"]
-        - context = 30 --> ["g", "r", "i", "z"]
-        - context = 15 --> ["u", "g", "r", "i"]
-        - context = 25 --> ["u", "i", "z"]
+        The context defines the filters to use among the provided ones in input data for the SED fitting in each row.
+        It is the sum of 2 to the {i}, {i} being the filtername numbers to use in each row.
+        For example, using the filters = ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"] in data input:
+            * ["sdss.u", "sdss.g", "sdss.r", "sdss.i", "sdss.z"] --> CONTEXT = 2^0 + 2^1 + 2^2 + 2^3 + 2^4 = 31
+            * ["sdss.g", "sdss.r", "sdss.i", "sdss.z"]           --> CONTEXT = 2^1 + 2^2 + 2^3 + 2^4       = 30
+            * ["sdss.u", "sdss.g", "sdss.r", "sdss.i"]           --> CONTEXT = 2^0 + 2^1 + 2^2 + 2^3       = 15
+            * ["sdss.u", "sdss.i", "sdss.z"]                     --> CONTEXT = 2^0 + 2^3 + 2^4             = 25
 
         Parameters
         ----------
-        id : [int or list(int) or None]
-            Index(es) of the line(s) you want to change the context by the given filters.
-            If None, the context is changed for every line.
-        
         filters : [list(string)]
             List of filters to fit on.
         
@@ -509,39 +583,45 @@ class _LePhareBase_( _FilterHolder_ ):
 
     def get_configfile(self, original=False, update=False):
         """
-        
+        Return a configuration file directory.
+        Either return the original one, or the one at this point of modifications saved in the output folder.
         
         Parameters
         ----------
-        
+        original : [bool]
+            Set True to return the original configuration file directory ; False to return the one in the output directory.
+            Default is False.
         
         Options
         -------
-        
+        update : [bool]
+            
+            Default is False.
         
         
         Returns
         -------
-        
+        string
         """
         return self.config._filename if original else self.config.get_fileout(buildit=True, update=update)
 
     def get_datafile(self, catfile=None):
         """
-        
+        Return the input data catalog directory.
+        Also set it in the configuration file.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        catfile : [string or None]
+            Input catalog directory.
+            Set this in the configuration file.
+            If None, return the directory of the data catalog saved in the output directory.
+            Default is None.
         
         
         Returns
         -------
-        
+        string
         """
         if catfile is None:
             catfile = self.io.dirout+"/data.csv"
@@ -564,12 +644,12 @@ class _LePhareBase_( _FilterHolder_ ):
         return self._data
 
     def has_data(self):
-        """ """
+        """ Test that not void data are loaded """
         return self.data is not None and len(self.data)>0
     
     @property
     def ndata(self):
-        """ """
+        """ Number of rows in data """
         if not self.has_data():
             raise AttributeError("No data set yet.")
         return len(self.data)
@@ -583,7 +663,7 @@ class _LePhareBase_( _FilterHolder_ ):
         return self._config
 
     def has_config(self):
-        """ """
+        """ Test that a config is loaded """
         return self.config is not None
 
 
@@ -593,7 +673,7 @@ class _LePhareBase_( _FilterHolder_ ):
 #                    #
 # ================== #
 class LePhare( _LePhareBase_ ):
-    """ _LePhareBase + command line tools """
+    """ _LePhareBase_ + command line tools """
     
     # -------- #
     #  RUNNER  #

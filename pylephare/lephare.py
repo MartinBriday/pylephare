@@ -259,7 +259,7 @@ class _LePhareBase_( _FilterHolder_ ):
             Default is None.
         
         dirout : [string or None]
-            Setting the output catalog directory.
+            Setting the output folder directory.
             If None, create a default directory based on date and time in $LEPHAREWORK/pylephare/.
             Default is None.
         
@@ -299,7 +299,7 @@ class _LePhareBase_( _FilterHolder_ ):
             Default is None.
         
         dirout : [string or None]
-            Setting the output catalog directory.
+            Setting the output folder directory.
             If None, create a default directory based on date and time in $LEPHAREWORK/pylephare/.
             Default is None.
         
@@ -441,7 +441,7 @@ class _LePhareBase_( _FilterHolder_ ):
             Redshift value to set.
         
         index : [int or None]
-            Row index to set the redshift.
+            Row index(es) to set the redshift.
             If None, set the given redshift for the whole data table.
             Default is None.
         
@@ -473,7 +473,7 @@ class _LePhareBase_( _FilterHolder_ ):
         context_value : [float]
             Context value to set.
         
-        index : [int or None]
+        index : [int or list(int) or None]
             Row index to set the context.
             If None, set the given context value for the whole data table.
             Default is None.
@@ -509,7 +509,7 @@ class _LePhareBase_( _FilterHolder_ ):
             Default is False.
         
         gallib : [bool]
-            If 'gal' is True, define the used library among the available ones ($LEPHAREDIR/sed/GAL/).
+            If 'gal' is True, define the used galaxy library among the available ones ($LEPHAREDIR/sed/GAL/).
             Default is "BC03".
         
         Options
@@ -533,12 +533,12 @@ class _LePhareBase_( _FilterHolder_ ):
 
     def set_dirout(self, dirout):
         """
-        Set the output catalog directory as attribute.
+        Set the output folder directory as attribute.
         
         Parameters
         ----------
         dirout : [string or None]
-            Setting the output catalog directory.
+            Setting the output folder directory.
             If None, create a default directory based on date and time in $LEPHAREWORK/pylephare/.
             Default is None.
         
@@ -595,7 +595,7 @@ class _LePhareBase_( _FilterHolder_ ):
         Options
         -------
         update : [bool]
-            
+            If True, update the configuration file in the output folder with this object configuration parameters.
             Default is False.
         
         
@@ -683,29 +683,66 @@ class LePhare( _LePhareBase_ ):
     #
     def run(self, filters=None, contextid=None, dirout=None,
             configfile=None, catinfile=None, originalconfig=False,
-            onwhat=["star","qso","gal"], gallib="BC03", update_init=False, verbose=True):
+            onwhat=["gal","star","qso"], gallib="BC03", update_init=False, verbose=True):
         """
-        Then execute "$LEPHAREDIR/source/zphota -c [...].para" in the shell.
+        Execute the LePhare SED fitting ($LEPHAREDIR/source/zphota).
+        Return a dictionary containing the directory for the input data catalog, the configuration file, the output folder and the spectra (if any).
         
         Options
         -------
         filters : [list or None]
-            If a list of filters is given, the context will be changed for every line to the corresponding one.
-            The filter syntax must be like 'project.band' (ex: 'sdss.r', 'galex.FUV', 'ps1.g', ...).
+            List of filters on which to execute the SED fitting, meaning that the context is modified.
+            Must be known filters by LePhare with the format instrument.band, for instance sdss.u or ps1.z.
+            Go with 'contextid' parameter.
+            If None, the context is not changed from what has been set before this point (you can check with {self}.data).
+            Default is None.
+        
+        contextid : [int or list(int) or None]
+            Row index(es) to set the new context.
+            Go with 'filters' parameter (setting the new context value).
+            If None, set the new context value for the whole data table.
+            Default is None.
         
         dirout : [string or None]
-            Where the data should be stored.
-            Default is 'None', which is the path set during the class construction or an execution of 'set_data'.
-               
-        onwhat: [list or None] -optional-
+            Modify the output folder directory.
+            If None, use the one already set for this object.
+            Default is None.
+        
+        configfile : [string or None]
+            New configuration file directory.
+            If None, use the one already set for this object.
+            Default is None.
+        
+        catinfile : [string or None]
+            New input data catalog (automatically change it in the configuration file too).
+            Go with 'configfile' parameter (must be None).
+            If None, use the one already set for this object.
+            Default is None.
+        
+        originalconfig : [bool]
+            If True, use the original configuration file ; False acounts for any brought modifications at this point.
+            Go with 'configfile' parameter (must be None).
+            Default is False.
+        
+        onwhat: [list or None]
             // ignored if None //
-            could contain "gal", "star", "qso" (any or combination of)
-            e.g. onwhat=["gal", "qso"]
-            
-        gallib: [string] -optional-
-            
-            dict(gal=True, star=False, qso=False, gallib="BC03")
-            this will updte that.
+            Defines on which kind of templates to run the SED fitting.
+            List which could contain "gal", "star", "qso" (any or combination of).
+            For example: ["gal", "qso"]
+            Default is ["gal","star","qso"].
+        
+        gallib: [string]
+            If 'gal' in 'onwhat', define the used galaxy library among the available ones ($LEPHAREDIR/sed/GAL/).
+            Default is "BC03".
+        
+        update_init : [bool]
+            If True, run the LePhare initialization, even if the templates already exist.
+            Default is False.
+        
+        verbose : [bool]
+            Print informations.
+            Default is True.
+        
 
         Returns
         -------
@@ -743,7 +780,7 @@ class LePhare( _LePhareBase_ ):
         
         # relocate the output spectra if any.
         if self.config.get_value("SPEC_OUT") in ["True", True, "yes", "YES","Yes"]:
-            specfiles = [l for l in os.listdir(".") if l.startswith('Id') and l.endswith(".spec")]
+            specfiles = [l for l in os.listdir(".") if l.startswith("Id") and l.endswith(".spec")]
             new_location = [dirout+"/"+l for l in specfiles]
             if verbose:
                 print(specfiles)
@@ -762,21 +799,33 @@ class LePhare( _LePhareBase_ ):
     #
     # - Secondary
     #
-    def build_filter_files(self, update=False, configfile=None, updateconfig=True, verbose=True):
+    def build_filter_file(self, update=False, configfile=None, updateconfig=True, verbose=True):
         """
-        
-        Parameters
-        ----------
-        
+        Create the filter file ($LEPHAREDIR/source/filter).
         
         Options
         -------
+        update : [bool]
+            If True, create the filter file even if it already exists.
+            Default is False.
         
+        configfile : [string or None]
+            New configuration file directory.
+            If None, use the one already set for this object.
+            Default is None.
+        
+        updateconfig : [bool]
+            If True, update the configuration file in the output folder with this object configuration parameters.
+            Default is False.
+        
+        verbose : [bool]
+            Print informations.
+            Default is True.
         
         
         Returns
         -------
-        
+        Void
         """
         filter_file = self.config.get_value("FILTER_FILE")
         if configfile is None:
@@ -793,14 +842,43 @@ class LePhare( _LePhareBase_ ):
 
     def run_sedtolib(self, update=False, configfile=None, updateconfig=True, photolibprop=None):
         """
-        Execute "$LEPHAREDIR/source/sedtolib -t [S,Q,G] -c [...].para" in the shell.
-        Exception : if the "$LEPAHAREWORK/lib_bin/[...].bin" files already exist, the command is not executed, unless 'update' is True.
+        Create the SED templates ($LEPHAREDIR/source/sedtolib)
         
         Options
         -------
-        
         update : [bool]
-            Set to True if you want to force the execution of the command.
+            If True, run the command even if the templates already exist.
+            Default is False.
+        
+        configfile : [string or None]
+            New configuration file directory.
+            If None, use the one already set for this object.
+            Default is None.
+        
+        updateconfig : [bool]
+            If True, update the configuration file in the output folder with this object configuration parameters.
+            Default is False.
+        
+        photolibprop : [dict]
+            // ignired if None //
+            Kwargs for the 'set_photolib_prop' method:
+                gal : [bool]
+                    If True, run LePhare on galaxy SED templates.
+                    Default is True.
+                star : [bool]
+                    If True, run LePhare on star SED templates.
+                    Default is False.
+                qso : [bool]
+                    If True, run LePhare on QSO SED templates.
+                    Default is False.
+                gallib : [bool]
+                    If 'gal' is True, define the used galaxy library among the available ones ($LEPHAREDIR/sed/GAL/).
+                    Default is "BC03".
+                verbose : [bool]
+                    Print informations.
+                    Default is True.
+            Default is None.
+        
         
         Returns
         -------
@@ -835,14 +913,43 @@ class LePhare( _LePhareBase_ ):
 
     def run_mag_star(self, update=False, configfile=None, updateconfig=True, photolibprop=None):
         """
-        Execute "$LEPHAREDIR/source/mag_star -c [...].para" in the shell.
-        Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" file already exists, 
-                    the command is not executed, unless 'update' is True.
+        Create the star magnitude templates ($LEPHAREDIR/source/mag_star).
         
         Options
         -------
         update : [bool]
-            Set to True if you want to force the execution of the command.
+            If True, run the command even if the templates already exist.
+            Default is False.
+        
+        configfile : [string or None]
+            New configuration file directory.
+            If None, use the one already set for this object.
+            Default is None.
+        
+        updateconfig : [bool]
+            If True, update the configuration file in the output folder with this object configuration parameters.
+            Default is False.
+        
+        photolibprop : [dict]
+            // ignired if None //
+            Kwargs for the 'set_photolib_prop' method:
+                gal : [bool]
+                    If True, run LePhare on galaxy SED templates.
+                    Default is True.
+                star : [bool]
+                    If True, run LePhare on star SED templates.
+                    Default is False.
+                qso : [bool]
+                    If True, run LePhare on QSO SED templates.
+                    Default is False.
+                gallib : [bool]
+                    If 'gal' is True, define the used galaxy library among the available ones ($LEPHAREDIR/sed/GAL/).
+                    Default is "BC03".
+                verbose : [bool]
+                    Print informations.
+                    Default is True.
+            Default is None.
+        
         
         Returns
         -------
@@ -863,18 +970,46 @@ class LePhare( _LePhareBase_ ):
             except:
                 raise ValueError("LePhareError : unable to run 'mag_star'.")
 
-    def run_mag_gal(self, update=False, configfile=None, updateconfig=True,
-                        photolibprop=None):
+    def run_mag_gal(self, update=False, configfile=None, updateconfig=True, photolibprop=None):
         """
-        Execute "$LEPHAREDIR/source/mag_gal -t [Q,G] -c [...].para" in the shell.
-        Exception : if the "$LEPAHAREWORK/lib_mag/[...].bin" files already exist, 
-                    the command is not executed, unless 'update' is True.
+        Create the galaxy and QSO magnitude templates ($LEPHAREDIR/source/mag_gal).
         
         Options
         -------
         update : [bool]
-            Set to True if you want to force the execution of the command.
-                        
+            If True, run the command even if the templates already exist.
+            Default is False.
+        
+        configfile : [string or None]
+            New configuration file directory.
+            If None, use the one already set for this object.
+            Default is None.
+        
+        updateconfig : [bool]
+            If True, update the configuration file in the output folder with this object configuration parameters.
+            Default is False.
+        
+        photolibprop : [dict]
+            // ignired if None //
+            Kwargs for the 'set_photolib_prop' method:
+                gal : [bool]
+                    If True, run LePhare on galaxy SED templates.
+                    Default is True.
+                star : [bool]
+                    If True, run LePhare on star SED templates.
+                    Default is False.
+                qso : [bool]
+                    If True, run LePhare on QSO SED templates.
+                    Default is False.
+                gallib : [bool]
+                    If 'gal' is True, define the used galaxy library among the available ones ($LEPHAREDIR/sed/GAL/).
+                    Default is "BC03".
+                verbose : [bool]
+                    Print informations.
+                    Default is True.
+            Default is None.
+        
+        
         Returns
         -------
         Void
@@ -900,15 +1035,40 @@ class LePhare( _LePhareBase_ ):
                 except:
                     raise ValueError("LePhareError : unable to run 'mag_gal' for '{}'.".format(elt))
 
-    def run_init(self, update=False, configfile=None, updateconfig=True,
-                     onwhat=None, gallib="BC03", verbose=True):
+    def run_init(self, update=False, configfile=None, updateconfig=True, onwhat=None, gallib="BC03", verbose=True):
         """
-        Run shell commands to initialize LePhare fitting.
+        Run the whole LePhare initialization.
         
         Options
         -------
         update : [bool]
-            Set to True if you want to force the execution of the command.
+            If True, run the command even if the templates already exist.
+            Default is False.
+        
+        configfile : [string or None]
+            New configuration file directory.
+            If None, use the one already set for this object.
+            Default is None.
+        
+        updateconfig : [bool]
+            If True, update the configuration file in the output folder with this object configuration parameters.
+            Default is False.
+        
+        onwhat: [list or None]
+            // ignored if None //
+            Defines on which kind of templates to run the SED fitting.
+            List which could contain "gal", "star", "qso" (any or combination of).
+            For example: ["gal", "qso"]
+            Default is ["gal","star","qso"].
+        
+        gallib: [string]
+            If 'gal' in 'onwhat', define the used galaxy library among the available ones ($LEPHAREDIR/sed/GAL/).
+            Default is "BC03".
+        
+        verbose : [bool]
+            Print informations.
+            Default is True.
+        
         
         Returns
         -------
@@ -919,7 +1079,7 @@ class LePhare( _LePhareBase_ ):
             self.set_photolib_prop(gallib=gallib, verbose=verbose, **photolibprop)
             
         prop = dict(update=update, configfile=configfile, updateconfig=updateconfig)
-        self.build_filter_files(verbose=verbose, **prop)
+        self.build_filter_file(verbose=verbose, **prop)
         self.run_sedtolib(**prop)
         self.run_mag_star(**prop)
         self.run_mag_gal(**prop)

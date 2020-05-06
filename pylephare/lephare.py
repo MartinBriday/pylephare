@@ -413,7 +413,7 @@ class _LePhareBase_( _FilterHolder_ ):
         
     def set_filters(self, filters):
         """
-        Handle with the given filters: set them as attribute and configuration file related parameters.
+        Handle with the given filters: set them as attribute and modify the configuration file related parameters.
         
         Parameters
         ----------
@@ -568,6 +568,7 @@ class _LePhareBase_( _FilterHolder_ ):
         ----------
         filters : [list(string)]
             List of filters to fit on.
+            Must be known filters by LePhare with the format instrument.band, for instance sdss.u or ps1.z.
         
         
         Returns

@@ -231,7 +231,7 @@ class _LePhareBase_( _FilterHolder_ ):
     """ 
     This Basic Class contains the data - filter - config interactions
     """
-    def __init__(self, data=None,  configfile=None, dirout=None, inhz=False):
+    def __init__(self, data=None,  configfile=None, dirout=None, inhz=False, verbose=True):
         """
         Class builder.
         Deal with the input data, the configuration file and the output directory.
@@ -269,6 +269,10 @@ class _LePhareBase_( _FilterHolder_ ):
             Set to True if the fluxes (and flux uncertainties) are given in erg/s/cm2/Hz ; False means in erg/s/cm2/AA.
             Default is False.
         
+        verbose : [bool]
+            Print informations.
+            Default is True.
+        
         
         Returns
         -------
@@ -280,7 +284,7 @@ class _LePhareBase_( _FilterHolder_ ):
         if data is not None:
             self.set_data(data=data, inhz=inhz)
 
-        self.set_config(configfile) 
+        self.set_config(configfile, verbose=verbose)
 
         
     @classmethod
@@ -330,7 +334,7 @@ class _LePhareBase_( _FilterHolder_ ):
     # -------- #
     #  SETTER  #
     # -------- #
-    def set_data(self, data=None, inhz=False, **extras):
+    def set_data(self, data=None, inhz=False, verbose=True, **extras):
         """
         Set the input data as attribute, ready for LePhare SED fitting.
         
@@ -356,13 +360,16 @@ class _LePhareBase_( _FilterHolder_ ):
         inhz : [bool]
             Set to True if the fluxes (and flux uncertainties) are given in erg/s/cm2/Hz ; False means in erg/s/cm2/AA.
             Default is False.
+        
+        verbose : [bool]
+            Print informations.
+            Default is True.
 
         
         Returns
         -------
         Void
         """
-        
         # // data format
         if type(data) == dict:
             data = pandas.DataFrame(data)
@@ -374,7 +381,7 @@ class _LePhareBase_( _FilterHolder_ ):
 
         # // filters
         filters = self.io.keys_to_filters(data_.columns)
-        self.set_filters(filters) 
+        self.set_filters(filters, verbose=verbose)
         if "context" not in data_.columns and "CONTEXT" not in data_.columns:
             warnings.warn("No context key in given data. Adding default context in the dataframe. ")
             data_.insert(self.nfilters*2, "context", self.get_filters_context())
@@ -386,7 +393,7 @@ class _LePhareBase_( _FilterHolder_ ):
         # // Setting
         self._data = data_
         
-    def set_config(self, configfile):
+    def set_config(self, configfile, verbose=True):
         """
         Handle the configuration file.
         If filters have already been set, handle the filter related parameters in the configuration file.
@@ -397,6 +404,12 @@ class _LePhareBase_( _FilterHolder_ ):
             Configuration file directory.
             If None, use the default one ($LEPHAREWORK/pylephare/config/default.config).
             Default is None.
+        
+        Options
+        -------
+        verbose : [bool]
+            Print informations.
+            Default is True.
         
         
         Returns
@@ -409,9 +422,9 @@ class _LePhareBase_( _FilterHolder_ ):
         
         if self.has_filters():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
-            self.config.set_filter_suffix(self._filter_labels)
+            self.config.set_filter_suffix(self._filter_labels, verbose=verbose)
         
-    def set_filters(self, filters):
+    def set_filters(self, filters, verbose=True):
         """
         Handle with the given filters: set them as attribute and modify the configuration file related parameters.
         
@@ -421,6 +434,12 @@ class _LePhareBase_( _FilterHolder_ ):
             List of filters provided in input data.
             Must be known filters by LePhare with the format instrument.band, for instance sdss.u or ps1.z.
         
+        Options
+        -------
+        verbose : [bool]
+            Print informations.
+            Default is True.
+        
         
         Returns
         -------
@@ -429,7 +448,7 @@ class _LePhareBase_( _FilterHolder_ ):
         _ = super().set_filters(filters)
         if self.has_config():
             self.config.set_value("FILTER_LIST", self.io.get_config_filterlist(self._filters))
-            self.config.set_filter_suffix(self._filter_labels)
+            self.config.set_filter_suffix(self._filter_labels, verbose=verbose)
             
     def set_redshift(self, redshift, index=None):
         """
@@ -529,7 +548,7 @@ class _LePhareBase_( _FilterHolder_ ):
         self._photolib_set = True
         if verbose:
             print("gal: ",gal, "star: ",star, "qso: ",qso, "; gallib: ",gallib)
-        self.config.set_zphotlib(gal=gal, star=star, qso=qso, gallib=gallib)
+        self.config.set_zphotlib(gal=gal, star=star, qso=qso, gallib=gallib, verbose=verbose)
 
     def set_dirout(self, dirout):
         """

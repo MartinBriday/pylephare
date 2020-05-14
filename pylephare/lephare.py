@@ -231,7 +231,7 @@ class _LePhareBase_( _FilterHolder_ ):
     """ 
     This Basic Class contains the data - filter - config interactions
     """
-    def __init__(self, data=None,  configfile=None, dirout=None, inhz=False, verbose=True):
+    def __init__(self, data=None, configfile=None, dirout=None, inhz=False, verbose=True):
         """
         Class builder.
         Deal with the input data, the configuration file and the output directory.
@@ -744,14 +744,14 @@ class LePhare( _LePhareBase_ ):
             Go with 'configfile' parameter (must be None).
             Default is False.
         
-        onwhat: [list or None]
+        onwhat : [string or list or None]
             // ignored if None //
             Defines on which kind of templates to run the SED fitting.
             List which could contain "gal", "star", "qso" (any or combination of).
             For example: ["gal", "qso"]
             Default is ["gal","star","qso"].
         
-        gallib: [string]
+        gallib : [string]
             If 'gal' in 'onwhat', define the used galaxy library among the available ones ($LEPHAREDIR/sed/GAL/).
             Default is "BC03".
         
@@ -813,7 +813,8 @@ class LePhare( _LePhareBase_ ):
             fileout["spec"] =  new_location            
         else:
             fileout["spec"] = None
-
+        
+        self._lephare_out = fileout
         return fileout
         
     #
@@ -1074,14 +1075,14 @@ class LePhare( _LePhareBase_ ):
             If True, update the configuration file in the output folder with this object configuration parameters.
             Default is False.
         
-        onwhat: [list or None]
+        onwhat : [string or list or None]
             // ignored if None //
             Defines on which kind of templates to run the SED fitting.
             List which could contain "gal", "star", "qso" (any or combination of).
             For example: ["gal", "qso"]
             Default is ["gal","star","qso"].
         
-        gallib: [string]
+        gallib : [string]
             If 'gal' in 'onwhat', define the used galaxy library among the available ones ($LEPHAREDIR/sed/GAL/).
             Default is "BC03".
         
@@ -1103,6 +1104,20 @@ class LePhare( _LePhareBase_ ):
         self.run_sedtolib(**prop)
         self.run_mag_star(**prop)
         self.run_mag_gal(**prop)
+    
+    # ============== #
+    #  Properties    #
+    # ============== #
+    @property
+    def lephare_out(self):
+        """ Dictionary containing the LePhare result directories """
+        if not hasattr(self,"_lephare_out"):
+            self._lephare_out = None
+        return self._lephare_out
+    
+    def has_lephare_out(self):
+        """ Test if you ran self.run() """
+        return self.lephare_out is not None
         
 # ================== #
 #                    #

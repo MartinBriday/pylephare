@@ -177,7 +177,7 @@ class MCLePhare( base._FilterHolder_ ):
     
     def get_synthetic_photometry(self, filter_, restframe=False, influx=True, inhz=False):
         """
-        Return photometry synthesized trought the given filter/bandpass.
+        Return photometry synthesized through the given filter/bandpass.
         The returned data are (effective wavelength, synthesize flux/mag) in an array with same size as for the number of draws.
 
         Parameters
@@ -207,7 +207,7 @@ class MCLePhare( base._FilterHolder_ ):
         
         Returns
         -------
-        np.array
+        np.array, np.array
         """
         return self.spectra.get_synthetic_photometry(filter_, restframe=restframe, influx=influx, inhz=inhz)
     

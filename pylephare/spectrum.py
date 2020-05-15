@@ -105,9 +105,11 @@ class LePhareSpectrum( object ):
         
         Options
         -------
-        lbda_range : [list(float) or None]
+        lbda_range : [list(float or None) or None]
             // Ignored if None or if filename is None //
             Wavelength range (in AA) to load for the spectra.
+            If None, the full spectrum is recovered. You can also set None to one of the limit to let it be the extremum.
+            Default is None.
         
         
         Returns
@@ -439,7 +441,7 @@ class LePhareSpectrum( object ):
     
     def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
         """
-        Return the synthetic flux in AA.
+        Return the synthetic flux in erg/s/cm2/AA.
         
         Parameters
         ----------
@@ -606,44 +608,47 @@ class LePhareSpectrum( object ):
 
 
 class LePhareSpectrumCollection( object ):
-    """  """
+    """ Class handling a collection of LePhareSpectrum. """
     
     def __init__(self, lepharespectra):
         """
-        
+        Class builder.
+        Set a list of spectrum file directories as attribute.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        lepharespectra : [list(string)]
+            List of LePhare spectrum file directories.
         
         
         Returns
         -------
-        
+        Void
         """
         self._spectra = lepharespectra
 
     @classmethod
     def read_files(cls, filenames, lbda_range=None):
         """
-        
+        Build a LePhareSpectrumCollection object giving a list of spectrum file directories,
+        with the possibility to apply a wavelength range.
         
         Parameters
         ----------
-        
+        filenames : [list(string)]
+            List of LePhare spectrum file directories.
         
         Options
         -------
-        
+        lbda_range : [list(float or None) or None]
+            Wavelength range (in AA) to load for the spectra.
+            If None, the full spectrum is recovered. You can also set None to one of the limit to let it be the extremum.
+            Default is None.
         
         
         Returns
         -------
-        
+        LePhareSpectrumCollection
         """
         return cls([LePhareSpectrum(file_, lbda_range) for file_ in filenames])
     
@@ -652,20 +657,22 @@ class LePhareSpectrumCollection( object ):
     # -------- #
     def set_lbda_range(self, lbdamin=None, lbdamax=None):
         """
-        
+        Set the wavelength range for each one of the spectrum.
         
         Parameters
         ----------
+        lbdamin : [float or None]
+            Wavelength lower range limit.
+            Default is None.
         
-        
-        Options
-        -------
-        
+        lbdamax : [float or None]
+            Wavelength upper range limit.
+            Default is None.
         
         
         Returns
         -------
-        
+        Void
         """
         _ = [spec.set_lbda_range(lbdamin=None, lbdamax=None) for spec in self._spectra]
 
@@ -674,96 +681,120 @@ class LePhareSpectrumCollection( object ):
     # -------- #
     def get_data(self, model="gal", apply_lbdarange=True):
         """
-        
+        Return the spectrum data for every loaded spectrum in a list.
         
         Parameters
         ----------
-        
+        model : [string]
+            Choice between the available LePhare model: gal, star, qso.
+            If the SED fitting hasn't been done on the chosen model, the returned data will be empty.
+            Default is "gal".
         
         Options
         -------
-        
+        apply_lbdarange : [bool]
+            If True, apply the loaded wavelength range to the resulting spectrum.
+            Default is True.
         
         
         Returns
         -------
-        
+        list(pandas.DataFrame)
         """
         return [spec.get_data(model=model, apply_lbdarange=apply_lbdarange) for spec in self._spectra]
 
     def get_redshift(self, spectro=True):
         """
-        
+        Return the desired redshift for every loaded spectrum in a list.
         
         Parameters
         ----------
-        
-        
-        Options
-        -------
-        
+        spectro : [bool]
+            If True, return the spectrometric redshift.
+            Else, return the photometric one.
+            Default is True.
         
         
         Returns
         -------
-        
+        list(float)
         """
-        return [spec.get_redshift(spectro=spectro) for  spec in self._spectra]
+        return [spec.get_redshift(spectro=spectro) for spec in self._spectra]
     
     def get_spectral_data(self, model="gal", influx=True, inhz=False, restframe=False):
         """
-        
+        Return the spectrum (wavelengths, fluxes or magnitudes) as a tuple for every loaded spectrum in a list.
         
         Parameters
         ----------
-        
+        model : [string]
+            Choice between the available LePhare model: gal, star, qso.
+            If the SED fitting hasn't been done on the chosen model, the returned data will be empty.
+            Default is "gal".
         
         Options
         -------
+        influx : [bool]
+            If True, return the spectrum as flux ; False means as magnitude.
+            Default is True.
         
+        inhz : [bool]
+            // Ignored if influx is False //
+            Shall the fluxes be returned in erg/s/cm2/Hz (True) or in erg/s/cm2/AA (False).
+            Default is False.
+        
+        restframe : [bool]
+            If True, return the restframed spectrum.
+            Default is False.
         
         
         Returns
         -------
-        
+        list(np.array, np.array)
         """
-        return [spec.get_spectral_data(model=model, influx=influx, inhz=inhz, restframe=restframe) for  spec in self._spectra]
+        return [spec.get_spectral_data(model=model, influx=influx, inhz=inhz, restframe=restframe) for spec in self._spectra]
     
     def get_input_data(self, influx=True, inhz=False):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Return the input data (used for the SED fitting resulting to this spectrum) for every loaded spectrum in a list.
         
         Options
         -------
+        influx : [bool]
+            If True, return the spectrum as flux ; False means as magnitude.
+            Default is True.
         
+        inhz : [bool]
+            // Ignored if influx = False //
+            Shall the fluxes be returned in erg/s/cm2/Hz (True) or in erg/s/cm2/AA (False).
+            Default is False.
         
         
         Returns
         -------
-        
+        list(np.array, [np.array, np.array])
         """
         return [spec.get_input_data(influx=influx, inhz=inhz) for  spec in self._spectra]
     
     def get_model_data(self, influx=True, inhz=False):
         """
-        
-        
-        Parameters
-        ----------
-        
+        Return the model data (resulting from the SED fitting) for every loaded spectrum in a list.
         
         Options
         -------
+        influx : [bool]
+            If True, return the spectrum as flux ; False means as magnitude.
+            Default is True.
         
+        inhz : [bool]
+            // Ignored if influx = False //
+            Shall the fluxes be returned in erg/s/cm2/Hz (True) or in erg/s/cm2/AA (False).
+            Default is False.
         
         
         Returns
         -------
-        
+        list(np.array, np.array)
         """
         return [spec.get_model_data(influx=influx, inhz=inhz) for  spec in self._spectra]
 
@@ -771,49 +802,65 @@ class LePhareSpectrumCollection( object ):
     #  Main    #
     # -------- #
     def get_synthetic_photometry(self, filter_,  restframe=False, influx=True, inhz=False):
-        """ get photometry synthesized trought the given filter/bandpass
+        """
+        Return photometry synthesized through the given filter/bandpass.
+        The returned data are (effective wavelength, synthesize flux/mag) in an array with same size as for the number of draws
+        for every loaded spectrum in a list.
 
         Parameters
         ----------
-        filter_: [string, sncosmo.BandPass, 2D array]
-            the filter through which the spectrum will be synthesized.
-            accepted input format:
-            - string: name of a know filter, the actual bandpass will be grab using io.get_filter_bandpass(filter_)
+        filter_ : [string, sncosmo.BandPass, 2D array]
+            The filter through which the spectrum will be synthesized.
+            Accepted input format:
+            - string: name of a known filter (instrument.band), the actual bandpass will be grabbed using io.get_filter_bandpass(filter_)
             - 2D array: bandpass = sncosmo.bandpass.BandPass(*filter_)
             - sncosmo.bandpass.BandPass
-            
-        restframe: [bool] -optional-
-            The spectrum is first deredshifted before doing the synthetic photometry
-
-        influx: [bool] -optional-
-            Shall the result returned in flux (True) or in ABmag (False)
-
-        inhz: [bool] -optional-
-            Should the returned flux be in  erg/s/cm2/A or erg/s/cm2/Hz
-            // ignored if influx = False //
-
-        Returns
-        -------
-        effective wavelength, synthesize flux/mag (see influx)
-        """
-        return [spec.get_synthetic_photometry(filter_, restframe=restframe, influx=influx, inhz=inhz) for  spec in self._spectra]
-    
-    def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
-        """ get the synthetic flux in AA
-        
-        
-        Parameters
-        ----------
-        
         
         Options
         -------
-        
+        restframe : [bool]
+            If True, the spectrum is first deredshifted before doing the synthetic photometry.
+            Default is False.
+
+        influx : [bool]
+            Should the results be returned in flux (True) or in ABmag (False).
+            Default is True (thus in flux).
+
+        inhz : [bool]
+            // ignored if influx = False //
+            Should the flux be returned in erg/s/cm2/Hz (True) or erg/s/cm2/AA (False).
+            Default is False (thus in erg/s/cm2/AA).
         
         
         Returns
         -------
+        list(np.array, np.array)
+        """
+        return [spec.get_synthetic_photometry(filter_=filter_, restframe=restframe, influx=influx, inhz=inhz) for spec in self._spectra]
+    
+    def synthesize_photometry(self, filter_lbda, filter_trans, model="gal", restframe=False):
+        """
+        Return the synthetic flux in erg/s/cm2/AA for every loaded spectrum in a list.
         
+        Parameters
+        ----------
+        filter_lbda, filter_trans : [array, array]
+            Wavelength and transmission of the filter.
+        
+        Options
+        -------
+        model : [string]
+            Choice between the available LePhare model: gal, star, qso.
+            Default is "gal".
+        
+        restframe : [bool]
+            If True, the spectrum is first deredshifted before doing the synthetic photometry.
+            Default is False.
+        
+        
+        Returns
+        -------
+        list(float)
         """
         return [spec.synthesize_photometry(filter_lbda, filter_trans, model=model, restframe=restframe) for  spec in self._spectra]
 
@@ -822,5 +869,5 @@ class LePhareSpectrumCollection( object ):
     # ============== #
     @property
     def spectra(self):
-        """ """
+        """ List of LePhare spectrum file directories """
         return self._spectra

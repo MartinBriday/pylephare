@@ -383,8 +383,9 @@ class MCLePhare( base._FilterHolder_ ):
             If True, reset the filters from the 'FILTER_LIST' parameter's value in the LePhare configuration file.
             Default is False.
         
-        lbda_range : [list(float)]
+        lbda_range : [list(float or None) or None]
             Wavelength range (in AA) to load for the spectra.
+            If None, the full spectrum is recovered. You can also set None to one of the limit to let it be the extremum.
             Default is [1000,10000].
         
         verbose : [bool]

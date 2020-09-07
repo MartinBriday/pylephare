@@ -801,6 +801,7 @@ class LePhare( _LePhareBase_ ):
         # relocate the output spectra if any.
         if self.config.get_value("SPEC_OUT") in ["True", True, "yes", "YES","Yes"]:
             specfiles = [l for l in os.listdir(".") if l.startswith("Id") and l.endswith(".spec")]
+            specfiles.sort()
             new_location = [dirout+"/"+l for l in specfiles]
             if verbose:
                 print(specfiles)

@@ -51,7 +51,7 @@ configfile = None # default file stored in your $LEPHAREWORK/pylephare/config/de
 ```
 and let's load the `LePhare` class:
 ```python
-from sedkcorr import lephare
+from pylephare import lephare
 lp = lephare.LePhare(data, configfile)
 ```
 Then, to run the SED fit, simply do:

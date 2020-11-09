@@ -11,7 +11,7 @@ MAINTAINER_EMAIL = 'briday@ipnl.in2p3.fr, m.rigault@ipnl.in2p3.fr'
 URL = 'https://github.com/MartinBriday/pylephare'
 LICENSE = 'Apache 2.0'
 DOWNLOAD_URL = 'https://github.com/MartinBriday/pylephare'
-VERSION = '0.2.2'
+VERSION = '1.0.0'
 
 try:
     from setuptools import setup, find_packages

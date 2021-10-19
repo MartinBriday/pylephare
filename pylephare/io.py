@@ -31,7 +31,7 @@ _DEFAULT_FILTER_CONFIG = {"2mass": {"h": "H.pb", "j": "J.pb", "ks": "Ks.pb"},
                           "ukidss": {"k": "K.pb", "h": "H.pb", "h2": "H2.pb","j": "J.pb",  "brg": "Brg.pb","y": "Y.pb","z": "Z.pb"}, 
                           "ps1": {"g": "g_ps.pb", "r": "r_ps.pb", "i": "i_ps.pb", "z": "z_ps.pb", "y": "y_ps.pb"}
                           }
-FILTER_CONFIGGILE = PATH_LEPHAREWORK+"/filt/config"
+FILTER_CONFIGFILE = PATH_LEPHAREWORK+"/filt/config"
 
 DEFAULTCONFIG = PATH_PYLEPHAREWORK+"/config/default.config"
 DEFAULTCONFIG_OUT = PATH_PYLEPHAREWORK+"/config/default_output.config"
@@ -189,12 +189,12 @@ class IO( object ):
         Void
         """
         self._filtercongig = configparser.ConfigParser(allow_no_value=True)
-        if os.path.isfile(FILTER_CONFIGGILE):
-            self._filtercongig.read_file( open( FILTER_CONFIGGILE ) )
+        if os.path.isfile(FILTER_CONFIGFILE):
+            self._filtercongig.read_file( open( FILTER_CONFIGFILE ) )
         else:
-            warnings.warn("No %s file yet. This is building a default one"%FILTER_CONFIGGILE)
+            warnings.warn("No %s file yet. This is building a default one"%FILTER_CONFIGFILE)
             self._filtercongig.read_dict(_DEFAULT_FILTER_CONFIG)
-            with open(FILTER_CONFIGGILE,"w") as f:
+            with open(FILTER_CONFIGFILE,"w") as f:
                 self._filtercongig.write(f)
         
     def get_config_filterlist(self, filterlist):
